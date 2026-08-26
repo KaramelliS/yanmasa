@@ -1324,3 +1324,55 @@ class TestYetenekPaneli:
         ))
         with pytest.raises(ToolError, match="skill_write ile düzelt"):
             d.run("bozuk", {})
+
+
+class TestYakalamaThread:
+    """Ekran yakalama ajanın thread'inden çalışıyor mu.
+
+    Gerçek bir hata: yakalayıcı arayüz thread'inde kuruluyor, ajan ayrı bir
+    thread'de çalışıyor ve mss cihaz bağlamını `threading.local()` içinde
+    tuttuğu için her ekran görüntüsü
+
+        AttributeError: '_thread._local' object has no attribute 'srcdc'
+
+    ile düşüyordu. Fren devreye girip "3 kez düştü, durdum" dedi — yani
+    ajan hiç ekran göremiyordu.
+    """
+
+    def test_baska_threadden_yakalama_calisir(self):
+        import threading
+
+        from backend.computer.capture import ScreenCapture
+        from backend.computer.displays import enumerate_displays
+
+        displays = enumerate_displays()
+        capture = ScreenCapture(displays)
+        try:
+            # Ana thread'de kur (uygulamada arayüz thread'i yapıyor).
+            ana = capture.grab(0)
+            sonuc = {}
+
+            def isci():
+                try:
+                    kare = capture.grab(0)
+                    sonuc["boyut"] = (kare.width, kare.height)
+                except Exception as exc:
+                    sonuc["hata"] = f"{type(exc).__name__}: {exc}"
+
+            thread = threading.Thread(target=isci)
+            thread.start()
+            thread.join(timeout=20)
+
+            assert "hata" not in sonuc, sonuc["hata"]
+            assert sonuc["boyut"] == (ana.width, ana.height)
+        finally:
+            capture.close()
+
+    def test_kapanis_iki_kez_cagrilabilir(self):
+        from backend.computer.capture import ScreenCapture
+        from backend.computer.displays import enumerate_displays
+
+        capture = ScreenCapture(enumerate_displays())
+        capture.grab(0)
+        capture.close()
+        capture.close()  # uygulama kapanırken iki kez gelebiliyor

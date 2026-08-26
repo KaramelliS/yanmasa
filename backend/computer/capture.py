@@ -12,6 +12,7 @@ model kırpmayı istediğinde baktığı kare o an ekranda olan kare olmayabilir
 from __future__ import annotations
 
 import io
+import threading
 from dataclasses import dataclass
 
 import mss
@@ -52,14 +53,46 @@ class ScreenCapture:
     mss her `mss.mss()` çağrısında yeni bir cihaz bağlamı açıyor; ajan
     döngüsünde adım başına bir tane açmak birkaç yüz adımda tükenmeye
     yaklaşıyor. Tek oturum açıp yeniden kullanıyoruz.
+
+    **Oturum thread başına.** mss Windows'ta cihaz bağlamını
+    `threading.local()` içinde tutuyor; bir thread'de açılan oturumu başka
+    bir thread'den kullanmak
+
+        AttributeError: '_thread._local' object has no attribute 'srcdc'
+
+    veriyor. Bu uygulamada yakalayıcı arayüz thread'inde kuruluyor ama ajan
+    ayrı bir thread'de çalışıyor, yani her ekran görüntüsü bu hatayla
+    düşüyordu — ajan bilgisayara hiç bakamıyordu. Her thread kendi
+    oturumunu tembel açıyor, hepsi kapanışta toplanıyor.
     """
 
     def __init__(self, displays: DisplayMap) -> None:
         self._displays = displays
-        self._sct = mss.mss()
+        self._local = threading.local()
+        self._lock = threading.Lock()
+        self._sessions: list = []
+
+    @property
+    def _sct(self):
+        session = getattr(self._local, "sct", None)
+        if session is None:
+            session = mss.mss()
+            self._local.sct = session
+            with self._lock:
+                self._sessions.append(session)
+        return session
 
     def close(self) -> None:
-        self._sct.close()
+        with self._lock:
+            sessions, self._sessions = self._sessions, []
+        for session in sessions:
+            # Başka bir thread'in bağlamını kapatmak hata verebiliyor;
+            # kapanışta bunun için uygulamayı düşürmenin anlamı yok.
+            try:
+                session.close()
+            except Exception:
+                pass
+        self._local = threading.local()
 
     def __enter__(self) -> ScreenCapture:
         return self
