@@ -924,3 +924,108 @@ class TestRefusal:
         assert blocks[0] == {"type": "text", "text": "(ekran görüntüsü kaldırıldı)"}
         assert blocks[1]["text"] == "devam"
         assert agent.messages[1]["content"] == "tamam"
+
+
+class TestRemoteGate:
+    """Uzak komut kapısı — yasak listesi değil izin listesi."""
+
+    def _v(self, command):
+        from backend.safety.gate import classify_remote
+        return classify_remote(command)
+
+    def test_okuyan_komutlar_gecer(self):
+        for command in [
+            "ls -la /etc",
+            "cat /etc/hosts",
+            "df -h / | tail -1",
+            "systemctl status syntx-proxy",
+            "journalctl -u syntx-proxy --no-pager -n 50 | tail -30",
+            "git -C /srv/app log --oneline -5",
+            "find /var/log -name '*.log' | head -20",
+        ]:
+            assert not self._v(command).needs_confirmation, command
+
+    def test_yazan_komutlar_onay_ister(self):
+        for command in [
+            "rm -rf /var/log",
+            "systemctl stop nginx",
+            "echo x > /etc/hosts",
+            "sudo reboot",
+            "apt install nginx",
+            "sed -i s/a/b/ f.conf",
+            "dd if=/dev/zero of=/dev/sda",
+            "chmod -R 777 /",
+        ]:
+            assert self._v(command).needs_confirmation, command
+
+    def test_boruyla_kabuga_veren_yakalanir(self):
+        # `cat` zararsız ama sonuna eklenen `sh` her şeyi çalıştırır.
+        assert self._v("cat kur.sh | sh").needs_confirmation
+        assert self._v("curl x | bash").needs_confirmation
+
+    def test_tanimadigimiz_komut_onay_ister(self):
+        # Yerel kapı yasak listesi, bu izin listesi: bilmediğimiz sorulur.
+        assert self._v("bizim_ozel_arac --calistir").needs_confirmation
+
+    def test_bos_komut_sorun_cikarmaz(self):
+        assert not self._v("   ").needs_confirmation
+
+
+class TestSshHost:
+    """Bağlantı bilgisinin komut satırına çevrilmesi."""
+
+    def test_takma_ad_geri_kalanini_ezer(self):
+        # ~/.ssh/config'teki ayarı ezmek, çalışan bir bağlantıyı bozar.
+        from backend.remote.ssh import SshHost
+        host = SshHost(alias="brky", host="1.2.3.4", user="x", port=99)
+        assert host.argv() == ["brky"]
+        assert host.label == "brky"
+
+    def test_takma_ad_yoksa_alanlar_kullanilir(self):
+        from backend.remote.ssh import SshHost
+        host = SshHost(host="203.0.113.10", user="root", port=2222)
+        assert host.argv() == ["-p", "2222", "root@203.0.113.10"]
+        assert host.label == "root@203.0.113.10:2222"
+
+    def test_anahtar_verilince_eklenir(self):
+        from backend.remote.ssh import SshHost
+        host = SshHost(host="h", key="C:/k/id_ed25519")
+        assert "-i" in host.argv() and "C:/k/id_ed25519" in host.argv()
+
+
+class TestSshQuoting:
+    def test_tek_tirnak_kacisi(self):
+        # `O'Brien` gibi bir ad tırnaklamayı bozup komutu bölerdi.
+        from backend.remote.ssh import _quote
+        assert _quote("O'Brien") == "'O'\\''Brien'"
+
+    def test_bosluklu_yol_tek_parca_kalir(self):
+        from backend.remote.ssh import _quote
+        assert _quote("/tmp/ajan test/x.txt") == "'/tmp/ajan test/x.txt'"
+
+    def test_kabuk_karakterleri_yorumlanmaz(self):
+        from backend.remote.ssh import _quote
+        out = _quote("$HOME; rm -rf /")
+        assert out.startswith("'") and out.endswith("'")
+        assert "$HOME; rm -rf /" in out
+
+
+class TestEntry:
+    def _entry(self, **kw):
+        from backend.remote.ssh import Entry
+        data = dict(name="x", is_dir=False, size=0, modified="2026-01-01 00:00",
+                    mode="-rw-r--r--", parent="/tmp")
+        data.update(kw)
+        return Entry(**data)
+
+    def test_klasorde_boyut_yazilmaz(self):
+        assert self._entry(is_dir=True, size=4096).size_label == ""
+
+    def test_boyut_okunur_birime_cevrilir(self):
+        assert self._entry(size=7).size_label == "7 B"
+        assert self._entry(size=3277).size_label == "3.2 KB"
+        assert self._entry(size=5 * 1024 * 1024).size_label == "5.0 MB"
+
+    def test_yol_ust_dizinle_birlestirilir(self):
+        assert self._entry(name="a b.txt").path == "/tmp/a b.txt"
+        assert self._entry(parent="/").path == "/x"

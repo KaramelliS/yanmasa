@@ -30,6 +30,7 @@ from ..office.store import OfficeError, OfficeStore
 from ..office.text import TextError
 from ..safety import gate
 from ..safety.killswitch import KillSwitch
+from ..remote.ssh import RemoteError, SshHost, SshSession
 from ..skills.api import Ortam
 from ..skills.registry import SkillError, SkillRegistry
 from ..skills.shortcuts import Shortcut, ShortcutError, ShortcutStore
@@ -98,6 +99,7 @@ class Dispatcher:
         builtin = {m[4:] for m in dir(self) if m.startswith("_do_")}
         self.skills = SkillRegistry(reserved=frozenset(builtin | CUSTOM_TOOL_NAMES))
         self.buttons = ShortcutStore()
+        self.remote: SshSession | None = None
 
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
@@ -230,6 +232,90 @@ class Dispatcher:
         except ShortcutError as exc:
             raise ToolError(str(exc)) from None
         return ToolOutcome(content=f"{name} düğmesi kaldırıldı.")
+
+    # --- uzak makine ------------------------------------------------------
+
+    def _session(self) -> SshSession:
+        if self.remote is None or not self.remote.connected:
+            raise ToolError(
+                "Sunucuya bağlı değilsin. Önce remote_connect çağır "
+                "(Berkay'ın sunucusu için alias=\"brky\")."
+            )
+        return self.remote
+
+    def _do_remote_connect(self, payload: dict[str, Any]) -> ToolOutcome:
+        host = SshHost(
+            alias=str(payload.get("alias", "")).strip(),
+            host=str(payload.get("host", "")).strip(),
+            user=str(payload.get("user", "") or "root").strip(),
+            port=int(payload.get("port") or 22),
+        )
+        if not host.alias and not host.host:
+            raise ToolError("alias ya da host gerekli")
+        session = SshSession(host)
+        try:
+            banner = session.connect()
+        except RemoteError as exc:
+            raise ToolError(str(exc)) from None
+        self.remote = session
+        return ToolOutcome(
+            content=f"Bağlandı: {banner}\nBulunduğun yer: {session.cwd}"
+        )
+
+    def _do_remote_list(self, payload: dict[str, Any]) -> ToolOutcome:
+        session = self._session()
+        path = str(payload.get("path") or session.cwd)
+        try:
+            entries = session.enter(path)
+        except RemoteError as exc:
+            raise ToolError(str(exc)) from None
+        if not entries:
+            return ToolOutcome(content=f"{path} boş.")
+        lines = [f"{path}:"]
+        for entry in entries:
+            kind = "d" if entry.is_dir else "-"
+            lines.append(
+                f"  {kind} {entry.mode} {entry.size_label:>9} "
+                f"{entry.modified}  {entry.name}"
+            )
+        return ToolOutcome(content="\n".join(lines))
+
+    def _do_remote_read(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "path")
+        try:
+            return ToolOutcome(content=self._session().read(str(payload["path"])))
+        except RemoteError as exc:
+            raise ToolError(str(exc)) from None
+
+    def _do_remote_write(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "path", "content", "why")
+        session = self._session()
+        path, content = str(payload["path"]), str(payload["content"])
+        # Uzak yazma her zaman soruluyor ve onay ekranında hangi sunucu
+        # olduğu yazıyor: iki sunucuya bağlıyken hangisine yazdığını
+        # bilmemek, yanlış makineyi bozmanın en kolay yolu.
+        detail = f"{session.host.label}:{path}\n\n{content[:2000]}"
+        if not self.approve("remote_write", detail, str(payload["why"])):
+            raise Denied(f"Berkay {path} yazımını reddetti.")
+        try:
+            return ToolOutcome(content=session.write(path, content))
+        except RemoteError as exc:
+            raise ToolError(str(exc)) from None
+
+    def _do_remote_run(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "command")
+        session = self._session()
+        command = str(payload["command"])
+        verdict = gate.classify_remote(command)
+        if verdict.needs_confirmation and not self.approve(
+            "remote_run", f"{session.host.label}$ {command}", verdict.reason
+        ):
+            raise Denied(f"Berkay reddetti ({verdict.reason}).")
+        try:
+            out = session.run(command, timeout=int(payload.get("timeout") or 60))
+        except RemoteError as exc:
+            raise ToolError(str(exc)) from None
+        return ToolOutcome(content=out.strip() or "(çıktı yok)")
 
     # --- görsel -----------------------------------------------------------
 

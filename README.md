@@ -196,6 +196,37 @@ silmiyor.
 Bozuk bir `dugmeler.json` uygulamayı açılmaktan alıkoymuyor — okuma hiçbir
 durumda istisna fırlatmıyor, eksik alanlı kayıt atlanıyor, gerisi kalıyor.
 
+## Uzak makine
+
+Sunucu, uygulamanın bir paneli olarak açılıyor: klasörler bir listede, yol
+tıklanabilir kırıntılarda, dosyalar boyutu ve tarihiyle. Terminalde `ls`
+yazıp nerede olduğunu aklında tutmak yerine, Dosya Gezgini'nde ne
+bekliyorsan o.
+
+Bağlantı Windows'un kendi `ssh.exe`'siyle, bir Python SSH kütüphanesiyle
+değil: `~/.ssh/config` içindeki takma adlar ve anahtarlar zaten orada.
+`brky` diye bir takma adın varsa burada da `brky` yazıyorsun.
+
+Dizin listesi `ls -l` ayrıştırılarak değil `find -printf` ile alınıyor.
+`ls -l` çıktısı yerel dile göre değişiyor, boşluklu dosya adlarında
+sütunları kaydırıyor ve tarih biçimi dosyanın yaşına göre farklılaşıyor.
+
+Ajan da aynı oturumu kullanıyor — sen bağlanırsan o da bağlı oluyor. İki
+ayrı bağlantı tutmak, panelde bir yeri gezerken ajana başka bir yerden
+bahsetmek demekti.
+
+**Uzak güvenlik kapısı yereldekinin tersi.** Yerelde yasak listesi:
+tehlikeli kalıplar aranıyor, gerisi geçiyor. Uzakta izin listesi: yalnızca
+okuyan komutlar sorgusuz geçiyor, tanımadığımız her şey soruluyor. Sebebi
+somut — yerelde yanlış giden bir komut Berkay'ın kendi dosyası, sunucuda
+aynı komut çalışan bir servisi düşürüyor.
+
+Parola ile giriş yok ve arayüzde bu yazıyor: parolayı programdan beslemek
+için onu bir yerde tutmak gerekirdi.
+
+Panelden silme ve taşıma yapılamıyor. Yanlış klasörde yapılan bir
+sağ tık > sil, sunucuda geri alınamaz.
+
 ## Güvenlik
 
 Üç katman, üçü de bağımsız:

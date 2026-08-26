@@ -162,6 +162,39 @@ def main() -> int:
     steps = {"n": 0}
     unsaved: dict[str, int] = {}
 
+    def open_remote(session, title_suffix: str = "") -> None:
+        """Sunucu panelini açar ya da öne getirir."""
+        from app.remote_view import RemoteView
+
+        view = RemoteView(tokens, session)
+        view.show_path(session.cwd)
+        window.open_panel("__uzak__", f"{session.host.label} · sunucu", view)
+
+    def connect_remote() -> None:
+        """Berkay 'Sunucu' düğmesine bastı."""
+        from PySide6.QtWidgets import QDialog
+        from app.remote_view import ConnectDialog
+        from backend.remote.ssh import RemoteError, SshSession
+
+        dialog = ConnectDialog(tokens, window)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        session = SshSession(dialog.result_host())
+        bar.set_status(f"{session.host.label} bağlanıyor…")
+        try:
+            banner = session.connect()
+        except RemoteError as exc:
+            # Bağlanamamak sessizce geçilmiyor; sebebi olduğu gibi yazılıyor.
+            bar.set_status(str(exc))
+            window.status.set_line(str(exc))
+            return
+        bridge.adopt_remote(session)
+        open_remote(session)
+        bar.set_status("")
+        window.status.set_line(f"Bağlandı: {banner}")
+
+    window.connect_remote.clicked.connect(connect_remote)
+
     def on_document(shot) -> None:
         """Ajan bir belge açtığında ya da değiştirdiğinde panel belirir."""
         unsaved[shot.name] = shot.unsaved
@@ -184,6 +217,12 @@ def main() -> int:
         if tool.startswith("button_") and not is_error:
             bar.buttons.reload()
             bar._grow()
+        # Ajan bir sunucuya bağlandıysa ya da orada gezindiyse panel de
+        # oraya gitsin: iki ayrı yerde durmaları kafa karıştırıyor.
+        if tool in ("remote_connect", "remote_list") and not is_error:
+            session = bridge.remote_session()
+            if session is not None and session.connected:
+                open_remote(session)
         if png:
             window.activity.frame_last(png)
         elif is_error:

@@ -88,6 +88,21 @@ class AgentBridge(QObject):
         except Exception:
             return None
 
+    def remote_session(self):
+        """Ajanın bağlı olduğu sunucu — yoksa None."""
+        if self._agent is None:
+            return None
+        return self._agent.dispatcher.remote
+
+    def adopt_remote(self, session) -> None:
+        """Berkay elle bağlandığında ajan da aynı oturumu kullansın.
+
+        İki ayrı bağlantı tutmak, panelde bir yeri gezerken ajana başka bir
+        yerden bahsetmek demekti.
+        """
+        if self._agent is not None:
+            self._agent.dispatcher.remote = session
+
     def button_store(self):
         """Düğme deposu. Ajan kurulamadıysa da çalışıyor: düğmeler tercih,
         API anahtarına bağlı olmamalı."""

@@ -174,3 +174,92 @@ def classify(name: str, payload: dict, window_title: str = "") -> Verdict:
         return classify_window(window_title)
 
     return SAFE
+
+
+#: Uzak makinede sorgusuz çalışabilecek komutlar.
+#:
+#: Yerel kapı bir **yasak listesi**: tehlikeli kalıpları arıyor, gerisine
+#: izin veriyor. Uzak makinede bu ters çevrildi ve bunun somut bir sebebi
+#: var: yerelde yanlış giden bir komut Berkay'ın kendi dosyası, sunucuda
+#: aynı komut çalışan bir servisi düşürüyor ve geri dönüşü yok. Bir yazma
+#: işlemini onaylamak ucuz; yanlış bir yazmayı geri almak mümkün değil.
+#:
+#: Bu yüzden burada **izin listesi**: yalnızca okuyan komutlar sorgusuz
+#: geçiyor, tanımadığımız her şey soruluyor.
+READ_ONLY_REMOTE = frozenset({
+    "ls", "dir", "cat", "head", "tail", "wc", "stat", "file", "find", "locate",
+    "grep", "egrep", "fgrep", "rg", "sort", "uniq", "cut", "tr", "column",
+    "df", "du", "free", "uptime", "uname", "hostname", "whoami", "id", "groups",
+    "date", "pwd", "echo", "printf", "env", "printenv", "which", "type",
+    "ps", "pgrep", "lsof", "ss", "netstat", "ip", "ifconfig", "lsblk", "blkid",
+    "md5sum", "sha256sum", "sha1sum", "base64", "readlink", "realpath",
+    "dpkg", "apt-cache", "pip", "python3", "node", "nproc", "lscpu", "vmstat",
+    "true", "false", "test", "sleep", "tee",
+})
+
+#: Alt komutu okumaya çeviren durumlar. `systemctl status` zararsız,
+#: `systemctl stop` bir servisi düşürüyor.
+READ_ONLY_SUB = {
+    "systemctl": {"status", "is-active", "is-enabled", "list-units",
+                  "list-unit-files", "show", "cat"},
+    "journalctl": None,          # None: tüm alt komutlar okuma sayılıyor
+    "git": {"status", "log", "diff", "show", "branch", "remote", "config"},
+    "docker": {"ps", "logs", "images", "inspect", "stats", "version"},
+    "systemd-analyze": None,
+}
+
+#: Komutu okuma olmaktan çıkaran işaretler. `>` dosyaya yazıyor, `sed -i`
+#: yerinde değiştiriyor, `sudo` yetki yükseltiyor.
+_REMOTE_UNSAFE = re.compile(
+    r">|\bsudo\b|\bsu\b|\bdd\b|\bmkfs|\bchmod\b|\bchown\b|\bmv\b|\bcp\b|"
+    r"\bln\b|\btruncate\b|\bcrontab\b|\bpasswd\b|\buseradd\b|\buserdel\b|"
+    r"\bapt\b|\bapt-get\b|\byum\b|\bdnf\b|\bpip\s+install|\bnpm\s+i"
+)
+
+
+def _subcommand(words: list[str]) -> str:
+    """Bayrakları atlayıp asıl alt komutu bulur.
+
+    Önce ikinci kelime alınıyordu ve `git -C /srv/app log` salt-okunur bir
+    listelemeyken onay istiyordu. Boş yere uyaran bir kapı görmezden
+    gelinir; bu dosyada aynı hata `format` kuralında bir kez yapıldı.
+    """
+    atla = False
+    for word in words:
+        if atla:
+            atla = False
+            continue
+        if word.startswith("-"):
+            # `-C DIZIN` gibi değer alan bayraklar: değeri de atla.
+            atla = word in {"-C", "-c", "-f", "-H", "-u", "--git-dir"}
+            continue
+        return word
+    return ""
+
+
+def classify_remote(command: str) -> Verdict:
+    """Uzak komut. Tanımadığımız her şey onay istiyor."""
+    text = command.strip()
+    if not text:
+        return SAFE
+    if _REMOTE_UNSAFE.search(text):
+        return Verdict(Risk.CONFIRM, "uzak makinede değişiklik yapıyor")
+
+    # Boru ve zincirin her parçası ayrı ayrı bakılıyor: `cat x | sh` içindeki
+    # `cat` zararsız, `sh` değil.
+    for segment in re.split(r"\|\||&&|\||;", text):
+        words = segment.split()
+        if not words:
+            continue
+        head = words[0].rsplit("/", 1)[-1]
+        if head in READ_ONLY_SUB:
+            allowed = READ_ONLY_SUB[head]
+            sub = _subcommand(words[1:])
+            if allowed is not None and sub not in allowed:
+                return Verdict(
+                    Risk.CONFIRM, f"uzak makinede {head} {sub} çalıştırıyor"
+                )
+            continue
+        if head not in READ_ONLY_REMOTE:
+            return Verdict(Risk.CONFIRM, f"uzak makinede {head} çalıştırıyor")
+    return SAFE

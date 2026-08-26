@@ -18,7 +18,7 @@ uygulamanın gösterdiği şey tam olarak o ikincisi.
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from .fluent import RADIUS_CONTROL, Tokens
@@ -277,6 +277,46 @@ def _bekle(p: QPainter, ana: str, sap: str) -> None:
     p.drawLine(QPointF(12, 12), QPointF(15.5, 13.5))
 
 
+def _yukari(p: QPainter, ana: str, sap: str) -> None:
+    """Üst klasöre çık."""
+    p.setPen(_pen(sap))
+    p.drawLine(QPointF(12, 20), QPointF(12, 6))
+    p.setPen(_pen(ana))
+    path = QPainterPath(QPointF(6, 12))
+    path.lineTo(12, 6)
+    path.lineTo(18, 12)
+    p.drawPath(path)
+
+
+def _yenile(p: QPainter, ana: str, sap: str) -> None:
+    """Yeniden oku. Neredeyse tam bir çember ve bir ok ucu; kapalı çember
+    dönmeyi değil beklemeyi anlatırdı."""
+    p.setPen(_pen(ana))
+    path = QPainterPath()
+    path.arcMoveTo(QRectF(4.5, 4.5, 15, 15), 60)
+    path.arcTo(QRectF(4.5, 4.5, 15, 15), 60, 300)
+    p.drawPath(path)
+    p.setPen(_pen(sap))
+    uc = QPainterPath(QPointF(11.5, 3.5))
+    uc.lineTo(16.2, 6.2)
+    uc.lineTo(13.4, 10.6)
+    p.drawPath(uc)
+
+
+def _sunucu(p: QPainter, ana: str, sap: str) -> None:
+    """Uzak makine: üst üste iki raf ve durum ışığı."""
+    p.setPen(_pen(sap))
+    p.drawRoundedRect(QRectF(3.5, 4.5, 17, 6), 1.5, 1.5)
+    p.drawRoundedRect(QRectF(3.5, 13.5, 17, 6), 1.5, 1.5)
+    p.setPen(_pen(ana))
+    p.setBrush(QColor(ana))
+    p.drawEllipse(QPointF(7, 7.5), 1.3, 1.3)
+    p.drawEllipse(QPointF(7, 16.5), 1.3, 1.3)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawLine(QPointF(11, 7.5), QPointF(17, 7.5))
+    p.drawLine(QPointF(11, 16.5), QPointF(17, 16.5))
+
+
 def _sen(p: QPainter, ana: str, sap: str) -> None:
     """Berkay'ın yazdığı satır: konuşma balonu."""
     p.setPen(_pen(ana))
@@ -310,6 +350,7 @@ GLYPHS = {
     "kabuk": _kabuk, "agac": _agac, "sayfa": _sayfa, "klasor": _klasor,
     "tablo": _tablo, "yazi": _yazi, "kaydet": _kaydet, "defter": _defter,
     "yetenek": _yetenek, "bekle": _bekle, "sen": _sen, "soru": _soru,
+    "yukari": _yukari, "yenile": _yenile, "sunucu": _sunucu,
 }
 
 TOOL_GLYPH = {
@@ -330,6 +371,8 @@ TOOL_GLYPH = {
     "office_close": "tablo",
     "office_save": "kaydet", "office_history": "defter",
     "skill_list": "yetenek", "skill_write": "yetenek", "skill_remove": "yetenek",
+    "remote_connect": "sunucu", "remote_list": "sunucu",
+    "remote_read": "sunucu", "remote_write": "sunucu", "remote_run": "sunucu",
     "__sen__": "sen", "__onay__": "soru",
 }
 
@@ -354,6 +397,16 @@ def paint_glyph(painter: QPainter, key: str, size: float,
     painter.setPen(_pen(sap, STROKE / factor if factor < 1 else STROKE))
     draw(painter, ana, sap)
     painter.restore()
+
+
+def glyph_icon(key: str, size: int, ana: str, sap: str) -> QIcon:
+    """Çizimi liste ve açılır kutularda kullanılabilir bir simgeye çevirir."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    paint_glyph(painter, key, size, ana, sap, QPointF(0, 0))
+    painter.end()
+    return QIcon(pixmap)
 
 
 class WorkGlyph(QWidget):

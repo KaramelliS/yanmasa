@@ -482,6 +482,85 @@ BUTTON_REMOVE = {
     },
 }
 
+REMOTE_CONNECT = {
+    "name": "remote_connect",
+    "description": (
+        "SSH ile bir sunucuya bağlanır. `alias` verilirse ~/.ssh/config "
+        "içindeki ayar kullanılır (Berkay'ın sunucusu: brky). Bağlandıktan "
+        "sonra remote_list, remote_read, remote_write, remote_run çalışır ve "
+        "arayüzde sunucunun klasörleri açılır."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "alias": {"type": "string", "description": "~/.ssh/config takma adı"},
+            "host": {"type": "string"},
+            "user": {"type": "string"},
+            "port": {"type": "integer"},
+        },
+        "required": [],
+        "additionalProperties": False,
+    },
+}
+
+REMOTE_LIST = {
+    "name": "remote_list",
+    "description": "Sunucudaki bir klasörü listeler. Boş bırakırsan bulunduğun yeri.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": [],
+        "additionalProperties": False,
+    },
+}
+
+REMOTE_READ = {
+    "name": "remote_read",
+    "description": "Sunucudaki bir dosyayı okur.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+        "additionalProperties": False,
+    },
+}
+
+REMOTE_WRITE = {
+    "name": "remote_write",
+    "description": (
+        "Sunucudaki bir dosyaya yazar; varsa üzerine yazar. Her zaman onay "
+        "ister. Üzerine yazmadan önce remote_read ile mevcut hâlini oku."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "content": {"type": "string"},
+            "why": {"type": "string", "description": "Neden bu değişiklik"},
+        },
+        "required": ["path", "content", "why"],
+        "additionalProperties": False,
+    },
+}
+
+REMOTE_RUN = {
+    "name": "remote_run",
+    "description": (
+        "Sunucuda kabuk komutu çalıştırır. Okuyan komutlar (ls, cat, df, "
+        "systemctl status, journalctl) doğrudan çalışır; değiştiren her "
+        "komut Berkay'a sorulur."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string"},
+            "timeout": {"type": "integer", "description": "Saniye, varsayılan 60"},
+        },
+        "required": ["command"],
+        "additionalProperties": False,
+    },
+}
+
 CUSTOM_TOOLS: list[dict[str, Any]] = [
     READ_UI_TREE,
     LAUNCH_APP,
@@ -506,6 +585,11 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
     SKILL_REMOVE,
     BUTTON_WRITE,
     BUTTON_REMOVE,
+    REMOTE_CONNECT,
+    REMOTE_LIST,
+    REMOTE_READ,
+    REMOTE_WRITE,
+    REMOTE_RUN,
 ]
 
 CUSTOM_TOOL_NAMES = {tool["name"] for tool in CUSTOM_TOOLS}

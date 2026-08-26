@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from .fluent import RADIUS_CONTROL, Tokens
-from .glyphs import GLYPHS, paint_glyph
+from .glyphs import GLYPHS, glyph_icon, paint_glyph
 
 #: Çubuk 440 piksel; bundan fazla düğme sığmıyor ve sığdırmaya çalışmak
 #: etiketleri okunmaz hâle getiriyor.
@@ -101,13 +101,7 @@ def _origin(widget):
 
 
 def _glyph_icon(t: Tokens, key: str, size: int = 18) -> QIcon:
-    """Çizimi açılır listede gösterilebilir bir simgeye çevirir."""
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    paint_glyph(painter, key, size, t.accent, t.text_secondary, QPointF(0, 0))
-    painter.end()
-    return QIcon(pixmap)
+    return glyph_icon(key, size, t.accent, t.text_secondary)
 
 
 class ShortcutEditor(QDialog):

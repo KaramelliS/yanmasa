@@ -132,6 +132,12 @@ class StatusBar(QWidget):
         for counter in (self.steps, self.unsaved, self.terminals):
             layout.addWidget(counter)
 
+        self.connect_remote = QPushButton("Sunucu")
+        self.connect_remote.setToolTip("SSH ile bir sunucuya bağlan")
+        self.connect_remote.setFixedHeight(32)
+        self.connect_remote.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout.addWidget(self.connect_remote)
+
         stop = QPushButton("Durdur")
         stop.setToolTip("Ajanı durdur — Esc ×3 her yerden çalışır")
         stop.setFixedHeight(32)
