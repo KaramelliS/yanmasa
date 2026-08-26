@@ -87,6 +87,27 @@ class DisplayMap:
                 return display
         return None
 
+    def locate_rect(self, left: int, top: int, right: int, bottom: int) -> Display:
+        """Bir pencerenin **çoğunlukla** hangi monitörde olduğunu söyler.
+
+        Sol üst köşeye bakmak yetmiyor: Windows'ta ekranı kaplayan bir
+        pencere kenarlığı yüzünden birkaç piksel komşu monitöre taşıyor.
+        Discord'un penceresi sol=1912 ile başlıyordu ve 1920'de başlayan
+        ikinci ekranda olmasına rağmen birinci ekranda sayılıyordu — o
+        yüzden ekran görüntüsü yanlış monitörden alınıyor ve ajan
+        Discord'u hiç göremiyordu.
+
+        Örtüşme alanı en büyük olan monitör kazanıyor.
+        """
+        en_iyi, en_buyuk = self._displays[0], -1
+        for display in self._displays:
+            genislik = min(right, display.left + display.width) - max(left, display.left)
+            yukseklik = min(bottom, display.top + display.height) - max(top, display.top)
+            alan = max(0, genislik) * max(0, yukseklik)
+            if alan > en_buyuk:
+                en_iyi, en_buyuk = display, alan
+        return en_iyi
+
     def describe(self) -> str:
         """Sistem promptuna gömülecek insan okunur özet."""
         lines = []

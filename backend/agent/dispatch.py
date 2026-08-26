@@ -436,6 +436,13 @@ class Dispatcher:
 
     def _do_key(self, payload: dict[str, Any]) -> ToolOutcome:
         combo = payload.get("text")
+        if not isinstance(combo, str) or not combo.strip():
+            # Eksik alanda ham bir AttributeError dönüyordu; modele de
+            # yeteneğe de neyin eksik olduğunu söylemiyordu.
+            raise ToolError(
+                f"key için tuş gerekli — 'text' alanına 'ctrl+k' gibi bir "
+                f"kombinasyon yaz. Gelen: {combo!r}"
+            )
         repeat = int(payload.get("repeat", 1))
         try:
             kb.press(combo, repeat=repeat)

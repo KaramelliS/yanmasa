@@ -56,6 +56,64 @@ class Ortam:
     def yaz(self, yol: str, icerik: str) -> str:
         return self.arac("write_file", path=yol, content=icerik)
 
+    def on_pencere(self) -> str:
+        """Şu an ön planda olan pencerenin başlığı.
+
+        Tuş gönderen her yetenek buna bakmalı: yanlış pencereye giden bir
+        tuş dizisi başkasının sohbetine yazmak demek. Bu projede bir kez
+        oldu — test metni bir sohbet penceresine düştü ve Enter onu
+        gönderdi.
+        """
+        from ..computer import windows as win
+
+        return win.foreground_title()
+
+    def pencereye_gec(self, baslik_parcasi: str, timeout: float = 3.0) -> bool:
+        """Başlığında bu metin geçen pencereyi öne getirir.
+
+        Getiremezse `False` döndürüyor, varsaymıyor: Windows
+        `SetForegroundWindow` çağrısını sessizce yok sayabiliyor ve
+        "geçtim" varsaymak tuşların başka bir uygulamaya gitmesi demek.
+        """
+        from ..computer import windows as win
+
+        return win.activate(baslik_parcasi, timeout)
+
+    def pencerenin_ekrani(self, baslik_parcasi: str) -> int | None:
+        """Pencerenin bulunduğu ekranın indeksi. Pencere yoksa `None`.
+
+        Ekran görüntüsü almadan önce buna geçmek gerekiyor: ajan yanlış
+        monitöre bakarsa pencereyi hiç göremiyor ve olmayan bir şeyi
+        aramaya başlıyor.
+        """
+        from ..computer import windows as win
+
+        rect = win.window_rect(baslik_parcasi)
+        if rect is None:
+            return None
+        return self._dispatcher.displays.locate_rect(*rect).index
+
+    def onay(self, baslik: str, ayrinti: str, sebep: str) -> bool:
+        """Yeteneğin kendi riskli adımı için Berkay'a sorar.
+
+        Yetenek sözleşmesindeki `"onay": True` bütün yeteneği kapsıyor ve
+        çoğu zaman fazla geniş: Discord yeteneğinin gezinmesi zararsız ama
+        mesaj **göndermesi** geri alınamaz. Bu çağrı yeteneğin yalnızca o
+        adımı sormasını sağlıyor.
+
+        Kapıyı yeteneğin kendisi kuramaz; bu çağrı arayüzün onay yoluna
+        gidiyor, yani reddedildiğinde gerçekten durdurulabiliyor.
+        """
+        return bool(self._dispatcher.approve(baslik, ayrinti[:1500], sebep))
+
+    def bekle(self, saniye: float) -> None:
+        """Acil durdurmayı dinleyen bekleme. `time.sleep` Esc×3'ü sağır
+        bırakıyor; uzun bekleyen bir yetenek durdurulamaz oluyor."""
+        from ..agent.dispatch import _interruptible_sleep
+
+        _interruptible_sleep(max(0.0, min(float(saniye), 60.0)),
+                             self._dispatcher.kill)
+
     # --- yeteneğin kendi alanı --------------------------------------------
 
     @property

@@ -221,6 +221,39 @@ panelinin görünmediğini fark etmeli ki düzeltebilsin.
 pencere düzenini değiştiremiyor. Bunlar kodda ve bir kısmı kasıtlı — ajanın
 kendi kapısını gevşetebilmesi, kapının olmaması demek.
 
+## Discord eklentisi
+
+`eklentiler/discord.py` — yetenek sisteminin gerçek bir işte kullanımı.
+Bot API'si yok: ajan Discord'u senin gördüğün gibi görüyor ve senin
+bastığın tuşlara basıyor, uygulamanın geri kalanıyla aynı yol.
+
+**Neden klavye, neden erişilebilirlik ağacı değil:** ölçüldü. Discord
+Electron ve UIA ağacı 33 düğüm döndürüyor — hepsi boş grup, tek satır metin
+yok. `read_ui_tree` burada işe yaramıyor.
+
+Ekran görüntüsü pahalı olduğu için eklenti gezinmeyi klavyeye yıkıyor.
+`Ctrl+K` hızlı geçiş kutusu bir sunucuya, kanala ya da kişiye adını yazarak
+gitmeyi sağlıyor; ajanın gözü yalnızca doğrulama için gerekiyor.
+
+Korumalar, hepsi testli:
+
+- **Discord ön planda değilse hiçbir tuş gönderilmiyor.** Bir kez öne
+  getirmeyi deniyor, olmazsa duruyor. Yanlış pencereye giden tuş,
+  başkasının sohbetine yazmak demek — bu projede bir kez oldu.
+- **`yaz` göndermiyor.** Metni kutuya koyuyor; ajan ekrandan doğru kişide
+  olduğunu doğruluyor, sonra `gonder` çağırıyor ve o adımda Berkay'a
+  soruluyor.
+- **Satır sonu içeren metin reddediliyor.** Discord'da Enter mesajı
+  gönderir; çok satırlı bir metin yarısını erkenden yollardı.
+- **Arama sonrası bekleniyor.** Yazdıktan hemen sonra Enter, liste henüz
+  güncellenmediği için **önceki** sonuca gidiyor — yanlış kişiye mesaj
+  yazmanın en kolay yolu.
+- **Açılışta doğru monitöre geçiliyor.** Discord ikinci ekrandayken ajan
+  birinciye bakıp onu hiç göremiyordu.
+
+Sesli kanaldan ayrılmanın klavye kısayolu yok; eklenti bunu uyduracağına
+söylüyor ve ajanın görüp tıklamasını istiyor.
+
 ## Düğmeler
 
 Yetenek ajanın kullandığı araç; düğme Berkay'ın kullandığı kısayol. Düğme

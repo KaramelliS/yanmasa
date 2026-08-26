@@ -5,6 +5,8 @@ doğrulanıyor — burada yalnızca koordinat matematiği ve tuş çözümlemesi
 çünkü ajanın sessizce yanlış yere tıkladığı hatalar hep buradan çıkıyor.
 """
 
+import re
+
 import pytest
 
 from backend.computer.displays import Display, DisplayMap
@@ -1376,3 +1378,134 @@ class TestYakalamaThread:
         capture.grab(0)
         capture.close()
         capture.close()  # uygulama kapanırken iki kez gelebiliyor
+
+
+class TestPencereEkrani:
+    """Bir pencerenin hangi monitörde olduğu.
+
+    Gerçek hata: Discord penceresi sol=1912'de başlıyordu ve 1920'de
+    başlayan ikinci ekranda olmasına rağmen "sol kenarı içeren ekran"
+    mantığıyla birinci ekranda sayıldı. Ekran görüntüsü yanlış monitörden
+    alınıp ajan Discord'u hiç göremedi.
+    """
+
+    def setup_method(self):
+        self.map = DisplayMap([PRIMARY, SECONDARY])
+
+    def test_kenardan_tasan_pencere_dogru_ekranda(self):
+        # 8 piksel birinciye taşıyor ama neredeyse tamamı ikincide.
+        assert self.map.locate_rect(1912, -8, 3848, 1040) is SECONDARY
+
+    def test_tamamen_birincideki_pencere(self):
+        assert self.map.locate_rect(100, 100, 900, 700) is PRIMARY
+
+    def test_tam_ortada_bolunmus_pencere_daha_cok_olana_gider(self):
+        # 1500..2500: birincide 420, ikincide 580 piksel genişlik.
+        assert self.map.locate_rect(1500, 0, 2500, 1080) is SECONDARY
+
+    def test_hicbir_ekranla_kesismeyen_pencere_cokmez(self):
+        # Ekran çıkarılmış olabiliyor; en azından bir cevap dönmeli.
+        assert self.map.locate_rect(-5000, -5000, -4000, -4000) in (PRIMARY, SECONDARY)
+
+
+class TestKeyAraci:
+    def test_eksik_tus_anlasilir_hata(self):
+        # Ham AttributeError dönüyordu; ne eksik olduğunu söylemiyordu.
+        from backend.agent.dispatch import Dispatcher, ToolError
+        from backend.safety.killswitch import KillSwitch
+
+        d = Dispatcher(DisplayMap([PRIMARY]), capture=None, kill=KillSwitch())
+        with pytest.raises(ToolError, match=re.escape("ctrl+k")):
+            d.run("key", {})
+
+
+class TestDiscordEklentisi:
+    """Klavyeyle Discord — yan etkisiz korumalar."""
+
+    def _skill(self, tmp_path):
+        from pathlib import Path
+
+        from backend.skills.registry import SkillRegistry
+
+        kok = Path(__file__).resolve().parent.parent
+        r = SkillRegistry(directory=tmp_path / "y")
+        return r.write("discord", (kok / "eklentiler" / "discord.py").read_text(
+            encoding="utf-8"
+        ))
+
+    class Ortam:
+        def __init__(self, odak=True, gecebilir=True):
+            self.odak, self.gecebilir = odak, gecebilir
+            self.cagrilar, self.onaylar = [], []
+
+        def arac(self, ad, **g):
+            self.cagrilar.append((ad, g))
+            return "OK"
+
+        def bekle(self, saniye):
+            pass
+
+        def on_pencere(self):
+            return "Discord" if self.odak else "Mozilla Firefox"
+
+        def pencereye_gec(self, baslik, timeout=3.0):
+            return self.gecebilir
+
+        def pencerenin_ekrani(self, baslik):
+            return 1
+
+        def onay(self, baslik, ayrinti, sebep):
+            self.onaylar.append(baslik)
+            return False
+
+    def _tuslar(self, ortam):
+        return [g for ad, g in ortam.cagrilar if ad in ("key", "type")]
+
+    def test_odak_yoksa_tus_gonderilmez(self, tmp_path):
+        # Yanlış pencereye giden tuş, başkasının sohbetine yazmak demek.
+        skill = self._skill(tmp_path)
+        o = self.Ortam(odak=False, gecebilir=False)
+        out = skill.run({"islem": "git", "hedef": "genel"}, o)
+        assert "hiçbir tuş gönderilmedi" in out
+        assert self._tuslar(o) == []
+
+    def test_yaz_gondermiyor(self, tmp_path):
+        skill = self._skill(tmp_path)
+        o = self.Ortam()
+        out = skill.run({"islem": "yaz", "metin": "merhaba"}, o)
+        assert "GÖNDERİLMEDİ" in out
+        assert not any(g.get("text") == "Return" for g in self._tuslar(o))
+
+    def test_satir_sonlu_metin_reddedilir(self, tmp_path):
+        # Discord'da Enter mesajı gönderir; satır sonu erken gönderim olurdu.
+        skill = self._skill(tmp_path)
+        o = self.Ortam()
+        out = skill.run({"islem": "yaz", "metin": "bir\niki"}, o)
+        assert "satır sonu" in out
+        assert self._tuslar(o) == []
+
+    def test_gonder_onaysiz_calismaz(self, tmp_path):
+        skill = self._skill(tmp_path)
+        o = self.Ortam()
+        out = skill.run({"islem": "gonder"}, o)
+        assert "reddetti" in out
+        assert o.onaylar == ["discord gonder"]
+        assert self._tuslar(o) == []
+
+    def test_git_arama_sonrasi_bekliyor(self, tmp_path):
+        # Erken Enter önceki sonuca gider — yanlış kişiye yazmanın yolu.
+        skill = self._skill(tmp_path)
+        o = self.Ortam()
+        skill.run({"islem": "git", "hedef": "genel"}, o)
+        sira = [(ad, g) for ad, g in o.cagrilar if ad in ("key", "type")]
+        assert sira[0][1]["text"] == "ctrl+k"
+        assert sira[1][1]["text"] == "genel"
+        assert sira[2][1]["text"] == "Return"
+
+    def test_ac_dogru_ekrana_geciyor(self, tmp_path):
+        # Ajan yanlış monitöre bakarsa Discord'u hiç göremiyor.
+        skill = self._skill(tmp_path)
+        o = self.Ortam()
+        out = skill.run({"islem": "ac"}, o)
+        assert ("switch_display", {"index": 1}) in o.cagrilar
+        assert "ekran 1" in out

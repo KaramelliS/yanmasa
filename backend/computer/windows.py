@@ -97,3 +97,68 @@ def assert_foreground(
             f"{foreground_process() or '<yok>'} / {foreground_title()!r} var. "
             f"Girdi gönderilmedi."
         )
+
+
+def find_window(title_contains: str) -> int:
+    """Başlığında verilen metin geçen ilk görünür pencerenin tutamağı.
+
+    Yalnızca görünür ve başlıklı pencereler: Windows'ta her uygulamanın
+    arka planda başlıksız yardımcı pencereleri oluyor ve onlardan birini
+    öne getirmek hiçbir şey yapmıyor gibi görünüyor.
+    """
+    hedef = title_contains.lower()
+    bulunan: list[int] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def _gez(hwnd, _param):
+        if not ctypes.windll.user32.IsWindowVisible(hwnd):
+            return True
+        uzunluk = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+        if uzunluk == 0:
+            return True
+        tampon = ctypes.create_unicode_buffer(uzunluk + 1)
+        ctypes.windll.user32.GetWindowTextW(hwnd, tampon, uzunluk + 1)
+        if hedef in tampon.value.lower():
+            bulunan.append(hwnd)
+            return False
+        return True
+
+    ctypes.windll.user32.EnumWindows(_gez, None)
+    return bulunan[0] if bulunan else 0
+
+
+def activate(title_contains: str, timeout: float = 3.0) -> bool:
+    """Pencereyi öne getirir. Getiremezse `False` — yalan söylemiyor.
+
+    `SetForegroundWindow` Windows'ta her zaman çalışmıyor: başka bir süreç
+    ön plandaysa ve bizim sürecimiz yakın zamanda girdi almadıysa sistem
+    çağrıyı sessizce yok sayıp yalnızca görev çubuğunu yakıp söndürüyor.
+    Bu yüzden sonuç varsayılmıyor, ön plana geçtiği **doğrulanıyor**.
+    """
+    hwnd = find_window(title_contains)
+    if not hwnd:
+        return False
+
+    SW_RESTORE = 9
+    if ctypes.windll.user32.IsIconic(hwnd):
+        ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+    ctypes.windll.user32.SetForegroundWindow(hwnd)
+    ctypes.windll.user32.BringWindowToTop(hwnd)
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if title_contains.lower() in foreground_title().lower():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def window_rect(title_contains: str) -> tuple[int, int, int, int] | None:
+    """Pencerenin sanal masaüstündeki dikdörtgeni: (sol, üst, sağ, alt)."""
+    hwnd = find_window(title_contains)
+    if not hwnd:
+        return None
+    rect = wintypes.RECT()
+    if not ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    return (rect.left, rect.top, rect.right, rect.bottom)
