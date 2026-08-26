@@ -50,6 +50,10 @@ from PySide6.QtWidgets import (
 from .buttons import ButtonStrip
 from .glyphs import PreviewFrame
 
+#: Onay kartındaki ayrıntı alanının tavanı. Onaylanan şey yüz satırlık bir
+#: dosya olabiliyor.
+DETAIL_MAX_HEIGHT = 190
+
 #: Cevap alanının tavanı. Bunun üstünde çubuk büyümüyor, içerik kayıyor.
 REPLY_MAX_HEIGHT = 170
 
@@ -285,10 +289,39 @@ class ApprovalRow(QWidget):
         self._detail.setWordWrap(True)
         self._detail.setStyleSheet(
             f"color: {t.text}; font-size: 12px; font-family: '{t.font_mono}';"
-            f" background: {t.control}; border: 1px solid {t.stroke};"
-            f" border-radius: {RADIUS_CONTROL}px; padding: 6px 8px;"
+            f" background: transparent; border: none; padding: 6px 8px;"
         )
-        layout.addWidget(self._detail)
+
+        # Onaylanacak şey yüz satırlık bir Python dosyası olabiliyor ve
+        # düz bir etiket olarak çubuğu ekran boyunun kat kat üstüne
+        # çıkarıyordu: Reddet ve Çalıştır düğmeleri ekranın dışında kalıyor,
+        # yani onay kutusu onaylanamaz hâle geliyordu.
+        self._detail_scroll = QScrollArea()
+        self._detail_scroll.setWidget(self._detail)
+        self._detail_scroll.setWidgetResizable(True)
+        self._detail_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._detail_scroll.setMaximumHeight(DETAIL_MAX_HEIGHT)
+        self._detail_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._detail_scroll.setStyleSheet(
+            f"QScrollArea {{ background: {t.control};"
+            f" border: 1px solid {t.stroke};"
+            f" border-radius: {RADIUS_CONTROL}px; }}"
+            f"QScrollArea > QWidget > QWidget {{ background: transparent; }}"
+            f"QScrollBar:vertical {{ background: transparent; width: 8px;"
+            f" margin: 4px 2px; }}"
+            f"QScrollBar::handle:vertical {{ background: {t.text_tertiary};"
+            f" border-radius: 3px; min-height: 20px; }}"
+            f"QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}"
+            f"QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}"
+        )
+        layout.addWidget(self._detail_scroll)
+
+        self._more = QLabel()
+        self._more.setStyleSheet(f"color: {t.text_tertiary}; font-size: 11px; border: none;")
+        self._more.setVisible(False)
+        layout.addWidget(self._more)
 
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -309,6 +342,17 @@ class ApprovalRow(QWidget):
     def ask(self, tool: str, detail: str, reason: str) -> None:
         self._reason.setText(f"{tool} — {reason}")
         self._detail.setText(detail)
+        lines = detail.count("\n") + 1
+        width = BAR_WIDTH - 28 - 16
+        needed = self._detail.heightForWidth(width)
+        self._detail_scroll.setFixedHeight(
+            min(DETAIL_MAX_HEIGHT, max(40, needed) + 14)
+        )
+        # Kaydırma çubuğu tek başına "burada daha var" demeye yetmiyor;
+        # onaylanan şeyin ne kadarını görmediğin yazıyor.
+        kesik = needed + 14 > DETAIL_MAX_HEIGHT
+        self._more.setText(f"{lines} satır — kaydırarak tamamını oku" if kesik else "")
+        self._more.setVisible(kesik)
 
 
 class CommandBar(QWidget):
@@ -581,8 +625,18 @@ class CommandBar(QWidget):
         if area is None:
             area = QApplication.primaryScreen().availableGeometry()
 
-        # Alt kenarı sabit tut; içerik yukarı doğru açılsın.
-        y = bottom_before - self.height()
+        # Yön boşluğa göre seçiliyor. Alt kenarı sabit tutup yukarı açılmak
+        # çubuk ekranın altındayken doğru; tepedeyken yukarıda yer olmadığı
+        # için o kural çubuğu ekranın altından taşırıyordu ve onay
+        # düğmeleri görünmüyordu.
+        top_room = bottom_before - self.height() - area.top()
+        if top_room >= 0:
+            y = bottom_before - self.height()      # alt kenar sabit, yukarı aç
+        else:
+            y = self.y()                            # yukarıda yer yok, aşağı aç
+
+        # Ne olursa olsun tamamı ekranda: bu son satır çubuğun bir kenarının
+        # dışarıda kalmasını imkânsız kılıyor.
         y = max(area.top(), min(y, area.bottom() - self.height() + 14))
         x = max(area.left() - 14, min(self.x(), area.right() - self.width() + 14))
         self.move(x, y)

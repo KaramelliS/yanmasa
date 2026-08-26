@@ -31,6 +31,31 @@ from .fluent import RADIUS_CARD, RADIUS_CONTROL, Tokens
 from .glyphs import WorkGlyph
 
 
+#: Boşluksuz uzun parçalardan sonra satır sonu izni verilen karakterler.
+#: Bir Windows yolu ya da bir hücre formülü tek bir kelime sayılıyor ve
+#: `setWordWrap` onu bölemiyor; bölemeyince de listeyi genişletip pencereyi
+#: ekranın dışına itiyor.
+BREAK_AFTER = "/\\!:,;)]}$_-"
+
+#: Bir parça bu uzunluğu geçtiyse arasına satır sonu izni serpiliyor.
+CHUNK = 14
+
+
+def _breakable(text: str) -> str:
+    """Uzun ve boşluksuz parçalara sıfır genişlikli boşluk serpiştirir."""
+    out: list[str] = []
+    since = 0
+    for ch in text:
+        out.append(ch)
+        since += 1
+        if ch.isspace():
+            since = 0
+        elif ch in BREAK_AFTER or since >= CHUNK:
+            out.append("​")
+            since = 0
+    return "".join(out)
+
+
 class FrameDialog(QDialog):
     """Ajanın o adımda gördüğü tam kare."""
 
@@ -89,7 +114,7 @@ class Step(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(3)
 
-        head = QLabel(f"{label}  ·  {target}" if target else label)
+        head = QLabel(_breakable(f"{label}  ·  {target}" if target else label))
         head.setStyleSheet(
             f"color: {t.text}; font-size: 13px; font-weight: 600; border: none;"
         )
@@ -97,7 +122,7 @@ class Step(QWidget):
         column.addWidget(head)
 
         if detail:
-            body = QLabel(detail)
+            body = QLabel(_breakable(detail))
             body.setWordWrap(True)
             body.setStyleSheet(
                 f"color: {t.text_secondary}; font-size: 12px; border: none;"
@@ -146,6 +171,12 @@ class ActivityView(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        # Yatay kaydırma kapalı. Bir hücre formülü ya da uzun bir Windows
+        # yolu boşluk içermediği için satır sonu bulamıyor ve listeyi
+        # genişletiyordu; pencere de onunla birlikte ekranın dışına taşıyordu.
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         outer.addWidget(self._scroll, 1)
 
         self._body = QWidget()

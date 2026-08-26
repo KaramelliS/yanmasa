@@ -21,6 +21,7 @@ import time
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QDockWidget,
     QHBoxLayout,
     QLabel,
@@ -253,6 +254,27 @@ class MainWindow(QMainWindow):
             self.resizeDocks([dock], [720], Qt.Orientation.Horizontal)
         self._panels[key] = dock
         dock.raise_()
+        self._fit_to_screen()
+
+    def _fit_to_screen(self) -> None:
+        """Pencereyi ekranın içinde tutar.
+
+        720 piksellik bir panel eklendiğinde Qt pencereyi büyütüyor ve
+        pencere ekranın soluna taşıp içeriğini kırpıyordu: etkinlik
+        listesinin sol kenarı ekranın dışında kalıyor, adımlar yarım
+        okunuyordu.
+        """
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+        size = self.size().boundedTo(area.size())
+        if size != self.size():
+            self.resize(size)
+        x = max(area.left(), min(self.x(), area.right() - self.width() + 1))
+        y = max(area.top(), min(self.y(), area.bottom() - self.height() + 1))
+        if (x, y) != (self.x(), self.y()):
+            self.move(x, y)
 
     def close_panel(self, key: str) -> None:
         dock = self._panels.pop(key, None)
