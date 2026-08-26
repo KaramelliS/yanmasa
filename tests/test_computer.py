@@ -1089,3 +1089,135 @@ class TestUygulamaKurulumu:
         assert not eksik, f"ajan.py olmayan alanlara bağlanıyor: {eksik}"
         for nesne in nesneler.values():
             nesne.close()
+
+
+class TestTekrarlayanHata:
+    """Aynı hataya takılıp token yakmayı durdurma.
+
+    Gerçek bir koşuda bir kod hatası yüzünden dört `remote_*` çağrısı üst
+    üste aynı `TypeError` ile düştü ve ajan her seferinde yeniden denedi.
+    Her deneme bir model çağrısı, yani gerçek para.
+    """
+
+    def _outcome(self, text):
+        from backend.agent.loop import ToolOutcome
+        return ToolOutcome(content=text, is_error=True)
+
+    def test_ayni_hata_ayni_imzayi_verir(self):
+        from backend.agent.loop import _error_key
+        a = self._outcome("TypeError: _session() missing 1 argument at line 12")
+        b = self._outcome("TypeError: _session() missing 1 argument at line 99")
+        assert _error_key("remote_list", a) == _error_key("remote_list", b)
+
+    def test_farkli_arac_farkli_imza(self):
+        from backend.agent.loop import _error_key
+        o = self._outcome("aynı hata")
+        assert _error_key("remote_list", o) != _error_key("remote_read", o)
+
+    def test_farkli_hata_farkli_imza(self):
+        from backend.agent.loop import _error_key
+        assert _error_key("x", self._outcome("dosya yok")) != _error_key(
+            "x", self._outcome("izin reddedildi")
+        )
+
+    def test_ikinci_tekrarda_modele_uyari_eklenir(self):
+        from backend.agent.loop import Agent, Turn, ToolOutcome
+        from backend.agent.dispatch import ToolError
+
+        agent = Agent.__new__(Agent)
+
+        class SahteDispatcher:
+            def run(self, name, payload):
+                raise ToolError("hep aynı hata")
+
+        agent.dispatcher = SahteDispatcher()
+
+        class Blok:
+            type = "tool_use"
+            name = "remote_list"
+            id = "t1"
+            input = {}
+            toolset_name = None
+
+        seen = {}
+        son = None
+        for _ in range(2):
+            sonuclar = agent._run_batch([Blok()], Turn(), seen)
+            son = sonuclar[-1]
+        metin = str(son)
+        assert "Tekrar deneme" in metin, metin
+        assert max(seen.values()) == 2
+
+
+class TestAdCakismasi:
+    """Aynı sınıfta iki kez tanımlanan metot.
+
+    `_session` hem terminal hem SSH için tanımlanmıştı; sonra gelen öncekini
+    sessizce ezdi ve bütün `remote_*` araçları "missing 1 required positional
+    argument" hatasıyla düştü. Python bunu ne hata ne uyarı sayıyor.
+    """
+
+    def _duplicates(self, path):
+        import ast
+        from collections import Counter
+        from pathlib import Path
+
+        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+        found = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            names = Counter(
+                child.name for child in node.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            )
+            tekrar = [n for n, adet in names.items() if adet > 1]
+            if tekrar:
+                found[node.name] = tekrar
+        return found
+
+    def test_hicbir_sinifta_tekrarlayan_metot_yok(self):
+        from pathlib import Path
+
+        kok = Path(__file__).resolve().parent.parent
+        sorunlu = {}
+        for path in list(kok.glob("backend/**/*.py")) + list(kok.glob("app/*.py")):
+            found = self._duplicates(path)
+            if found:
+                sorunlu[path.name] = found
+        assert not sorunlu, f"aynı sınıfta iki kez tanımlanan metot: {sorunlu}"
+
+
+class TestSonucGorunumu:
+    """Sonuç türüne göre görünüm."""
+
+    def test_yigin_izinden_okunabilir_satir(self):
+        from app.results import _short_error
+        yigin = (
+            "Traceback (most recent call last):\n"
+            "  File \"dispatch.py\", line 130, in run\n"
+            "    return handler(payload)\n"
+            "TypeError: _session() missing 1 required positional argument"
+        )
+        assert _short_error(yigin) == (
+            "TypeError: _session() missing 1 required positional argument"
+        )
+
+    def test_tek_satirlik_hata_oldugu_gibi_kalir(self):
+        from app.results import _short_error
+        assert _short_error("brky: Permission denied") == "brky: Permission denied"
+
+    def test_dizin_satiri_ayristirilir(self):
+        from app.results import _ENTRY
+        m = _ENTRY.match("  d drwxr-xr-x           2026-08-16 17:54  ai-news")
+        assert m and m.group("name") == "ai-news" and m.group("kind") == "d"
+
+    def test_bosluklu_dosya_adi_bozulmaz(self):
+        from app.results import _ENTRY
+        m = _ENTRY.match("  - -rw-r--r--     3.2 KB 2026-08-14 19:03  bir dosya.txt")
+        assert m and m.group("name") == "bir dosya.txt"
+        assert m.group("size").strip() == "3.2 KB"
+
+    def test_dizin_olmayan_cikti_eslesmez(self):
+        from app.results import _ENTRY
+        assert _ENTRY.match(" 15:36:19 up 12 days,  2 users") is None

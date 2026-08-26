@@ -69,6 +69,30 @@ def _refusal_text(model_text: str) -> str:
     return f"{said}\n\n{REFUSAL_HINT}" if said else REFUSAL_HINT
 
 
+#: Aynı araç aynı hatayla kaç kez düşerse pes edilir.
+#:
+#: Bir tur maliyetli: model çağrısı, düşünce, ekran görüntüsü. Aynı çağrının
+#: aynı hatayı vermesi ajanın kendini düzeltemediği anlamına geliyor ve
+#: devam etmek yalnızca para yakıyor. Ölçüldü: bir kod hatası yüzünden dört
+#: `remote_*` çağrısı üst üste aynı `TypeError` ile düştü, ajan her seferinde
+#: yeniden denedi.
+#:
+#: İkinci tekrarda modele "bu yol kapalı, başka bir şey dene" deniyor;
+#: üçüncüde tur durduruluyor.
+SAME_ERROR_HINT = 2
+SAME_ERROR_LIMIT = 3
+
+
+def _error_key(name: str, outcome: ToolOutcome) -> str:
+    """Aynı hatayı tanımak için imza. Değişken kısımlar atılıyor: dosya
+    yolu ve satır numarası farklı olsa da hata aynı hatadır."""
+    import re
+
+    text = outcome.content if isinstance(outcome.content, str) else ""
+    text = re.sub(r"\d+", "#", text[:200])
+    return f"{name}|{text}"
+
+
 @dataclass
 class Agent:
     displays: DisplayMap
@@ -123,6 +147,9 @@ class Agent:
 
         final_text = ""
         stuck = False
+        # Aynı hata imzası kaç kez görüldü. Tur boyunca yaşıyor: ajan iki
+        # adım sonra aynı duvara toslarsa bu sayılıyor.
+        seen_errors: dict[str, int] = {}
         for step in range(max_steps):
             self.kill.check()
             response = self._call_model(turn, effort=_effort_for(step, stuck))
@@ -141,8 +168,17 @@ class Agent:
             if response.stop_reason != "tool_use":
                 return final_text
 
-            results = self._run_batch(response.content, turn)
+            results = self._run_batch(response.content, turn, seen_errors)
             stuck = any(r.get("is_error") for r in results)
+            tekrar = max(seen_errors.values(), default=0)
+            if tekrar >= SAME_ERROR_LIMIT:
+                self.messages.append({"role": "user", "content": results})
+                worst = max(seen_errors, key=lambda k: seen_errors[k])
+                return (
+                    f"{worst.split('|')[0]} aynı hatayla {tekrar} kez düştü, "
+                    f"durdum — denemeye devam etmek boşuna masraf.\n\n"
+                    f"{final_text}".strip()
+                )
             self.messages.append({"role": "user", "content": results})
             self._prune_images()
 
@@ -199,7 +235,8 @@ class Agent:
 
     # --- araç partisi -----------------------------------------------------
 
-    def _run_batch(self, content, turn: Turn) -> list[dict[str, Any]]:
+    def _run_batch(self, content, turn: Turn,
+                   seen_errors: dict[str, int] | None = None) -> list[dict[str, Any]]:
         """Bir turdaki tüm araç çağrılarını sırayla çalıştırır.
 
         Model tek yanıtta birkaç eylem gönderebiliyor ("tıkla, yaz, görüntü
@@ -241,6 +278,20 @@ class Agent:
                     content=f"{type(exc).__name__}: {exc}", is_error=True
                 )
                 failed = True
+
+            if outcome.is_error and seen_errors is not None:
+                key = _error_key(block.name, outcome)
+                seen_errors[key] = seen_errors.get(key, 0) + 1
+                if seen_errors[key] >= SAME_ERROR_HINT:
+                    outcome = ToolOutcome(
+                        content=(
+                            f"{outcome.content}\n\n"
+                            f"[Bu çağrı {seen_errors[key]} kez aynı hatayı "
+                            f"verdi. Tekrar deneme — ya başka bir yol seç ya "
+                            f"da Berkay'a neyin çalışmadığını söyle.]"
+                        ),
+                        is_error=True,
+                    )
 
             turn.on_result(block.name, outcome)
             results.append(self._result_block(block, outcome))

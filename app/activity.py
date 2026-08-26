@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from .fluent import RADIUS_CARD, RADIUS_CONTROL, Tokens
 from .glyphs import WorkGlyph
+from .results import ResultBox
 
 
 #: Boşluksuz uzun parçalardan sonra satır sonu izni verilen karakterler.
@@ -133,6 +134,11 @@ class Step(QWidget):
         self._note.setWordWrap(True)
         self._note.setVisible(False)
         column.addWidget(self._note)
+
+        # Sonuç türüne göre görünen kutu: dizin listesi çizimlerle, komut
+        # çıktısı eşaralıklı çerçevede, hata kırmızı şeritle.
+        self.result = ResultBox(t)
+        column.addWidget(self.result)
         column.addStretch(1)
         layout.addLayout(column, 1)
 
@@ -235,11 +241,13 @@ class ActivityView(QWidget):
         bar.setValue(bar.maximum())
         return step
 
-    def annotate_last(self, text: str, error: bool = False) -> None:
-        if self._last is not None:
-            self._last.set_note(text, error)
-            if error:
-                self._last.glyph.set_tone("hata")
+    def annotate_last(self, text: str, error: bool = False,
+                      tool: str = "") -> None:
+        if self._last is None:
+            return
+        self._last.result.show_result(tool, text, error)
+        if error:
+            self._last.glyph.set_tone("hata")
 
     def frame_last(self, png: bytes) -> None:
         if self._last is None:

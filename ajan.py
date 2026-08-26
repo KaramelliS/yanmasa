@@ -226,9 +226,9 @@ def main() -> int:
         if png:
             window.activity.frame_last(png)
         elif is_error:
-            window.activity.annotate_last(text[:200], error=True)
+            window.activity.annotate_last(text[:600], error=True, tool=tool)
         elif text and text != "OK":
-            window.activity.annotate_last(text[:200])
+            window.activity.annotate_last(text[:900], tool=tool)
         if is_error:
             bar.set_status(f"{tool}: {text[:120]}")
 

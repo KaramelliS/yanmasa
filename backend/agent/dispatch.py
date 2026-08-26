@@ -235,7 +235,14 @@ class Dispatcher:
 
     # --- uzak makine ------------------------------------------------------
 
-    def _session(self) -> SshSession:
+    def _remote_session(self) -> SshSession:
+        """Bağlı sunucu.
+
+        Adı `_session` idi ve sınıfta terminal oturumu için zaten bir
+        `_session` vardı; sonra tanımlanan öncekini eziyordu ve bütün
+        `remote_*` araçları "missing 1 required positional argument"
+        hatasıyla düşüyordu. Python bu çakışmayı sessizce kabul ediyor.
+        """
         if self.remote is None or not self.remote.connected:
             raise ToolError(
                 "Sunucuya bağlı değilsin. Önce remote_connect çağır "
@@ -263,7 +270,7 @@ class Dispatcher:
         )
 
     def _do_remote_list(self, payload: dict[str, Any]) -> ToolOutcome:
-        session = self._session()
+        session = self._remote_session()
         path = str(payload.get("path") or session.cwd)
         try:
             entries = session.enter(path)
@@ -283,13 +290,13 @@ class Dispatcher:
     def _do_remote_read(self, payload: dict[str, Any]) -> ToolOutcome:
         _require(payload, "path")
         try:
-            return ToolOutcome(content=self._session().read(str(payload["path"])))
+            return ToolOutcome(content=self._remote_session().read(str(payload["path"])))
         except RemoteError as exc:
             raise ToolError(str(exc)) from None
 
     def _do_remote_write(self, payload: dict[str, Any]) -> ToolOutcome:
         _require(payload, "path", "content", "why")
-        session = self._session()
+        session = self._remote_session()
         path, content = str(payload["path"]), str(payload["content"])
         # Uzak yazma her zaman soruluyor ve onay ekranında hangi sunucu
         # olduğu yazıyor: iki sunucuya bağlıyken hangisine yazdığını
@@ -304,7 +311,7 @@ class Dispatcher:
 
     def _do_remote_run(self, payload: dict[str, Any]) -> ToolOutcome:
         _require(payload, "command")
-        session = self._session()
+        session = self._remote_session()
         command = str(payload["command"])
         verdict = gate.classify_remote(command)
         if verdict.needs_confirmation and not self.approve(
