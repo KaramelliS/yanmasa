@@ -13,6 +13,7 @@ Ana pencere belgeleri tutuyor.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -202,6 +203,24 @@ def main() -> int:
         window.open_panel(f"__yetenek__{skill}", panel["baslik"],
                           SkillPanel(tokens, panel))
 
+    def on_wrote(paths: list) -> None:
+        """Ajan dosya yazdı — kodu göster.
+
+        "yazıldı" demek yetmiyor: ajan diske kod koyuyor ve görmeden ona
+        güvenmen gerekiyor. En son yazılan dosya panelde açılıyor.
+        """
+        from app.code_view import CodeView
+
+        for path in paths[-3:]:
+            try:
+                icerik = Path(path).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if len(icerik) > 200_000:
+                continue
+            ad = Path(path).name
+            window.open_panel(f"__kod__{path}", ad, CodeView(tokens, path, icerik))
+
     def on_document(shot) -> None:
         """Ajan bir belge açtığında ya da değiştirdiğinde panel belirir."""
         unsaved[shot.name] = shot.unsaved
@@ -275,6 +294,7 @@ def main() -> int:
     bridge.result.connect(on_result)
     bridge.document.connect(on_document)
     bridge.panel.connect(on_panel)
+    bridge.wrote.connect(on_wrote)
     bridge.finished.connect(on_finished)
     bridge.failed.connect(on_failed)
     bridge.approval.connect(on_approval)

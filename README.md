@@ -303,6 +303,48 @@ için onu bir yerde tutmak gerekirdi.
 Panelden silme ve taşıma yapılamıyor. Yanlış klasörde yapılan bir
 sağ tık > sil, sunucuda geri alınamaz.
 
+## Uygulama çeşitliliği
+
+`launch_app` yalnızca PATH'e bakıyordu. Ölçüldü: on yedi yaygın uygulamadan
+**on ikisi** bulunamıyordu — Discord, Chrome, Spotify, Telegram, Steam,
+Firefox, WhatsApp… Ajan bunları açmak için ya tam yolu bilmek ya da Başlat
+menüsünde tıklayarak gezinmek zorundaydı; ikincisi dört beş ekran görüntüsü.
+
+Artık bir katalog var: **162 uygulama**, üç kaynaktan — Başlat menüsü
+kısayolları (126), `App Paths` kayıt defteri (14) ve Mağaza uygulamaları
+(22). İlk tarama 1.7 saniye, sonrası önbellekten.
+
+Kısayolun hedefi çözülmüyor, `.lnk` doğrudan açılıyor: çalışma dizini,
+argümanlar ve simge zaten onun içinde ve elle çıkarmak onları kaybetmek
+olurdu.
+
+Yazım hatası sessizce başka bir uygulamaya çözülmüyor — bu, ajanın
+istenmeyen bir program açması demek olurdu. Ama öneri veriliyor:
+`spotfy` → "Bunlar olabilir: Spotify". `list_apps` ile ajan kurulu
+uygulamalara bakabiliyor.
+
+## Anlık kod dosyaları
+
+`write_files` birden çok dosyayı tek çağrıda yazıyor. Dosya başına ayrı
+çağrı, dosya başına ayrı **model turu** demekti; dört dosyalık bir proje
+dört fazladan tur harcıyordu.
+
+Ölçüldü: dört dosyalık bir Python projesi kurmak ve betiği çalıştırmak
+**3 tur, 52 saniye**. Klasörler kendiliğinden açılıyor.
+
+Üzerine yazma tek seferde soruluyor, dosya başına değil: on dosyalık bir
+projede on kere sormak, okumadan onaylamaya götürür. Reddedilirse hiçbir
+dosya yazılmıyor.
+
+Yazılan dosya arayüzde **kod paneli** olarak beliriyor — sözdizimi
+renklendirmeli, satır sayısı ve tam yoluyla. "yazıldı" demek yetmiyor; ajan
+diske kod koyuyor ve görmeden ona güvenmen gerekiyor.
+
+Renklendirme sözdizimi ağacı kurmuyor, düzenli ifadeyle çalışıyor — bir
+görüntüleyici için doğru olan bu. Renkler temadan geliyor; kod
+renklendirmesi genelde kendi paletini getirir ve uygulamanın içinde yabancı
+durur.
+
 ## Hız
 
 Bir iş 38 saniye sürüyordu, aynı iş şimdi 14 saniye. Tahmin edilmedi,

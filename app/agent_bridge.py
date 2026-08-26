@@ -45,6 +45,7 @@ class AgentBridge(QObject):
     ready = Signal(bool, str)    # ajan kuruldu mu, kurulamadıysa neden
     document = Signal(object)    # DocSnapshot — ajan bir belge açtı ya da değiştirdi
     panel = Signal(str, object)  # yetenek adı, panel tanımı
+    wrote = Signal(list)         # ajanın az önce yazdığı dosya yolları
 
     def __init__(self) -> None:
         super().__init__()
@@ -193,6 +194,10 @@ class _Worker(QObject):
         if son is not None:
             self._agent.dispatcher.last_panel = None
             self._bridge.panel.emit(son[0], son[1])
+        yazilan = getattr(self._agent.dispatcher, "last_files", None)
+        if yazilan:
+            self._agent.dispatcher.last_files = []
+            self._bridge.wrote.emit(list(yazilan))
 
     def _emit_documents(self) -> None:
         from .snapshot import snapshot

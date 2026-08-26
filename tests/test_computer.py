@@ -1617,3 +1617,140 @@ class TestPencereOneGetirme:
         from backend.computer import windows as win
 
         assert win.window_rect("boyle-bir-pencere-yok-12345") is None
+
+
+class TestUygulamaKatalogu:
+    """Kurulu uygulamaları bulmak.
+
+    `launch_app` yalnızca PATH'e bakıyordu ve on yedi yaygın uygulamadan
+    on ikisi bulunamıyordu.
+    """
+
+    def test_katalog_dolu(self):
+        from backend.computer import apps
+        assert len(apps.catalog()) > 20
+
+    def test_onbellek_ikinci_taramayi_atliyor(self):
+        import time
+
+        from backend.computer import apps
+
+        apps.catalog(refresh=True)
+        basla = time.monotonic()
+        apps.catalog()
+        assert time.monotonic() - basla < 0.05
+
+    def test_turkce_harf_duyarsiz_arama(self):
+        from backend.computer.apps import normalise
+        assert normalise("Görüntü Düzenleyici") == "goruntu duzenleyici"
+        assert normalise("İŞLEM") == "islem"
+
+    def test_tam_ad_ilk_sirada(self):
+        # "chrome" araması "Chrome Remote Desktop"u önce getirmemeli.
+        from backend.computer import apps
+        found = apps.search("chrome")
+        if found:
+            assert apps.normalise(found[0].name) in ("chrome", "google chrome")
+
+    def test_kaldirma_kisayollari_katalogda_yok(self):
+        # Ajanın açması istenen son şey "Uninstall".
+        from backend.computer import apps
+        for app in apps.catalog():
+            assert "uninstall" not in app.name.lower()
+
+    def test_yazim_hatasi_oneri_veriyor(self):
+        # Sessizce başka uygulamaya çözmek tehlikeli; öneri vermek değil.
+        from backend.computer import apps
+        if apps.resolve("discord"):
+            assert apps.resolve("discrod") is None
+            assert any("discord" in a.name.lower() for a in apps.suggest("discrod"))
+
+    def test_bos_sorgu_hicbir_sey_bulmuyor(self):
+        from backend.computer import apps
+        assert apps.search("  ") == []
+
+    def test_magaza_uygulamasi_appsfolder_ile_aciliyor(self):
+        from backend.computer.apps import App, launch_argv
+        argv = launch_argv(App("Not Defteri", "magaza", "Microsoft.Notepad_8we!App"))
+        assert argv[0] == "explorer.exe"
+        assert argv[1].startswith("shell:AppsFolder\\")
+
+    def test_kisayol_explorer_ile_aciliyor(self):
+        from backend.computer.apps import App, launch_argv
+        assert launch_argv(App("X", "kisayol", "C:/x.lnk")) == ["explorer.exe", "C:/x.lnk"]
+
+
+class TestTopluYazma:
+    def _dispatcher(self, approve):
+        from backend.agent.dispatch import Dispatcher
+        from backend.safety.killswitch import KillSwitch
+        return Dispatcher(DisplayMap([PRIMARY]), capture=None,
+                          kill=KillSwitch(), approve=approve)
+
+    def test_tek_cagrida_cok_dosya(self, tmp_path):
+        d = self._dispatcher(lambda *_: False)
+        kok = tmp_path / "proje"
+        out = d.run("write_files", {"files": [
+            {"path": str(kok / "main.py"), "content": "print(1)\n"},
+            {"path": str(kok / "alt" / "ayar.json"), "content": "{}\n"},
+        ]})
+        assert (kok / "main.py").exists()
+        # Klasör kendiliğinden açılmalı, yoksa ajan önce mkdir turu harcıyor.
+        assert (kok / "alt" / "ayar.json").exists()
+        assert "2 dosya" in out.content
+
+    def test_ustune_yazma_tek_seferde_soruluyor(self, tmp_path):
+        # Dosya başına ayrı onay, on dosyada okumadan onaylamaya yol açar.
+        sorulan = []
+
+        def approve(name, detail, reason):
+            sorulan.append(detail)
+            return False
+
+        d = self._dispatcher(approve)
+        for ad in ("a.txt", "b.txt"):
+            (tmp_path / ad).write_text("eski", encoding="utf-8")
+
+        from backend.agent.dispatch import Denied
+
+        with pytest.raises(Denied):
+            d.run("write_files", {"files": [
+                {"path": str(tmp_path / "a.txt"), "content": "yeni"},
+                {"path": str(tmp_path / "b.txt"), "content": "yeni"},
+            ]})
+        assert len(sorulan) == 1
+        assert "a.txt" in sorulan[0] and "b.txt" in sorulan[0]
+        # Reddedilince hiçbiri yazılmamalı.
+        assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "eski"
+
+    def test_yeni_dosya_onay_istemiyor(self, tmp_path):
+        d = self._dispatcher(lambda *_: pytest.fail("yeni dosya sormamalı"))
+        d.run("write_files", {"files": [
+            {"path": str(tmp_path / "yeni.txt"), "content": "x"},
+        ]})
+        assert (tmp_path / "yeni.txt").exists()
+
+    def test_bozuk_girdi_anlasilir_hata(self, tmp_path):
+        from backend.agent.dispatch import ToolError
+        d = self._dispatcher(lambda *_: True)
+        with pytest.raises(ToolError, match="files\[1\]"):
+            d.run("write_files", {"files": [
+                {"path": str(tmp_path / "a"), "content": "x"},
+                {"yol": "eksik"},
+            ]})
+
+
+class TestKodGorunumu:
+    def test_uzantiya_gore_dil(self):
+        from app.code_view import language_for
+        assert language_for("a.py") == "python"
+        assert language_for("b.tsx") == "c"
+        assert language_for("c.sh") == "shell"
+        assert language_for("d.json") == "data"
+        assert language_for("e.bilinmeyen") == "duz"
+
+    def test_tanimadigi_dosya_duz_gosteriliyor(self):
+        # Yanlış dille renklendirmek, renklendirmemekten kötü.
+        from app.code_view import LANGUAGES, language_for
+        assert language_for("veri.bin") == "duz"
+        assert "duz" not in LANGUAGES.values()

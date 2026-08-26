@@ -55,9 +55,11 @@ LAUNCH_APP = {
     "description": (
         "Bir uygulamayı doğrudan başlatır ve öne gelmesini bekler. Başlat "
         "menüsünde tıklamaktan çok daha hızlı — bir uygulama açman "
-        "gerektiğinde her zaman bunu kullan. Çalıştırılabilir adı "
-        "('notepad', 'mspaint', 'explorer'), tam yol, ya da bir URL "
-        "verebilirsin (URL varsayılan tarayıcıda açılır)."
+        "gerektiğinde her zaman bunu kullan. Kurulu her uygulamayı adıyla "
+        "açabilirsin ('Discord', 'Spotify', 'Hesap Makinesi'); "
+        "çalıştırılabilir adı, tam yol ya da URL de olur. Ad tutmazsa "
+        "yakın adayları söyler; hangi uygulamaların kurulu olduğunu "
+        "`list_apps` ile görebilirsin."
     ),
     "input_schema": {
         "type": "object",
@@ -561,12 +563,65 @@ REMOTE_RUN = {
     },
 }
 
+LIST_APPS = {
+    "name": "list_apps",
+    "description": (
+        "Kurulu uygulamaları listeler. Bir uygulamanın adından emin "
+        "değilsen önce buna bak; Başlat menüsünde ekran görüntüsüyle "
+        "aramaktan çok daha ucuz."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Arama metni. Boş bırakırsan hepsi listelenir.",
+            }
+        },
+        "required": [],
+        "additionalProperties": False,
+    },
+}
+
+WRITE_FILES = {
+    "name": "write_files",
+    "description": (
+        "Birden çok dosyayı TEK çağrıda yazar. Bir proje ya da betik "
+        "kurarken bunu kullan: dosya başına ayrı çağrı, dosya başına ayrı "
+        "model turu demek ve işi kat kat yavaşlatıyor. Klasörler "
+        "kendiliğinden açılıyor. Var olan bir dosyanın üzerine yazmak onay "
+        "ister; yeni dosya istemez."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "files": {
+                "type": "array",
+                "description": "Yazılacak dosyalar",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+            "why": {"type": "string", "description": "Ne kuruluyor"},
+        },
+        "required": ["files"],
+        "additionalProperties": False,
+    },
+}
+
 CUSTOM_TOOLS: list[dict[str, Any]] = [
     READ_UI_TREE,
     LAUNCH_APP,
+    LIST_APPS,
     RUN_SHELL,
     SWITCH_DISPLAY,
     WRITE_FILE,
+    WRITE_FILES,
     READ_FILE,
     EDIT_FILE,
     LIST_DIR,

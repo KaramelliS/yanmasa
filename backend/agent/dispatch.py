@@ -18,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from ..computer import apps
 from ..computer import files
 from ..computer import input as kb
 from ..computer import uia
@@ -103,6 +104,8 @@ class Dispatcher:
         self.remote: SshSession | None = None
         #: (yetenek adı, panel) — arayüzün alıp çizeceği son panel.
         self.last_panel: tuple[str, dict] | None = None
+        #: Son yazılan dosyalar — arayüz kod panelini bunlardan açıyor.
+        self.last_files: list[str] = []
 
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
@@ -491,13 +494,41 @@ class Dispatcher:
                 os.startfile(target)
                 expect = None
             else:
-                resolved = shutil.which(target) or target
-                subprocess.Popen(
-                    f'"{resolved}" {arguments}'.strip(),
-                    shell=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-                expect = os.path.basename(resolved)
+                # Önce PATH, sonra kurulu uygulamalar kataloğu. Windows'ta
+                # uygulamaların çoğu PATH'te değil: on yedi yaygın
+                # uygulamadan on ikisi yalnızca `which` ile bulunamıyordu.
+                yol = shutil.which(target)
+                app = None
+                if yol is None and not os.path.exists(target):
+                    app = apps.resolve(target)
+                    if app is None:
+                        yakin = apps.suggest(target, limit=5)
+                        oneri = (
+                            " Bunlar olabilir: "
+                            + ", ".join(a.name for a in yakin)
+                            if yakin else
+                            " `list_apps` ile kurulu uygulamalara bak."
+                        )
+                        raise ToolError(f"{target!r} diye bir uygulama yok.{oneri}")
+
+                if app is not None:
+                    argv = apps.launch_argv(app)
+                    subprocess.Popen(
+                        argv + ([arguments] if arguments else []),
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                    # Kısayol ve mağaza girdileri explorer üzerinden
+                    # açılıyor; öne gelecek pencere explorer değil, o yüzden
+                    # süreç adına göre bekleme yapılamıyor.
+                    expect = None
+                else:
+                    resolved = yol or target
+                    subprocess.Popen(
+                        f'"{resolved}" {arguments}'.strip(),
+                        shell=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                    expect = os.path.basename(resolved)
         except OSError as exc:
             raise ToolError(f"{target} başlatılamadı: {exc}") from None
 
@@ -527,6 +558,20 @@ class Dispatcher:
                 return True
             time.sleep(0.15)
         return False
+
+    def _do_list_apps(self, payload: dict[str, Any]) -> ToolOutcome:
+        query = str(payload.get("query", "")).strip()
+        found = apps.search(query, limit=30) if query else apps.catalog()
+        if not found:
+            return ToolOutcome(
+                content=f"{query!r} ile eşleşen uygulama yok. Sorgusuz çağır, "
+                        f"tamamını gör."
+            )
+        lines = [f"{len(found)} uygulama:"]
+        lines += [f"  {a.describe()}" for a in found[:60]]
+        if len(found) > 60:
+            lines.append(f"  … +{len(found) - 60} tane daha, daha dar ara.")
+        return ToolOutcome(content="\n".join(lines))
 
     def _do_run_shell(self, payload: dict[str, Any]) -> ToolOutcome:
         command = str(payload.get("command", "")).strip()
@@ -566,16 +611,63 @@ class Dispatcher:
     # --- dosyalar ---------------------------------------------------------
 
     def _do_write_file(self, payload: dict[str, Any]) -> ToolOutcome:
+        path = str(payload.get("path", ""))
         try:
-            return ToolOutcome(
-                content=files.write(
-                    str(payload.get("path", "")),
-                    str(payload.get("content", "")),
-                    append=bool(payload.get("append", False)),
-                )
+            sonuc = files.write(
+                path,
+                str(payload.get("content", "")),
+                append=bool(payload.get("append", False)),
             )
         except files.FileError as exc:
             raise ToolError(str(exc)) from None
+        # Arayüz yazılan dosyayı kod paneli olarak açıyor. Yalnızca başarılı
+        # yazımda: olmayan bir dosyayı göstermeye çalışmak boş panel demek.
+        self.last_files = [path]
+        return ToolOutcome(content=sonuc)
+
+    def _do_write_files(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "files")
+        items = payload["files"]
+        if not isinstance(items, list) or not items:
+            raise ToolError("files boş olamaz; {path, content} listesi bekleniyor")
+
+        hazir: list[tuple[str, str]] = []
+        for index, item in enumerate(items):
+            if not isinstance(item, dict) or "path" not in item or "content" not in item:
+                raise ToolError(f"files[{index}] {{path, content}} olmalı")
+            hazir.append((str(item["path"]), str(item["content"])))
+
+        # Üzerine yazılacaklar tek seferde soruluyor. Dosya başına ayrı onay,
+        # on dosyalık bir projede on kere sormak demek ve o noktada kimse
+        # okumadan onaylıyor.
+        ustune = [p for p, _c in hazir if gate.classify_write(p).needs_confirmation]
+        if ustune:
+            detay = "Üzerine yazılacak:\n" + "\n".join(f"  {p}" for p in ustune)
+            if not self.approve(
+                "write_files", detay,
+                str(payload.get("why") or "var olan dosyaların üzerine yazıyor"),
+            ):
+                raise Denied("Berkay üzerine yazmayı reddetti. Hiçbir dosya yazılmadı.")
+
+        yazilan: list[str] = []
+        try:
+            for path, content in hazir:
+                files.write(path, content)
+                yazilan.append(path)
+        except (OSError, ValueError) as exc:
+            # Yarım kalan yazımı gizlemek, ajanın projeyi tamamlandı
+            # sanmasına yol açar.
+            raise ToolError(
+                f"{len(yazilan)}/{len(hazir)} dosya yazıldıktan sonra durdu: "
+                f"{exc}. Yazılanlar: {', '.join(yazilan) or 'yok'}"
+            ) from None
+
+        self.last_files = yazilan
+        toplam = sum(len(c) for _p, c in hazir)
+        return ToolOutcome(
+            content=f"{len(yazilan)} dosya yazıldı ({toplam} karakter):\n"
+            + "\n".join(f"  {p}" for p in yazilan)
+        )
 
     def _do_read_file(self, payload: dict[str, Any]) -> ToolOutcome:
         try:
