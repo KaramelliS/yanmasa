@@ -193,7 +193,7 @@ def main() -> int:
         bar.set_status("")
         window.status.set_line(f"Bağlandı: {banner}")
 
-    window.connect_remote.clicked.connect(connect_remote)
+    window.status.connect_remote.clicked.connect(connect_remote)
 
     def on_document(shot) -> None:
         """Ajan bir belge açtığında ya da değiştirdiğinde panel belirir."""

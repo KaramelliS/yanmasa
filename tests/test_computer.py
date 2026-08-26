@@ -1029,3 +1029,63 @@ class TestEntry:
     def test_yol_ust_dizinle_birlestirilir(self):
         assert self._entry(name="a b.txt").path == "/tmp/a b.txt"
         assert self._entry(parent="/").path == "/x"
+
+
+class TestUygulamaKurulumu:
+    """Uygulamanın kendisi ayağa kalkıyor mu.
+
+    Bu sınıf bir hatadan sonra yazıldı: `window.connect_remote` diye var
+    olmayan bir alana bağlanıldı ve 127 testin hepsi geçtiği hâlde uygulama
+    açılmadı. Testler modülleri tek tek doğruluyordu, hiçbiri onları
+    birbirine bağlayan kodu çalıştırmıyordu.
+    """
+
+    def _app(self):
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+        return QApplication.instance() or QApplication([])
+
+    def test_pencere_ve_cubuk_kurulur(self):
+        app = self._app()
+        from app import fluent
+        from app.commandbar import CommandBar
+        from app.window import MainWindow
+
+        tokens = fluent.apply(app)
+        window = MainWindow(tokens)
+        bar = CommandBar(tokens)
+        window.attach_bar(bar)
+        # Ana döngünün dokunduğu her alan gerçekten var mı.
+        assert window.status.connect_remote is not None
+        assert window.activity is not None
+        assert bar.buttons is not None
+        window.close()
+        bar.close()
+
+    def test_ana_dongunun_bagladigi_alanlar_var(self):
+        # `ajan.py` içinde `window.<x>` ve `bar.<x>` diye erişilen her alan
+        # gerçekten tanımlı mı — eksikse uygulama açılmıyor.
+        import re
+        from pathlib import Path
+
+        source = Path(__file__).resolve().parent.parent / "ajan.py"
+        text = source.read_text(encoding="utf-8")
+
+        app = self._app()
+        from app import fluent
+        from app.commandbar import CommandBar
+        from app.window import MainWindow
+
+        tokens = fluent.apply(app)
+        nesneler = {"window": MainWindow(tokens), "bar": CommandBar(tokens)}
+        eksik = []
+        for ad, nesne in nesneler.items():
+            # Büyük harf de dâhil: `activateWindow` küçük harfle sınırlı bir
+            # desende `activate` diye kesiliyor ve olmayan bir alan uyduruyor.
+            for alan in set(re.findall(rf"\b{ad}\.([A-Za-z_][A-Za-z0-9_]*)", text)):
+                if not hasattr(nesne, alan):
+                    eksik.append(f"{ad}.{alan}")
+        assert not eksik, f"ajan.py olmayan alanlara bağlanıyor: {eksik}"
+        for nesne in nesneler.values():
+            nesne.close()
