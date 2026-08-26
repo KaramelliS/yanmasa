@@ -52,20 +52,28 @@ gerçek kuralını çiğnemek olurdu.
 
 ## Kurulum
 
+Proje kendi başına duruyor: dizini nereye kopyalarsan orada çalışıyor,
+hiçbir çalışma alanı yöneticisine ya da dış depoya bağlı değil.
+
 ```
 py -m venv .venv
-.venv/Scripts/activate
-pip install -r requirements.txt
+.venv/Scripts/python.exe -m pip install -r requirements.txt
 copy .env.example .env
 ```
 
 Anahtarlar `.env` dosyasına girer. `.env` `.gitignore`'da — repoya asla
-girmemeli.
+girmemeli. `ANTHROPIC_API_KEY` yoksa uygulama açılıyor ama çubukta
+"Ajan kurulamadı" yazıyor; sessizce yarım çalışmıyor.
+
+Ajanın kendine yazdığı yetenekler ve düğmeler depoda değil,
+`~/.ajan/` altında: kendi yazdığı kod uygulamanın kaynağına karışmamalı ve
+bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ## Çalıştırma ve doğrulama
 
 ```
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 83 test
+.venv/Scripts/pythonw.exe ajan.py                          # uygulama
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 110 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/ajan.py                   # ajan, etkileşimli
