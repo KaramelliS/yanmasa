@@ -888,3 +888,39 @@ class TestCommandNames:
                 'KOMUT = {"ad": "3 gun", "aciklama": "a", "talimat": "b"}\n'
                 'def calistir(g, o): return "ok"\n'
             ))
+
+
+class TestRefusal:
+    """Reddedilme nasıl anlatılıyor."""
+
+    def test_modelin_kendi_aciklamasi_kaybolmaz(self):
+        # Eski hâli modelin metnini atıp yerine tek cümlelik bir kalıp
+        # koyuyordu; kullanıcı neyin reddedildiğini öğrenemiyordu.
+        from backend.agent.loop import _refusal_text
+        out = _refusal_text("Ekranda doğrulama kodu var, ona dokunmadım.")
+        assert "doğrulama kodu var, ona dokunmadım" in out
+        assert "tekrar dene" in out
+
+    def test_metin_yoksa_yine_de_ne_yapilacagi_yazar(self):
+        from backend.agent.loop import _refusal_text
+        out = _refusal_text("   ")
+        assert "ekranda olanla ilgili" in out
+        assert out.strip() == out
+
+    def test_reddedilince_gecmisteki_gorseller_dusurulur(self):
+        # Kare geçmişte kalırsa bir sonraki istek de aynı yerde reddediliyor
+        # ve kullanıcı "hiçbir şey çalışmıyor" diye kalıyor.
+        from backend.agent.loop import Agent
+        agent = Agent.__new__(Agent)
+        agent.messages = [
+            {"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "data": "AAA"}},
+                {"type": "text", "text": "devam"},
+            ]},
+            {"role": "assistant", "content": "tamam"},
+        ]
+        agent._drop_last_images()
+        blocks = agent.messages[0]["content"]
+        assert blocks[0] == {"type": "text", "text": "(ekran görüntüsü kaldırıldı)"}
+        assert blocks[1]["text"] == "devam"
+        assert agent.messages[1]["content"] == "tamam"

@@ -46,6 +46,29 @@ class Turn:
     on_result: Callable[[str, ToolOutcome], None] = lambda _n, _o: None
 
 
+#: Reddedilme mesajı. Computer-use çağrılarında Anthropic bir güvenlik
+#: sınıflandırıcısı çalıştırıyor ve bu sınıflandırıcı **ekran görüntüsünün
+#: içeriğine** de bakıyor. Ekranda doğrulama kodu, bankacılık ekranı ya da
+#: kimlik bilgisi varken reddedilen şey çoğu zaman kullanıcının isteği değil,
+#: karenin içeriği oluyor.
+#:
+#: Eski hâli yalnızca "Model bu isteği reddetti." diyordu: ne reddedildiğini,
+#: neden reddedildiğini ve ne yapılacağını söylemiyor, üstelik modelin kendi
+#: açıklamasını da çöpe atıyordu.
+REFUSAL_HINT = (
+    "İstek reddedildi. Bu genellikle senin yazdığın şeyle değil, o anda "
+    "ekranda olanla ilgili: doğrulama kodu, bankacılık ekranı ya da şifre "
+    "alanı görünen bir kare güvenlik denetimini tetikliyor.\n\n"
+    "O pencereyi kapatıp ya da başka bir ekrana geçip tekrar dene."
+)
+
+
+def _refusal_text(model_text: str) -> str:
+    """Modelin kendi açıklaması varsa o kaybolmuyor."""
+    said = model_text.strip()
+    return f"{said}\n\n{REFUSAL_HINT}" if said else REFUSAL_HINT
+
+
 @dataclass
 class Agent:
     displays: DisplayMap
@@ -110,7 +133,11 @@ class Agent:
             self.messages.append({"role": "assistant", "content": response.content})
 
             if response.stop_reason == "refusal":
-                return "Model bu isteği reddetti."
+                # Son ekran görüntüsünü geçmişten düşür. Kalırsa bir sonraki
+                # istek de aynı kareyi taşıyor ve aynı yerde reddediliyor —
+                # kullanıcı "neden hiçbir şey çalışmıyor" diye kalıyor.
+                self._drop_last_images()
+                return _refusal_text(final_text)
             if response.stop_reason != "tool_use":
                 return final_text
 
@@ -120,6 +147,20 @@ class Agent:
             self._prune_images()
 
         return final_text or f"{max_steps} adımda bitmedi, durdum."
+
+    def _drop_last_images(self) -> None:
+        """Geçmişteki görselleri metin yer tutucuyla değiştirir."""
+        for message in self.messages:
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "image":
+                    block.clear()
+                    block.update({
+                        "type": "text",
+                        "text": "(ekran görüntüsü kaldırıldı)",
+                    })
 
     # --- model çağrısı ----------------------------------------------------
 
