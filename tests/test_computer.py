@@ -1509,3 +1509,111 @@ class TestDiscordEklentisi:
         out = skill.run({"islem": "ac"}, o)
         assert ("switch_display", {"index": 1}) in o.cagrilar
         assert "ekran 1" in out
+
+
+class TestHiz:
+    """Hız kararlarının gerilemesini engelleyen testler."""
+
+    def test_kare_webp_kayipsiz(self):
+        # PNG'nin 2-6 katı küçük ve kayıpsız; kayıplı bir biçim küçük
+        # yazıyı bozar ve yanlış okunan etiket yanlış tıklama demek.
+        from backend.computer.capture import ScreenCapture
+        from backend.computer.displays import enumerate_displays
+
+        capture = ScreenCapture(enumerate_displays())
+        try:
+            data, mime = capture.grab(0).encode()
+        finally:
+            capture.close()
+        assert mime == "image/webp"
+        assert data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+
+    def test_onbellek_noktasi_son_statik_aracta(self):
+        """Nokta ilk sıradayken arkasındaki 28 özel araç (~3700 token) her
+        istekte yeniden işleniyordu."""
+        from backend.agent.loop import Agent
+        from backend.agent.tools import CUSTOM_TOOLS
+
+        agent = Agent.__new__(Agent)
+
+        class SahteKayit:
+            def tools(self):
+                return [{"name": "yetenek", "description": "", "input_schema": {}}]
+
+        class SahteDispatcher:
+            skills = SahteKayit()
+            active_index = 0
+
+        agent.dispatcher = SahteDispatcher()
+        tools = agent.tools
+
+        assert "cache_control" not in tools[0], "computer araç setinde olmamalı"
+        isaretli = [i for i, t in enumerate(tools) if "cache_control" in t]
+        assert len(isaretli) == 1
+        # Nokta bütün statik araçlardan sonra, yeteneklerden önce.
+        assert isaretli[0] == len(CUSTOM_TOOLS)
+        assert tools[-1]["name"] == "yetenek"
+        assert "cache_control" not in tools[-1]
+
+    def test_yetenek_eklemek_onbellegi_bozmuyor(self):
+        # Yetenek listesi noktadan sonra: yeni yetenek yazmak statik
+        # bölümün önbelleğini geçersiz kılmamalı.
+        from backend.agent.loop import Agent
+
+        agent = Agent.__new__(Agent)
+
+        class SahteKayit:
+            def __init__(self):
+                self.adet = 1
+
+            def tools(self):
+                return [
+                    {"name": f"y{i}", "description": "", "input_schema": {}}
+                    for i in range(self.adet)
+                ]
+
+        class SahteDispatcher:
+            active_index = 0
+
+        d = SahteDispatcher()
+        d.skills = SahteKayit()
+        agent.dispatcher = d
+
+        once = agent.tools
+        d.skills.adet = 3
+        sonra = agent.tools
+        statik = len(once) - 1
+        assert once[:statik] == sonra[:statik]
+
+    def test_sistem_promptu_onbelleklenebilir_blok(self):
+        from backend.agent.loop import Agent
+        from backend.computer.displays import Display, DisplayMap
+
+        agent = Agent.__new__(Agent)
+        agent.displays = DisplayMap([Display(0, 0, 0, 1920, 1080, True)])
+
+        class SahteDispatcher:
+            active_index = 0
+
+        agent.dispatcher = SahteDispatcher()
+        blocks = agent._system_blocks()
+        assert len(blocks) == 1
+        assert blocks[0]["cache_control"] == {"type": "ephemeral"}
+        assert len(blocks[0]["text"]) > 1000
+
+
+class TestPencereOneGetirme:
+    def test_olmayan_pencere_hizli_false_doner(self):
+        # Zaman aşımını beklemek bir aracın saniyelerce donması demek.
+        import time
+
+        from backend.computer import windows as win
+
+        basla = time.monotonic()
+        assert win.activate("boyle-bir-pencere-yok-12345", timeout=5.0) is False
+        assert time.monotonic() - basla < 1.0
+
+    def test_olmayan_pencerenin_dikdortgeni_none(self):
+        from backend.computer import windows as win
+
+        assert win.window_rect("boyle-bir-pencere-yok-12345") is None

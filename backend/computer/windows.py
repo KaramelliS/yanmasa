@@ -139,17 +139,42 @@ def activate(title_contains: str, timeout: float = 3.0) -> bool:
     if not hwnd:
         return False
 
+    user32 = ctypes.windll.user32
     SW_RESTORE = 9
-    if ctypes.windll.user32.IsIconic(hwnd):
-        ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
-    ctypes.windll.user32.SetForegroundWindow(hwnd)
-    ctypes.windll.user32.BringWindowToTop(hwnd)
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+
+    # Windows ön plan hırsızlığını engelliyor: `SetForegroundWindow` yalnızca
+    # çağıran süreç zaten ön plandaysa ya da yakın zamanda kullanıcı girdisi
+    # aldıysa çalışıyor. Aksi hâlde sessizce yok sayılıp görev çubuğunu yakıp
+    # söndürüyor — ölçüldü, çağrıların çoğu böyle düşüyordu ve ajan Discord'u
+    # açamayıp turlarca deniyordu.
+    #
+    # Kural şu: iki thread girdi kuyruğunu paylaşıyorsa biri diğerinin
+    # penceresini öne getirebiliyor. Ön plandaki thread'e geçici olarak
+    # bağlanıp izni alıyoruz.
+    hedef_thread = user32.GetWindowThreadProcessId(hwnd, None)
+    on_hwnd = user32.GetForegroundWindow()
+    on_thread = user32.GetWindowThreadProcessId(on_hwnd, None) if on_hwnd else 0
+    bizim_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+
+    bagli = []
+    for thread in {on_thread, hedef_thread} - {0, bizim_thread}:
+        if user32.AttachThreadInput(bizim_thread, thread, True):
+            bagli.append(thread)
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        user32.SetActiveWindow(hwnd)
+    finally:
+        for thread in bagli:
+            user32.AttachThreadInput(bizim_thread, thread, False)
 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if title_contains.lower() in foreground_title().lower():
             return True
-        time.sleep(0.1)
+        time.sleep(0.05)
     return False
 
 

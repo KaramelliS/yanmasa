@@ -303,6 +303,56 @@ için onu bir yerde tutmak gerekirdi.
 Panelden silme ve taşıma yapılamıyor. Yanlış klasörde yapılan bir
 sağ tık > sil, sunucuda geri alınamaz.
 
+## Hız
+
+Bir iş 38 saniye sürüyordu, aynı iş şimdi 14 saniye. Tahmin edilmedi,
+ölçüldü — ve tahminlerin ikisi de yanlış çıktı.
+
+| | önce | sonra |
+|---|---|---|
+| toplam | 38.4 sn | 13.9 sn |
+| araçlar | 17.2 sn | 0.2 sn |
+| model | 21.2 sn | 13.7 sn |
+
+Dört değişiklik:
+
+**Açık uygulamayı yeniden başlatma.**  **25 saniye** sürüyordu.
+Pencere zaten açıkken öne getirme başarısız olunca başlatma yoluna
+düşüyordu;  yeni bir pencere bekleyip 10 saniye zaman aşımına
+giriyor, üstüne eklentinin kendi beklemeleri biniyordu. Pencere varsa artık
+hiç başlatılmıyor: **4 ms**.
+
+**Ön plana getirme gerçekten çalışsın.** Windows ön plan hırsızlığını
+engelliyor;  çağrıların çoğunda sessizce yok
+sayılıyordu ve ajan pencereyi açamayıp turlarca deniyordu.
+ ile ön plandaki thread'e geçici bağlanınca 5/5 başarı,
+her biri ~20 ms.
+
+**Kare biçimi WebP kayıpsız.** Ölçüm iki monitörde:
+
+| biçim | base64 | kodlama |
+|---|---|---|
+| PNG compress=1 | 632–1843 KB | 40–94 ms |
+| WebP kayıpsız m=0 | 315–795 KB | 71–241 ms |
+| WebP kalite 90 | 264–308 KB | 87–89 ms |
+
+Kayıpsız seçildi. Kayıplı biçim daha küçük ama ajanın okuduğu şey küçük
+yazı; yanlış okunan bir etiket yanlış tıklama demek ve bunun maliyeti
+birkaç yüz kilobayttan yüksek.  daha da küçültüyor ama aynı
+karede 910 ms sürüyor — her adıma binen 700 ms buna değmiyor.
+
+**Önbellek noktası doğru yere.** Nokta computer araç setinin üstündeydi ve
+bir nokta yalnızca kendisine kadar olanı kapsıyor: arkasındaki 28 özel araç
+(~3700 token) ile sistem promptu (~2450 token) her istekte yeniden
+işleniyordu. Nokta son statik aracın üstüne alındı ve sistem promptu
+önbelleklenebilir blok yapıldı — her adımda **16.100 token önbellekten**
+geliyor. Yetenekler noktadan sonra kaldığı için yeni yetenek yazmak
+önbelleği bozmuyor.
+
+Ayrıca sistem promptuna hız bölümü eklendi: birbirini izleyen eylemleri tek
+turda gönder, metin sonucu yeten yerde ekran görüntüsü alma, bitirirken tek
+cümle yaz.
+
 ## Güvenlik
 
 Üç katman, üçü de bağımsız:

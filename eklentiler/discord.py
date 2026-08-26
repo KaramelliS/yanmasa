@@ -94,13 +94,21 @@ def calistir(girdi, ortam):
     islem = str(girdi.get("islem", "")).strip()
 
     if islem == "ac":
-        # Açıksa yeniden başlatma, öne getir. Discord ikinci bir örnek
-        # açmıyor ama `launch_app` yine de bekliyor ve saniyeler harcıyor.
-        if ortam.pencereye_gec(PENCERE):
-            return "Discord öne getirildi. " + _ekrana_gec(ortam)
+        # Pencere varsa **asla başlatma**. Ölçüldü: zaten açık Discord için
+        # başlatma yolu 25 saniye sürüyordu — `launch_app` yeni bir pencere
+        # bekleyip 10 saniye zaman aşımına düşüyor, üstüne eklentinin kendi
+        # beklemeleri biniyordu. Açık bir uygulamayı öne getirmek 50 ms.
+        acik = ortam.pencerenin_ekrani(PENCERE) is not None
+        if acik:
+            if ortam.pencereye_gec(PENCERE, timeout=2.0):
+                return "Discord öne getirildi. " + _ekrana_gec(ortam)
+            return (
+                "Discord açık ama öne getirilemedi (tam ekran bir uygulama "
+                "önde olabilir). Ekran görüntüsü al ve pencereye tıkla."
+            )
 
-        # Discord PATH'te değil: Squirrel ile kuruluyor ve gerçek exe
-        # sürüm numaralı bir klasörde. Kararlı olan başlatıcı stub'ı.
+        # Discord PATH'te değil: Squirrel ile kuruluyor ve gerçek exe sürüm
+        # numaralı bir klasörde. Kararlı olan başlatıcı stub'ı.
         import os
 
         stub = os.path.join(
@@ -108,13 +116,19 @@ def calistir(girdi, ortam):
         )
         if not os.path.exists(stub):
             return (
-                "Discord kurulu değil ya da bulunamadı "
-                f"({stub}). Elle açıp tekrar dene."
+                f"Discord kurulu değil ya da bulunamadı ({stub}). "
+                f"Elle açıp tekrar dene."
             )
         ortam.arac("launch_app", target=stub,
                    arguments="--processStart Discord.exe")
-        ortam.bekle(4.0)
-        if ortam.pencereye_gec(PENCERE, timeout=8.0):
+        # Sabit bekleme yerine yokla: Discord soğuk açılışta 8 saniye,
+        # sıcakta 2 saniye sürüyor ve ikisine de aynı süreyi harcamak
+        # ya erken davranmak ya da boşuna beklemek demek.
+        for _ in range(20):
+            if ortam.pencerenin_ekrani(PENCERE) is not None:
+                break
+            ortam.bekle(0.5)
+        if ortam.pencereye_gec(PENCERE, timeout=3.0):
             return "Discord başlatıldı ve öne getirildi. " + _ekrana_gec(ortam)
         return (
             "Discord başlatıldı ama pencere öne gelmedi. Ekran görüntüsü al "

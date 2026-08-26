@@ -37,6 +37,32 @@ class Frame:
         self.image.save(buffer, format="PNG", optimize=optimize, compress_level=1)
         return buffer.getvalue()
 
+    def encode(self) -> tuple[bytes, str]:
+        """Modele gidecek kare ve MIME türü.
+
+        Ölçüm, 1920x1080 bir masaüstü karesi için:
+
+            biçim                base64 boyut   kodlama
+            PNG  compress=1       632-1843 KB    40-94 ms
+            WebP kayıpsız m=0      315-795 KB    71-241 ms
+            WebP kalite 90         264-308 KB    87-89 ms
+            JPEG kalite 90         401-459 KB     7-11 ms
+
+        (İki değer iki monitörden: biri yoğun görselli, diğeri düz arayüz.)
+
+        **WebP kayıpsız, method=0** seçildi. PNG'nin 2-6 katı küçük ve
+        kayıpsız — küçük yazı, ince çizgi bozulmuyor, ki ajanın baktığı şey
+        tam olarak o. Yanlış okunan bir etiket yanlış tıklama demek ve
+        bunun maliyeti birkaç yüz kilobayttan çok daha yüksek.
+
+        `method` sıkıştırma çabası: 1 daha küçük dosya veriyor ama aynı
+        karede 910 ms sürüyor, 0 ise 241 ms. Kazandırdığı yer, her adıma
+        binen 700 ms'e değmiyor.
+        """
+        buffer = io.BytesIO()
+        self.image.save(buffer, format="WEBP", lossless=True, method=0)
+        return buffer.getvalue(), "image/webp"
+
     def crop(self, region: tuple[int, int, int, int]) -> Image.Image:
         """`zoom` için bölge kırpar. region = (x0, y0, x1, y1)."""
         x0, y0, x1, y1 = region

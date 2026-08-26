@@ -127,17 +127,19 @@ class Agent:
         çağırmasını imkânsız kılardı — yetenek ancak uygulama yeniden
         başlatılınca görünürdü ve "yaz, hemen dene" döngüsü kapanmazdı.
 
-        Önbellek noktası yeteneklerden **önce**: yetenek listesi değiştiğinde
-        computer araç setinin şeması yine önbellekten geliyor.
+        Önbellek noktası **son statik aracın** üstünde, computer araç
+        setinin değil. Bir önbellek noktası kendisine kadar olan her şeyi
+        kapsıyor; nokta ilk sırada olduğunda arkasındaki 28 özel araç
+        (~3700 token) her istekte yeniden işleniyordu. Nokta sona alınınca
+        hepsi önbellekten geliyor, yetenekler ise ondan sonra kaldığı için
+        yeni yetenek yazmak önbelleği bozmuyor.
         """
-        return [
-            {
-                "type": "computer_toolset_20260801",
-                "cache_control": {"type": "ephemeral"},
-            },
-            *CUSTOM_TOOLS,
-            *self.dispatcher.skills.tools(),
+        static = [
+            {"type": "computer_toolset_20260801"},
+            *CUSTOM_TOOLS[:-1],
+            {**CUSTOM_TOOLS[-1], "cache_control": {"type": "ephemeral"}},
         ]
+        return [*static, *self.dispatcher.skills.tools()]
 
     def run(self, instruction: str, turn: Turn | None = None, max_steps: int = 60) -> str:
         """Bir talimatı ajan bitene kadar sürer. Son metni döndürür."""
@@ -212,7 +214,7 @@ class Agent:
         with self.client.messages.stream(
             model=config.MODEL,
             max_tokens=config.MAX_TOKENS,
-            system=build_system(self.displays, self.dispatcher.active_index),
+            system=self._system_blocks(),
             tools=self.tools,
             messages=self.messages,
             thinking={"type": "adaptive", "display": "summarized"},
@@ -232,6 +234,21 @@ class Agent:
                     thinking_buffer.clear()
 
             return stream.get_final_message()
+
+    def _system_blocks(self) -> list[dict[str, Any]]:
+        """Sistem promptu önbelleğe alınabilir blok olarak.
+
+        Düz metin olarak gönderildiğinde ~2450 token her istekte yeniden
+        işleniyordu. Prompt uzadıkça (yetenek sözleşmesi, panel sözleşmesi,
+        uzak makine bölümü) bu maliyet büyüyor ve her adıma biniyor.
+        """
+        return [
+            {
+                "type": "text",
+                "text": build_system(self.displays, self.dispatcher.active_index),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
 
     # --- araç partisi -----------------------------------------------------
 

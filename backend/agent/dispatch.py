@@ -59,14 +59,14 @@ class ToolOutcome:
     is_error: bool = False
 
 
-def _png_block(png: bytes) -> list[dict[str, Any]]:
+def _image_block(data: bytes, media_type: str) -> list[dict[str, Any]]:
     return [
         {
             "type": "image",
             "source": {
                 "type": "base64",
-                "media_type": "image/png",
-                "data": base64.standard_b64encode(png).decode("ascii"),
+                "media_type": media_type,
+                "data": base64.standard_b64encode(data).decode("ascii"),
             },
         }
     ]
@@ -345,7 +345,7 @@ class Dispatcher:
 
     def _do_screenshot(self, _payload: dict[str, Any]) -> ToolOutcome:
         frame = self.capture.grab(self.active)
-        return ToolOutcome(content=_png_block(frame.to_png()))
+        return ToolOutcome(content=_image_block(*frame.encode()))
 
     def _do_zoom(self, payload: dict[str, Any]) -> ToolOutcome:
         region = payload.get("region")
@@ -362,8 +362,8 @@ class Dispatcher:
             raise ToolError(str(exc)) from None
 
         buffer = io.BytesIO()
-        crop.save(buffer, format="PNG", compress_level=1)
-        return ToolOutcome(content=_png_block(buffer.getvalue()))
+        crop.save(buffer, format="WEBP", lossless=True, method=0)
+        return ToolOutcome(content=_image_block(buffer.getvalue(), "image/webp"))
 
     # --- fare -------------------------------------------------------------
 
