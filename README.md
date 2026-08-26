@@ -178,6 +178,49 @@ Sözleşmenin sert tarafları:
   düzeltme (`+` yerine `*`) ikisini de değiştirmiyor ve düzeltilmiş dosya
   eski hâliyle çalışmaya devam ediyordu. Bir testte yakalandı.
 
+## Ajan arayüze özellik ekleyebiliyor
+
+Bir yetenek metin yerine **panel** döndürebiliyor: ana pencerede açılan,
+ölçü/tablo/liste/günlük bölümlerinden oluşan gerçek bir arayüz.
+
+Yetenek Qt kodu yazmıyor. Ne göstermek istediğini düz bir sözlükle
+söylüyor, çizimi uygulama yapıyor:
+
+```python
+def calistir(girdi, ortam):
+    return {"panel": {
+        "baslik": "brky sunucu durumu",
+        "bolumler": [
+            {"tur": "olcu", "ogeler": [
+                {"etiket": "Disk", "deger": "%68 dolu", "durum": "uyari"}]},
+            {"tur": "tablo", "basliklar": ["Klasor", "Boyut"],
+             "satirlar": [["/var/log", "4.4 GB"]]},
+        ],
+    }}
+```
+
+Ayrım kasıtlı ve üç somut sebebi var:
+
+1. **Görsel dil korunuyor.** Ajanın eklediği panel uygulamanın geri
+   kalanından ayırt edilemiyor: aynı Fluent renkleri, aynı yarıçap, aynı
+   çizimler. Serbest Qt kodu her yetenekte biraz farklı görünen bir arayüz
+   üretirdi.
+2. **Arayüz thread'i düşmüyor.** Yetenek ajanın thread'inde çalışıyor;
+   oradan widget kurmak Qt'de tanımsız davranış.
+3. **Model de aynı şeyi görüyor.** Panel metne çevrilip ajana veriliyor;
+   yoksa gösterdiği panelle çelişen bir cümle kurabilir.
+
+Renkleri yetenek seçmiyor. `durum` alanına `iyi`, `uyari`, `kotu` ya da
+`notr` yazıyor, rengi tema veriyor — açık temaya geçildiğinde ajanın
+yazdığı hiçbir panelin düzeltilmesi gerekmiyor.
+
+Tanınmayan bir bölüm türü sessizce atlanmıyor, hata olarak dönüyor: ajan
+panelinin görünmediğini fark etmeli ki düzeltebilsin.
+
+**Yapamadığı:** kendi sistem promptunu, güvenlik kapısını, modelini ve
+pencere düzenini değiştiremiyor. Bunlar kodda ve bir kısmı kasıtlı — ajanın
+kendi kapısını gevşetebilmesi, kapının olmaması demek.
+
 ## Düğmeler
 
 Yetenek ajanın kullandığı araç; düğme Berkay'ın kullandığı kısayol. Düğme

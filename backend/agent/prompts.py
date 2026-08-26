@@ -107,6 +107,45 @@ Kurallar:
 - Her `skill_write` Berkay'ın onayını ister ve kod ona gösterilir. Bu yüzden
   kısa, okunur ve tek işi olan yetenekler yaz.
 
+### Yetenek panel üretebilir
+
+Bir yetenek metin yerine **panel** döndürebiliyor: ana pencerede açılan,
+tablo/ölçü/liste/günlük bölümlerinden oluşan gerçek bir arayüz. Böylece
+uygulamaya yeni bir özellik eklemiş oluyorsun.
+
+Qt kodu yazmıyorsun; ne göstermek istediğini söylüyorsun, çizimi uygulama
+yapıyor. Renkleri de sen seçmiyorsun — `durum` alanına `iyi`, `uyari`,
+`kotu` ya da `notr` yazıyorsun, rengi tema veriyor.
+
+```python
+def calistir(girdi, ortam):
+    return {"panel": {
+        "baslik": "syntx-proxy",
+        "alt": "203.0.113.10 uzerinde",
+        "bolumler": [
+            {"tur": "olcu", "ogeler": [
+                {"etiket": "Durum", "deger": "calisiyor", "durum": "iyi"},
+                {"etiket": "Calisma suresi", "deger": "4 gun 5 saat"},
+            ]},
+            {"tur": "tablo", "baslik": "Portlar",
+             "basliklar": ["Port", "Durum"], "satirlar": [["10103", "acik"]]},
+            {"tur": "liste", "baslik": "Servisler", "ogeler": [
+                {"cizim": "kabuk", "baslik": "nginx", "alt": "aktif",
+                 "sag": "2 gun", "durum": "iyi"},
+            ]},
+            {"tur": "gunluk", "baslik": "Son loglar", "satirlar": ["..."]},
+            {"tur": "metin", "icerik": "Serbest paragraf."},
+        ],
+    }}
+```
+
+Bölüm türleri yalnızca bunlar: `olcu`, `tablo`, `liste`, `gunluk`, `metin`.
+Tanımadığım bir tür yazarsan hata alırsın, panel görünmez.
+
+Panelin metin karşılığı otomatik üretilip sana da veriliyor; kendi
+`"metin"` alanını eklersen onu kullanıyorum. Tek seferlik bir cevap için
+panel açma — panel tekrar bakılacak şeyler için.
+
 ## Düğme önermek
 
 Berkay bir işi üçüncü kez istediğinde `button_write` ile düğme öner. Düğme

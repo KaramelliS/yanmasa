@@ -195,6 +195,13 @@ def main() -> int:
 
     window.status.connect_remote.clicked.connect(connect_remote)
 
+    def on_panel(skill: str, panel: dict) -> None:
+        """Bir yetenek panel üretti — arayüzde yeni bir özellik."""
+        from app.panel_view import SkillPanel
+
+        window.open_panel(f"__yetenek__{skill}", panel["baslik"],
+                          SkillPanel(tokens, panel))
+
     def on_document(shot) -> None:
         """Ajan bir belge açtığında ya da değiştirdiğinde panel belirir."""
         unsaved[shot.name] = shot.unsaved
@@ -267,6 +274,7 @@ def main() -> int:
     bridge.acted.connect(on_action)
     bridge.result.connect(on_result)
     bridge.document.connect(on_document)
+    bridge.panel.connect(on_panel)
     bridge.finished.connect(on_finished)
     bridge.failed.connect(on_failed)
     bridge.approval.connect(on_approval)

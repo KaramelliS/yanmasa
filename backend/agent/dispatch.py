@@ -32,6 +32,7 @@ from ..safety import gate
 from ..safety.killswitch import KillSwitch
 from ..remote.ssh import RemoteError, SshHost, SshSession
 from ..skills.api import Ortam
+from ..skills.panel import PanelError, normalise, to_text
 from ..skills.registry import SkillError, SkillRegistry
 from ..skills.shortcuts import Shortcut, ShortcutError, ShortcutStore
 
@@ -100,6 +101,8 @@ class Dispatcher:
         self.skills = SkillRegistry(reserved=frozenset(builtin | CUSTOM_TOOL_NAMES))
         self.buttons = ShortcutStore()
         self.remote: SshSession | None = None
+        #: (yetenek adı, panel) — arayüzün alıp çizeceği son panel.
+        self.last_panel: tuple[str, dict] | None = None
 
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
@@ -151,6 +154,20 @@ class Dispatcher:
                 f"{skill.name} çalışırken hata — {type(exc).__name__}: {exc}. "
                 f"Kod {skill.path}. skill_write ile düzeltebilirsin."
             ) from None
+        # Yetenek panel döndürebiliyor: `{"panel": {...}}`. Panel arayüze
+        # gidiyor, metin karşılığı modele. İkisi ayrılmazsa ajan kullanıcıya
+        # gösterdiği şeyi bilmiyor ve bir sonraki cümlesinde çelişiyor.
+        try:
+            panel = normalise(result)
+        except PanelError as exc:
+            raise ToolError(
+                f"{skill.name} geçersiz bir panel döndürdü: {exc}. "
+                f"skill_write ile düzelt."
+            ) from None
+        if panel is not None:
+            self.last_panel = (skill.name, panel)
+            metin = str(result.get("metin") or "").strip()
+            return ToolOutcome(content=metin or to_text(panel))
         return ToolOutcome(content=str(result) if result is not None else "OK")
 
     def _gate(self, name: str, payload: dict[str, Any]) -> None:

@@ -44,6 +44,7 @@ class AgentBridge(QObject):
     failed = Signal(str)
     ready = Signal(bool, str)    # ajan kuruldu mu, kurulamadıysa neden
     document = Signal(object)    # DocSnapshot — ajan bir belge açtı ya da değiştirdi
+    panel = Signal(str, object)  # yetenek adı, panel tanımı
 
     def __init__(self) -> None:
         super().__init__()
@@ -188,6 +189,10 @@ class _Worker(QObject):
         # arayüz `openpyxl` nesnesine hiç dokunmuyor.
         if name.startswith("office_") and not outcome.is_error:
             self._emit_documents()
+        son = getattr(self._agent.dispatcher, "last_panel", None)
+        if son is not None:
+            self._agent.dispatcher.last_panel = None
+            self._bridge.panel.emit(son[0], son[1])
 
     def _emit_documents(self) -> None:
         from .snapshot import snapshot

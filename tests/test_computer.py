@@ -1221,3 +1221,106 @@ class TestSonucGorunumu:
     def test_dizin_olmayan_cikti_eslesmez(self):
         from app.results import _ENTRY
         assert _ENTRY.match(" 15:36:19 up 12 days,  2 users") is None
+
+
+class TestYetenekPaneli:
+    """Ajanın kurduğu arayüz özelliği."""
+
+    def _panel(self, **kw):
+        base = {
+            "baslik": "Sunucu",
+            "bolumler": [
+                {"tur": "olcu", "ogeler": [{"etiket": "Disk", "deger": "%68"}]}
+            ],
+        }
+        base.update(kw)
+        return {"panel": base}
+
+    def test_gecerli_panel_normallesir(self):
+        from backend.skills.panel import normalise
+        out = normalise(self._panel())
+        assert out["baslik"] == "Sunucu"
+        assert out["bolumler"][0]["ogeler"][0]["durum"] == "notr"
+
+    def test_panel_olmayan_sonuc_none(self):
+        from backend.skills.panel import normalise
+        assert normalise("düz metin") is None
+        assert normalise({"sonuc": 5}) is None
+
+    def test_bilinmeyen_bolum_turu_reddedilir(self):
+        # Sessizce atlamak, ajanın panelinin görünmediğini fark etmemesine
+        # yol açardı.
+        from backend.skills.panel import PanelError, normalise
+        with pytest.raises(PanelError, match="grafik"):
+            normalise(self._panel(bolumler=[{"tur": "grafik", "ogeler": []}]))
+
+    def test_bilinmeyen_durum_reddedilir(self):
+        from backend.skills.panel import PanelError, normalise
+        with pytest.raises(PanelError, match="mor"):
+            normalise(self._panel(bolumler=[
+                {"tur": "olcu", "ogeler": [{"deger": "1", "durum": "mor"}]}
+            ]))
+
+    def test_bassiz_panel_reddedilir(self):
+        from backend.skills.panel import PanelError, normalise
+        with pytest.raises(PanelError, match="baslik"):
+            normalise(self._panel(baslik="  "))
+
+    def test_eksik_alan_hangi_bolum_oldugunu_soyler(self):
+        from backend.skills.panel import PanelError, normalise
+        with pytest.raises(PanelError, match="bölüm 1"):
+            normalise(self._panel(bolumler=[
+                {"tur": "metin", "icerik": "a"},
+                {"tur": "tablo"},
+            ]))
+
+    def test_panel_metne_cevrilir(self):
+        # Ajan kullanıcıya ne gösterdiğini bilmeli; yoksa bir sonraki
+        # cümlesinde panelde yazanla çelişiyor.
+        from backend.skills.panel import normalise, to_text
+        out = to_text(normalise(self._panel(bolumler=[
+            {"tur": "olcu", "ogeler": [{"etiket": "Disk", "deger": "%68"}]},
+            {"tur": "tablo", "basliklar": ["Ad"], "satirlar": [["/var/log"]]},
+        ])))
+        assert "Disk: %68" in out and "/var/log" in out
+
+    def test_yetenek_panel_dondurunce_yakalanir(self, tmp_path):
+        from backend.agent.dispatch import Dispatcher
+        from backend.computer.displays import Display, DisplayMap
+        from backend.safety.killswitch import KillSwitch
+
+        d = Dispatcher(
+            DisplayMap([Display(0, 0, 0, 1920, 1080, True)]),
+            capture=None, kill=KillSwitch(), approve=lambda *_: True,
+        )
+        d.skills.directory = tmp_path / "y"
+        d.skills.write("gosterge", (
+            'ARAC = {"ad": "gosterge", "aciklama": "panel", "girdi": {}}\n'
+            'def calistir(girdi, ortam):\n'
+            '    return {"panel": {"baslik": "Test", "bolumler": ['
+            '        {"tur": "metin", "icerik": "merhaba"}]}}\n'
+        ))
+        out = d.run("gosterge", {})
+        assert d.last_panel is not None
+        assert d.last_panel[0] == "gosterge"
+        # Model de aynı şeyi metin olarak görüyor.
+        assert "merhaba" in out.content
+
+    def test_bozuk_panel_ajana_hata_olarak_doner(self, tmp_path):
+        from backend.agent.dispatch import Dispatcher, ToolError
+        from backend.computer.displays import Display, DisplayMap
+        from backend.safety.killswitch import KillSwitch
+
+        d = Dispatcher(
+            DisplayMap([Display(0, 0, 0, 1920, 1080, True)]),
+            capture=None, kill=KillSwitch(), approve=lambda *_: True,
+        )
+        d.skills.directory = tmp_path / "y"
+        d.skills.write("bozuk", (
+            'ARAC = {"ad": "bozuk", "aciklama": "panel", "girdi": {}}\n'
+            'def calistir(girdi, ortam):\n'
+            '    return {"panel": {"baslik": "X", "bolumler": ['
+            '        {"tur": "pasta_grafigi"}]}}\n'
+        ))
+        with pytest.raises(ToolError, match="skill_write ile düzelt"):
+            d.run("bozuk", {})
