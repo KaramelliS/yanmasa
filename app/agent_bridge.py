@@ -1,0 +1,239 @@
+"""Ajan çekirdeği ile arayüz arasındaki köprü.
+
+Ajan döngüsü bloke çalışıyor: model çağrısı, araç çalıştırma, tekrar model
+çağrısı. Bunu doğrudan arayüz thread'inde çağırmak pencereyi donduruyor —
+ve donmuş bir pencerede acil durdurma düğmesine basılamıyor, ki bu tam da
+basılması gereken an.
+
+Bu yüzden döngü ayrı bir thread'de. `Turn` geri çağırmaları o thread'den
+geliyor ve Qt sinyallerine çevriliyor; Qt sinyalleri thread sınırını
+kuyruğa alarak geçtiği için arayüz güvenle güncelleniyor.
+
+Onay istemi ters yönde çalışıyor: çalışan thread duruyor, arayüzde soru
+çıkıyor, cevap gelince thread devam ediyor. `threading.Event` bunu yapan
+en basit şey.
+"""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+from typing import Any
+
+from PySide6.QtCore import QObject, QThread, Signal
+
+
+@dataclass
+class ApprovalRequest:
+    tool: str
+    detail: str
+    reason: str
+    event: threading.Event
+    approved: bool = False
+
+
+class AgentBridge(QObject):
+    """Ajan döngüsünü ayrı thread'de sürer, olayları sinyal olarak yayar."""
+
+    said = Signal(str)           # ajanın konuştuğu metin (parça parça)
+    thought = Signal(str)        # düşünce özeti
+    acted = Signal(str, dict)    # araç adı, girdi
+    result = Signal(str, str, bool, bytes)  # araç, metin, hata mı, kare
+    approval = Signal(object)    # ApprovalRequest
+    finished = Signal(str)       # tur bitti, son metin
+    failed = Signal(str)
+    ready = Signal(bool, str)    # ajan kuruldu mu, kurulamadıysa neden
+    document = Signal(object)    # DocSnapshot — ajan bir belge açtı ya da değiştirdi
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._thread: QThread | None = None
+        self._worker: _Worker | None = None
+        self._agent = None
+        self._kill = None
+        self._capture = None
+        self._busy = False
+
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
+    def start(self) -> None:
+        """Ajanı kurar. Anahtar yoksa sessizce yarım kalmıyor, söylüyor."""
+        try:
+            from backend import config
+            from backend.computer.capture import ScreenCapture
+            from backend.computer.displays import enumerate_displays
+            from backend.safety.killswitch import KillSwitch
+            from backend.agent.loop import Agent
+
+            cfg = config.Config.load()
+            displays = enumerate_displays()
+            self._capture = ScreenCapture(displays)
+            self._kill = KillSwitch().start()
+            self._agent = Agent.create(
+                cfg, displays, self._capture, self._kill, approve=self._ask_approval
+            )
+        except Exception as exc:
+            self.ready.emit(False, str(exc))
+            return
+        self.ready.emit(True, "")
+
+    def expand_command(self, line: str) -> str | None:
+        """`/ad` kısayolunu hazır talimata çevirir."""
+        if self._agent is None:
+            return None
+        try:
+            return self._agent.dispatcher.skills.expand(line)
+        except Exception:
+            return None
+
+    def button_store(self):
+        """Düğme deposu. Ajan kurulamadıysa da çalışıyor: düğmeler tercih,
+        API anahtarına bağlı olmamalı."""
+        from backend.skills.shortcuts import ShortcutStore
+
+        if self._agent is not None:
+            return self._agent.dispatcher.buttons
+        return ShortcutStore()
+
+    def commands(self) -> list[tuple[str, str]]:
+        if self._agent is None:
+            return []
+        registry = self._agent.dispatcher.skills
+        registry.refresh()
+        return [(c.name, c.description) for c in registry.commands.values()]
+
+    def stop(self) -> None:
+        if self._kill is not None:
+            self._kill.trigger()
+
+    def shutdown(self) -> None:
+        if self._kill is not None:
+            self._kill.stop()
+        if self._agent is not None:
+            self._agent.dispatcher.shutdown()
+        if self._capture is not None:
+            self._capture.close()
+
+    # --- onay -------------------------------------------------------------
+
+    def _ask_approval(self, tool: str, detail: str, reason: str) -> bool:
+        """Çalışan thread'den çağrılıyor; arayüz cevaplayana kadar bekliyor."""
+        request = ApprovalRequest(tool, detail, reason, threading.Event())
+        self.approval.emit(request)
+        # Süresiz bekleme yok: arayüz çökerse ya da pencere kapanırsa
+        # eylem kendiliğinden reddedilmiş sayılır, asılı kalmaz.
+        if not request.event.wait(timeout=300):
+            return False
+        return request.approved
+
+    # --- koşu -------------------------------------------------------------
+
+    def run(self, instruction: str) -> None:
+        if self._agent is None or self._busy:
+            return
+        self._busy = True
+        self._kill.reset()
+
+        self._thread = QThread()
+        self._worker = _Worker(self._agent, instruction, self)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.done.connect(self._on_done)
+        self._thread.start()
+
+    def _on_done(self, text: str, error: str) -> None:
+        self._busy = False
+        if self._thread is not None:
+            self._thread.quit()
+            self._thread.wait(2000)
+            self._thread = None
+        if error:
+            self.failed.emit(error)
+        else:
+            self.finished.emit(text)
+
+
+class _Worker(QObject):
+    done = Signal(str, str)
+
+    def __init__(self, agent, instruction: str, bridge: AgentBridge) -> None:
+        super().__init__()
+        self._agent = agent
+        self._instruction = instruction
+        self._bridge = bridge
+
+    def _on_result(self, name: str, outcome) -> None:
+        self._bridge.result.emit(
+            name, _as_text(outcome.content), outcome.is_error,
+            _as_png(outcome.content),
+        )
+        # Belge anlık görüntüsü burada, ajanın kendi thread'inde çıkıyor:
+        # arayüz `openpyxl` nesnesine hiç dokunmuyor.
+        if name.startswith("office_") and not outcome.is_error:
+            self._emit_documents()
+
+    def _emit_documents(self) -> None:
+        from .snapshot import snapshot
+
+        store = getattr(self._agent.dispatcher, "office", None)
+        if store is None:
+            return
+        for doc_name in store.names():
+            try:
+                shot = snapshot(doc_name, store.get(doc_name))
+            except Exception:
+                continue
+            if shot is not None:
+                self._bridge.document.emit(shot)
+
+    def run(self) -> None:
+        from backend.agent.loop import Turn
+        from backend.safety.killswitch import Aborted
+
+        turn = Turn(
+            on_text=self._bridge.said.emit,
+            on_thinking=self._bridge.thought.emit,
+            on_action=lambda name, payload: self._bridge.acted.emit(name, dict(payload)),
+            on_result=self._on_result,
+        )
+        try:
+            text = self._agent.run(self._instruction, turn)
+            self.done.emit(text, "")
+        except Aborted as exc:
+            self.done.emit("", str(exc))
+        except Exception as exc:
+            self.done.emit("", f"{type(exc).__name__}: {exc}")
+
+
+def _as_png(content: Any) -> bytes:
+    """Araç sonucundaki ekran görüntüsünü çıkarır.
+
+    Model bunu base64 olarak alıyor; arayüz de aynı kareyi görmeli.
+    Ajanın gördüğünü göstermek yerine temsilî bir simge koymak, "ne
+    gördü" sorusunu cevapsız bırakırdı.
+    """
+    import base64
+
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "image":
+                data = part.get("source", {}).get("data")
+                if data:
+                    try:
+                        return base64.b64decode(data)
+                    except ValueError:
+                        return b""
+    return b""
+
+
+def _as_text(content: Any) -> str:
+    """Araç sonucu görsel blok olabilir; arayüze metin gidiyor."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        if any(isinstance(p, dict) and p.get("type") == "image" for p in content):
+            return "(ekran görüntüsü)"
+        return " ".join(str(p) for p in content)
+    return str(content)

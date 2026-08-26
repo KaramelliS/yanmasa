@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Sırlar — asla repoya girmez
+.env
+*.key
+
+# Çalışma zamanı çıktıları
+runs/
+logs/
+data/workflows/
+.impeccable/mocks/
+.impeccable/questions/

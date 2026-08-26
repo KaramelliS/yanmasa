@@ -1,0 +1,677 @@
+"""Komut çubuğu — ekranın köşesinde yüzen, her şeyden bağımsız pencere.
+
+Ajanla konuşulan yer burası, ana pencere değil. Ana pencere belgeleri
+tutuyor; bu çubuk ajan penceresi kapalıyken, başka bir uygulamadayken, tam
+ekran bir oyundayken bile orada.
+
+Üç parçası var ve üçü de aynı yerde olmak zorunda:
+
+- **Mikrofon.** Bas ve konuş.
+- **Yazı alanı.** Mikrofon kullanılamıyorsa — sessiz olman gereken bir yer,
+  bozuk bir mikrofon, ya da yazmanın daha kolay olduğu bir komut — aynı
+  çubuktan yazarsın. Ses bir kolaylık, tek yol değil.
+- **Önizleme karesi.** Ajan bir şey yaptığında ne yaptığı burada küçük bir
+  kare olarak görünüyor: eylemin adı, hedefi, gerekçesi ve gerçek bir
+  görüntüsü. Ajan penceresine bakmadan takip edebilmek için.
+
+Sürüklenebilir; köşeyi Berkay seçer. Konum kaydediliyor.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRect,
+    QRectF,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QPushButton,
+    QGraphicsDropShadowEffect,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .buttons import ButtonStrip
+from .glyphs import PreviewFrame
+
+#: Cevap alanının tavanı. Bunun üstünde çubuk büyümüyor, içerik kayıyor.
+REPLY_MAX_HEIGHT = 170
+
+#: Sürüklerken çubuğun ekranda kalması gereken en küçük payı. Tamamen
+#: dışarı çıkarılamamalı: geri getirmenin tek yolu ayar dosyasını elle
+#: silmek olurdu.
+KEEP_ON_SCREEN = 90
+from .fluent import RADIUS_CARD, RADIUS_CONTROL, Tokens
+
+#: Çubuğun bıraktığın yeri. `AJAN_STATE_DIR` ile taşınabiliyor: test
+#: çalıştırmak Berkay'ın çubuğunu yerinden oynatmamalı.
+STATE_FILE = (
+    Path(os.environ.get("AJAN_STATE_DIR") or (Path.home() / ".ajan")) / "bar.json"
+)
+
+BAR_WIDTH = 440
+MARGIN = 24
+MIC_SIZE = 40
+
+
+@dataclass
+class Operation:
+    """Önizleme karesinde gösterilen tek bir işlem."""
+
+    tool: str
+    target: str
+    detail: str
+    thumbnail: QPixmap | None = None
+    #: Ham araç adı — çizimi bu seçiyor. `tool` Türkçe etiket olduğu için
+    #: ondan çıkarılamıyor.
+    key: str = ""
+
+
+class MicDot(QWidget):
+    """Bas ve konuş. Halka gerçek ses şiddetini gösteriyor.
+
+    Nabız atan bir küre değil: kategorinin her ajanında var ve hiçbir sinyal
+    taşımıyor — sen konuşsan da sussan da aynı hızda atıyor. Buradaki halka
+    sustuğunda duruyor, ses motoru bağlı değilken de hiç hareket etmiyor.
+    """
+
+    pressed = Signal()
+    released = Signal()
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setFixedSize(MIC_SIZE, MIC_SIZE)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Bas ve konuş")
+        self._level = 0.0
+        self._live = False
+        self._enabled = True
+
+    def set_level(self, level: float) -> None:
+        level = max(0.0, min(1.0, level))
+        if abs(level - self._level) > 0.01:
+            self._level = level
+            self.update()
+
+    def set_live(self, live: bool) -> None:
+        if self._live != live:
+            self._live = live
+            if not live:
+                self._level = 0.0
+            self.update()
+
+    def set_available(self, available: bool) -> None:
+        """Ses motoru yoksa mikrofon sönük durur ve bunu söyler."""
+        self._enabled = available
+        self.setToolTip(
+            "Bas ve konuş" if available else "Ses motoru bağlı değil — yazarak komut ver"
+        )
+        self.setCursor(
+            Qt.CursorShape.PointingHandCursor if available else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._enabled:
+            self.pressed.emit()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._enabled:
+            self.released.emit()
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        t = self.t
+        centre = QPointF(self.width() / 2, self.height() / 2)
+        radius = MIC_SIZE / 2 - 3
+
+        if not self._enabled:
+            ring, fill, ink = t.text_disabled, t.control, t.text_disabled
+        elif self._live:
+            ring, fill, ink = t.accent, t.accent, t.on_accent
+        else:
+            ring, fill, ink = t.accent_text, t.control, t.accent_text
+
+        painter.setPen(QPen(QColor(ring), 1.4))
+        painter.setBrush(QColor(fill))
+        painter.drawEllipse(centre, radius, radius)
+
+        if self._live and self._level > 0.02:
+            pen = QPen(QColor(t.on_accent), 2)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawArc(
+                QRectF(centre.x() - radius - 3, centre.y() - radius - 3,
+                       (radius + 3) * 2, (radius + 3) * 2),
+                90 * 16, int(-340 * self._level * 16),
+            )
+
+        pen = QPen(QColor(ink), 1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        cx, cy = centre.x(), centre.y() - 1
+        painter.drawRoundedRect(QRectF(cx - 3.2, cy - 7.5, 6.4, 10.5), 3.2, 3.2)
+        painter.drawArc(QRectF(cx - 6.5, cy - 4, 13, 11.5), 200 * 16, 140 * 16)
+        painter.drawLine(QPointF(cx, cy + 5.5), QPointF(cx, cy + 8.5))
+        painter.end()
+
+
+class DragGrip(QWidget):
+    """Çubuğun tutamağı.
+
+    Kart yazıyla dolduğunda nereden tutulacağı belirsizdi: metnin üstüne
+    basmak seçim yapıyor, düğmeye basmak düğmeyi çalıştırıyor. Üstteki bu
+    şerit her zaman boş ve her zaman sürüklenebilir.
+
+    Ayrıca çubuğun taşınabilir olduğunu söylüyor. Taşınabilir ama görünürde
+    hiçbir işareti olmayan bir pencere, taşınamaz bir pencereden farksız.
+    """
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setFixedHeight(14)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setToolTip("Sürükleyerek taşı")
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        colour = QColor(self.t.text_tertiary)
+        colour.setAlpha(120)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(colour)
+        width = 34.0
+        painter.drawRoundedRect(
+            QRectF((self.width() - width) / 2, 6.0, width, 3.0), 1.5, 1.5
+        )
+        painter.end()
+
+
+class PreviewCard(QWidget):
+    """Ajanın o an yaptığı işin küçük karesi.
+
+    Küçük resim gerçek: GUI eylemlerinde ekranın ilgili yerinden kırpılmış
+    bir kare, belge işlerinde değişen bölgenin küçük çizimi. Yer tutucu bir
+    simge koymak, bakıp bir şey anlamayı imkânsız kılardı.
+    """
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setFixedHeight(72)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(12)
+
+        self._thumb = PreviewFrame(t, 84, 52)
+        layout.addWidget(self._thumb)
+
+        column = QVBoxLayout()
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(2)
+
+        self._title = QLabel()
+        self._title.setStyleSheet(
+            f"color: {t.text}; font-size: 13px; font-weight: 600;"
+        )
+        column.addWidget(self._title)
+
+        self._detail = QLabel()
+        self._detail.setWordWrap(True)
+        self._detail.setStyleSheet(f"color: {t.text_secondary}; font-size: 12px;")
+        column.addWidget(self._detail)
+        column.addStretch(1)
+        layout.addLayout(column, 1)
+
+    def show_operation(self, op: Operation) -> None:
+        self._title.setText(f"{op.tool} · {op.target}" if op.target else op.tool)
+        self._detail.setText(op.detail)
+        # Ekran görüntüsü yoksa işin kendi çizimi geçiyor; boş bir kutu
+        # değil.
+        self._thumb.show_tool(op.key or op.tool, op.thumbnail)
+
+
+class ApprovalRow(QWidget):
+    """Riskli eylem onayı — çubuğun içinde, modal olarak değil.
+
+    Modal, ajanı durdurup ekranı karartır ve arkasındaki bağlamı tam da
+    karar için gereken anda gizler. Burada komutun kendisi okunuyor ve
+    ekranda hiçbir şey kaybolmuyor.
+    """
+
+    answered = Signal(bool)
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setStyleSheet(
+            f"background: {t.background_secondary};"
+            f" border-top: 1px solid {t.critical};"
+            f" border-bottom: 1px solid {t.divider};"
+        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(6)
+
+        self._reason = QLabel()
+        self._reason.setWordWrap(True)
+        self._reason.setStyleSheet(
+            f"color: {t.critical}; font-size: 12px; font-weight: 600; border: none;"
+        )
+        layout.addWidget(self._reason)
+
+        self._detail = QLabel()
+        self._detail.setWordWrap(True)
+        self._detail.setStyleSheet(
+            f"color: {t.text}; font-size: 12px; font-family: '{t.font_mono}';"
+            f" background: {t.control}; border: 1px solid {t.stroke};"
+            f" border-radius: {RADIUS_CONTROL}px; padding: 6px 8px;"
+        )
+        layout.addWidget(self._detail)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        deny = QPushButton("Reddet")
+        deny.setFixedHeight(30)
+        deny.setCursor(Qt.CursorShape.PointingHandCursor)
+        deny.clicked.connect(lambda: self.answered.emit(False))
+        row.addWidget(deny)
+        allow = QPushButton("Çalıştır")
+        allow.setProperty("role", "accent")
+        allow.setFixedHeight(30)
+        allow.setCursor(Qt.CursorShape.PointingHandCursor)
+        allow.clicked.connect(lambda: self.answered.emit(True))
+        row.addWidget(allow)
+        layout.addLayout(row)
+
+    def ask(self, tool: str, detail: str, reason: str) -> None:
+        self._reason.setText(f"{tool} — {reason}")
+        self._detail.setText(detail)
+
+
+class CommandBar(QWidget):
+    """Yüzen komut çubuğu: mikrofon, yazı alanı, işlem önizlemesi."""
+
+    hold_started = Signal()
+    hold_ended = Signal()
+    submitted = Signal(str)
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setFixedWidth(BAR_WIDTH)
+
+        self._drag_from: QPoint | None = None
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(14, 14, 14, 14)
+        outer.setSpacing(0)
+
+        self._card = QWidget()
+        self._card.setObjectName("bar")
+        self._card.setStyleSheet(
+            f"#bar {{ background: {t.card}; border: 1px solid {t.stroke};"
+            f" border-radius: {RADIUS_CARD}px; }}"
+        )
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 130))
+        self._card.setGraphicsEffect(shadow)
+        outer.addWidget(self._card)
+
+        card_layout = QVBoxLayout(self._card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+
+        self._grip = DragGrip(t)
+        card_layout.addWidget(self._grip)
+
+        # Konuşma: ajanın son söylediği. Sohbet geçmişi değil, son cevap —
+        # köşede yüzen bir çubuk uzun bir dökümü taşıyamaz ve taşımaya
+        # kalkarsa ekranın yarısını kaplar.
+        self.reply = QLabel()
+        self.reply.setWordWrap(True)
+        self.reply.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.reply.setStyleSheet(
+            f"color: {t.text}; font-size: 13px; padding: 12px 14px 4px 14px;"
+        )
+        self.reply.setVisible(True)
+
+        # Cevap kaydırılabilir bir alanda ve tavanı var. Önceden düz bir
+        # etiketti: uzun bir cevap çubuğu ekran boyunun üstüne çıkaracak
+        # kadar büyütüyor, yazı alanı da ekranın dışına düşüp kayboluyordu.
+        # Artık cevap uzadıkça çubuk değil içerik kayıyor.
+        self._reply_scroll = QScrollArea()
+        self._reply_scroll.setWidget(self.reply)
+        self._reply_scroll.setWidgetResizable(True)
+        self._reply_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._reply_scroll.setMaximumHeight(REPLY_MAX_HEIGHT)
+        self._reply_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._reply_scroll.setStyleSheet(
+            f"QScrollArea, QScrollArea > QWidget > QWidget {{"
+            f" background: transparent; border: none; }}"
+            f"QScrollBar:vertical {{ background: transparent; width: 8px;"
+            f" margin: 6px 2px 2px 0; }}"
+            f"QScrollBar::handle:vertical {{ background: {t.text_tertiary};"
+            f" border-radius: 3px; min-height: 24px; }}"
+            f"QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}"
+            f"QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}"
+        )
+        self._reply_scroll.setVisible(False)
+        card_layout.addWidget(self._reply_scroll)
+
+        self.preview = PreviewCard(t)
+        self.preview.setVisible(False)
+        card_layout.addWidget(self.preview)
+
+        self.approval = ApprovalRow(t)
+        self.approval.setVisible(False)
+        card_layout.addWidget(self.approval)
+
+        self._divider = QWidget()
+        self._divider.setFixedHeight(1)
+        self._divider.setStyleSheet(f"background: {t.divider};")
+        self._divider.setVisible(False)
+        card_layout.addWidget(self._divider)
+
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(10, 8, 10, 8)
+        row_layout.setSpacing(8)
+
+        self.mic = MicDot(t)
+        self.mic.pressed.connect(self.hold_started.emit)
+        self.mic.released.connect(self.hold_ended.emit)
+        row_layout.addWidget(self.mic)
+
+        self.field = QLineEdit()
+        self.field.setPlaceholderText("Yaz ya da konuş…")
+        self.field.setFixedHeight(34)
+        self.field.setStyleSheet(
+            f"""
+            QLineEdit {{
+                background: {t.control};
+                border: 1px solid {t.control_stroke};
+                border-bottom: 2px solid {t.text_tertiary};
+                border-radius: {RADIUS_CONTROL}px;
+                padding: 0 10px;
+                color: {t.text};
+                font-size: 14px;
+                selection-background-color: {t.accent};
+                selection-color: {t.on_accent};
+            }}
+            QLineEdit:focus {{ border-bottom-color: {t.accent}; }}
+            """
+        )
+        self.field.returnPressed.connect(self._submit)
+        self.field.textChanged.connect(self._on_typing)
+        row_layout.addWidget(self.field, 1)
+        card_layout.addWidget(row)
+
+        # Düğmeler yazı alanının hemen altında: elin oradayken tıklanacak
+        # yer de orada olsun. Çubuk yukarı doğru büyüdüğü için satır
+        # eklendiğinde yazı alanı yerinden kıpırdamıyor.
+        self.buttons = ButtonStrip(t)
+        self.buttons.triggered.connect(self._run_shortcut)
+        self.buttons.changed.connect(self._grow)
+        card_layout.addWidget(self.buttons)
+
+        self._status = QLabel()
+        self._status.setStyleSheet(
+            f"color: {t.text_tertiary}; font-size: 11px; padding: 0 12px 8px 12px;"
+        )
+        self._status.setVisible(False)
+        card_layout.addWidget(self._status)
+
+        self._restore_position()
+
+    # --- giriş ------------------------------------------------------------
+
+    def _submit(self) -> None:
+        text = self.field.text().strip()
+        if text:
+            self.field.clear()
+            self.submitted.emit(text)
+
+    def set_voice_available(self, available: bool) -> None:
+        self.mic.set_available(available)
+        if not available:
+            self.set_status("Ses motoru bağlı değil — yazarak komut verebilirsin.")
+
+    def _run_shortcut(self, instruction: str) -> None:
+        """Düğmeye basıldı. Metni alana yazıp göndermek yerine doğrudan
+        gönderiyoruz; alanda yazılı bir şey varsa o kaybolmamalı."""
+        if self.field.isEnabled():
+            self.submitted.emit(instruction)
+
+    def attach_buttons(self, store, extra_source=None) -> None:
+        self.buttons.attach(store, extra_source)
+        self._grow()
+
+    def set_status(self, text: str) -> None:
+        self._status.setText(text)
+        self._status.setVisible(bool(text))
+
+    def set_commands(self, source) -> None:
+        """Komut listesini veren çağrılabilir. Liste değişebildiği için
+        anlık sorulur; ajan az önce yeni bir komut yazmış olabilir."""
+        self._command_source = source
+
+    def _on_typing(self, text: str) -> None:
+        """`/` yazınca eldeki komutlar görünüyor.
+
+        Ayrı bir tamamlama penceresi açmıyoruz: çubuk zaten küçük ve yüzen
+        bir pencere; üstüne ikinci bir açılır liste koymak onu ekranın
+        dışına iten bir yığın yapardı.
+        """
+        source = getattr(self, "_command_source", None)
+        if source is None or not text.startswith("/"):
+            if getattr(self, "_showing_commands", False):
+                self._showing_commands = False
+                self.set_status("")
+            return
+        prefix = text[1:].split(" ")[0].lower()
+        matches = [
+            f"/{name} — {desc}"
+            for name, desc in source()
+            if name.startswith(prefix)
+        ]
+        self._showing_commands = True
+        if matches:
+            self.set_status("   ".join(matches[:4]))
+        else:
+            self.set_status(
+                "Komut yok. Ajandan yazmasını isteyebilirsin."
+                if prefix else "Henüz komut yok."
+            )
+        self._grow()
+
+    def say(self, text: str) -> None:
+        self.reply.setText(text)
+        self._reply_scroll.setVisible(bool(text))
+        # Kaydırma alanının yüksekliğini metne göre elle veriyoruz.
+        # `QScrollArea` kendi boyut ipucunu içeriğinden almıyor; layout ona
+        # küçük bir varsayılan veriyor ve kısa bir cevap bile üç satıra
+        # sıkışıp kayıyordu — tavanın altında kalan cevap hiç kaymamalı.
+        width = BAR_WIDTH - 28 - 14
+        needed = self.reply.heightForWidth(width) if text else 0
+        self._reply_scroll.setFixedHeight(min(REPLY_MAX_HEIGHT, max(0, needed) + 18))
+        self._grow()
+        bar = self._reply_scroll.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def ask_approval(self, tool: str, detail: str, reason: str) -> None:
+        self.approval.ask(tool, detail, reason)
+        self.approval.setVisible(True)
+        self._grow()
+
+    def clear_approval(self) -> None:
+        self.approval.setVisible(False)
+        self._grow()
+
+    def set_busy(self, busy: bool) -> None:
+        self.field.setEnabled(not busy)
+        self.field.setPlaceholderText(
+            "Ajan çalışıyor…" if busy else "Yaz ya da konuş…"
+        )
+
+    def show_operation(self, op: Operation | None) -> None:
+        visible = op is not None
+        if op is not None:
+            self.preview.show_operation(op)
+        self.preview.setVisible(visible)
+        self._divider.setVisible(visible)
+        self._grow()
+
+    def _grow(self) -> None:
+        """Çubuk büyürken ekranın dışına taşmasın.
+
+        Ekranın altına yakın duran bir pencere içerik eklendikçe aşağı
+        doğru büyüyor ve alt kenarı ekranın dışına çıkıyor — cevap uzadıkça
+        daha da kayboluyor. Alta yapışıksa yukarı doğru büyümeli: yazı
+        alanı her zaman aynı yerde kalıyor, üstüne eklenen içerik yukarı
+        açılıyor.
+        """
+        bottom_before = self.y() + self.height()
+        # Yerleşimi önce zorla hesaplat. `adjustSize` bayat bir boyut
+        # ipucuna bakıyordu ve çubuk bir tur geriden geliyordu: uzun cevap
+        # geldiğinde eski yükseklikte kalıp metni kırpıyordu.
+        self.layout().activate()
+        self._card.layout().activate()
+        self.adjustSize()
+
+        area = None
+        for screen in QApplication.screens():
+            if screen.availableGeometry().contains(self.pos()):
+                area = screen.availableGeometry()
+                break
+        if area is None:
+            area = QApplication.primaryScreen().availableGeometry()
+
+        # Alt kenarı sabit tut; içerik yukarı doğru açılsın.
+        y = bottom_before - self.height()
+        y = max(area.top(), min(y, area.bottom() - self.height() + 14))
+        x = max(area.left() - 14, min(self.x(), area.right() - self.width() + 14))
+        self.move(x, y)
+
+    # --- konum ------------------------------------------------------------
+
+    def _restore_position(self) -> None:
+        """Çubuğu bıraktığın yere geri koyar.
+
+        Kaydedilen üst kenar değil **alt kenar**. Çubuk uzun bir cevapta
+        yukarı doğru büyüyor; üst kenarı kaydetmek her uzun cevaptan sonra
+        çubuğu kalıcı olarak biraz yukarı taşıyordu ve birkaç turda ekranın
+        ortasına tırmanıyordu. Alt kenar büyürken sabit kalan taraf.
+        """
+        self.adjustSize()
+        screen = QApplication.primaryScreen().availableGeometry()
+        default_bottom = screen.bottom() - MARGIN + 14
+        default_x = screen.right() - BAR_WIDTH - MARGIN + 14
+        try:
+            saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            x, bottom = int(saved["x"]), int(saved["bottom"])
+        except (OSError, ValueError, KeyError, TypeError):
+            x, bottom = default_x, default_bottom
+
+        # Ekran düzeni değişmiş olabilir; kaybolan pencereyi geri getir.
+        # Çubuğun tamamı bakılıyor, tek bir köşesi değil: yarısı ikinci
+        # ekranda kalmış bir çubuk da kaybolmuş sayılır.
+        rect = QRect(x, bottom - self.height(), self.width(), self.height())
+        if not any(
+            s.availableGeometry().intersects(rect)
+            and s.availableGeometry().contains(rect.center())
+            for s in QApplication.screens()
+        ):
+            x, bottom = default_x, default_bottom
+        self.move(x, bottom - self.height())
+
+    def _save_position(self) -> None:
+        try:
+            STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            STATE_FILE.write_text(
+                json.dumps({"x": self.x(), "bottom": self.y() + self.height()}),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass  # konumu kaydedememek kullanıcıyı durduracak bir şey değil
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_from = event.globalPosition().toPoint() - self.pos()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_from is None:
+            return
+        point = event.globalPosition().toPoint() - self._drag_from
+        self.move(self._clamp(point))
+
+    def _clamp(self, point: QPoint) -> QPoint:
+        """Çubuğu ekranın dışına kaçırmayı engeller.
+
+        Sınırsız sürüklerken çubuk ekranın altından çıkıp kayboluyordu ve
+        geri getirmenin yolu yoktu — pencere görünmediği için tutamayacağın
+        bir şeyi geri sürükleyemiyorsun.
+        """
+        screens = [s.availableGeometry() for s in QApplication.screens()]
+        if not screens:
+            return point
+        # Hangi ekrana en yakınsa ona göre sınırla: iki ekranlı kurulumda
+        # birincil ekrana zorlamak çubuğu ikinciden koparırdı.
+        centre = QPoint(point.x() + self.width() // 2, point.y() + self.height() // 2)
+        area = min(
+            screens,
+            key=lambda a: (a.center() - centre).manhattanLength()
+            if not a.contains(centre) else -1,
+        )
+        x = max(
+            area.left() - self.width() + KEEP_ON_SCREEN,
+            min(point.x(), area.right() - KEEP_ON_SCREEN),
+        )
+        y = max(
+            area.top() - 14,
+            min(point.y(), area.bottom() - KEEP_ON_SCREEN),
+        )
+        return QPoint(x, y)
+
+    def mouseReleaseEvent(self, _event) -> None:
+        if self._drag_from is not None:
+            self._save_position()
+            self._drag_from = None
+
+    def paintEvent(self, _event) -> None:
+        # Şeffaf pencere: gövdeyi kart widget'ı çiziyor, burada iş yok.
+        pass
