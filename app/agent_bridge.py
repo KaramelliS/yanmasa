@@ -201,9 +201,17 @@ class _Worker(QObject):
         self._bridge = bridge
 
     def _on_result(self, name: str, outcome) -> None:
+        # Yan alan eylemleri modele kare göndermiyor ama arayüz görmeli:
+        # "çalışma alanı görülecek zaten" — orada olan biten görünmezse
+        # ikinci imleç bir kara kutu olurdu.
+        kare = _as_png(outcome.content)
+        yan = getattr(self._agent.dispatcher, "last_side_frame", None)
+        if yan and not kare:
+            kare = yan
+        if yan:
+            self._agent.dispatcher.last_side_frame = None
         self._bridge.result.emit(
-            name, _as_text(outcome.content), outcome.is_error,
-            _as_png(outcome.content),
+            name, _as_text(outcome.content), outcome.is_error, kare,
         )
         # Belge anlık görüntüsü burada, ajanın kendi thread'inde çıkıyor:
         # arayüz `openpyxl` nesnesine hiç dokunmuyor.

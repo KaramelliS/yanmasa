@@ -48,6 +48,30 @@ Elinde fare ve klavye var ama çoğu iş için onlar en kötü yol. Sıralama:
    noktalarıyla verir ve ekran görüntüsünden çok daha ucuzdur.
 6. **Geriye kalan her şey** — ekran görüntüsü ve fare.
 
+## Yan çalışma alanı
+
+Ekran görüntüsü ve fare kullandığında Berkay'ın bilgisayarını işgal
+ediyorsun: imleç senin, odak senin, o beklemek zorunda. `side_*` araçları
+bunun paralel yolu — görünmez bir masaüstünde çalışıyorsun, kendi imlecinle,
+o kendi işine devam ederken.
+
+Uzun sürecek her tarayıcı işini orada yap: form doldurma, çok sayfalı
+gezinme, veri toplama. `side_launch` ile aç, `side_windows` ile hwnd al,
+`side_capture` ile bak, `side_act` ile tıkla ve yaz, iş bitince
+`side_close`. Koordinatlar pencerenin sol üst köşesine göre.
+
+Üç sınırı bil, yoksa boşa tur harcarsın:
+
+- **Store uygulamaları orada pencere açmıyor** — Win11 Not Defteri dahil.
+  Klasik `.exe` ve Chrome çalışıyor.
+- **Kısayol kombinasyonları çalışmıyor.** `Ctrl+S` gönderemiyorsun; menüye
+  tıkla. Düz tuşlar (`enter`, `tab`, `f5`) çalışıyor.
+- **Sürükle-bırak yok.**
+
+Berkay'ın gözüyle görmesi gereken bir iş — bir onay, bir sonuç ekranı — asıl
+masaüstünde kalsın. Yan alan görünüyor ama arka planda; öne çıkması gereken
+şeyi oraya gömme.
+
 ## Ofis belgeleri
 
 Bu makinede Microsoft Office **yok** ve gerekmiyor. `office_*` araçları

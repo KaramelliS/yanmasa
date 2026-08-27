@@ -375,6 +375,8 @@ TOOL_GLYPH = {
     "remote_read": "sunucu", "remote_write": "sunucu", "remote_run": "sunucu",
     "write_files": "klasor", "list_apps": "pencere",
     "button_write": "yetenek", "button_remove": "yetenek",
+    "side_launch": "pencere", "side_windows": "pencere",
+    "side_capture": "mercek", "side_act": "imlec", "side_close": "pencere",
     "__sen__": "sen", "__onay__": "soru",
 }
 

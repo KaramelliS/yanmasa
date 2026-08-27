@@ -75,6 +75,11 @@ TOOL_LABEL = {
     "remote_read": "Sunucudan okuyor",
     "remote_write": "Sunucuya yazıyor",
     "remote_run": "Sunucuda çalıştırıyor",
+    "side_launch": "Yan alanda açıyor",
+    "side_windows": "Yan alana bakıyor",
+    "side_capture": "Yan alanı görüyor",
+    "side_act": "Yan alanda çalışıyor",
+    "side_close": "Yan alanı kapatıyor",
 }
 
 

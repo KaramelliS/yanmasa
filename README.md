@@ -303,6 +303,51 @@ için onu bir yerde tutmak gerekirdi.
 Panelden silme ve taşıma yapılamıyor. Yanlış klasörde yapılan bir
 sağ tık > sil, sunucuda geri alınamaz.
 
+## İkinci imleç
+
+Ajan ekran görüntüsü alıp fareye dokunduğu anda bilgisayarı işgal ediyor:
+imleç onun, odak onun, Berkay bekliyor. `side_*` araçları bunun paraleli.
+
+Windows'un masaüstü nesnesi ikinci bir çalışma alanı veriyor — kendi pencere
+listesi, kendi odak zinciri, kendi imleç konumu. `CreateDesktopW` ile
+açılıyor, uygulamalar `STARTUPINFOW.lpDesktop` ile oraya doğuruluyor. Girdi
+`SendInput` ile değil, pencerelere doğrudan gönderilen iletilerle veriliyor;
+`backend/computer/mesaj.py` içinde imleci oynatabilecek tek bir çağrı yok ve
+bir test bunu kaynağa bakarak doğruluyor.
+
+Ölçüldü, hem klasik Win32'de (`charmap.exe`) hem Chromium'da (Chrome):
+
+| ne | nasıl | doğrulama |
+|---|---|---|
+| yazma | `WM_CHAR` | `ağır işçi ÖĞÜŞ 42` birebir geri okundu |
+| tıklama | `WM_LBUTTON*` | açılır liste 0→1; sayfa kırmızıdan yeşile |
+| yakalama | `PrintWindow` | 1100×760, gerçek içerik |
+| fiziksel imleç | — | koşu boyunca hiç çağrılmadı |
+
+Bir defekt ölçüm sırasında çıktı: `TerminateProcess` yalnızca başlatılan
+süreci öldürüyordu ve Chrome'un onlarca çocuk süreci hayatta kalıyordu.
+Sonucu iki katmanlıydı — görünmez masaüstünde görünmez Chrome birikiyor, ve
+profil kilidi ayakta kaldığı için bir sonraki açılış eski örneğe devredip
+tıklamayı hiçbir yere ulaştırmıyordu. Beş koşudan biri bu yüzden
+başarısızdı. İş nesnesi (`KILL_ON_JOB_CLOSE`) ile düzeltildi: sonraki beş
+koşu 5/5, ayakta kalan süreç 0.
+
+Yan alanın karesi arayüzde görünüyor ve ajanın imleci karenin üstüne
+çiziliyor — arkasında son sekiz konumdan geçen bir iz var, yani nereye
+tıkladığı değil **nereden geldiği** de tek karede okunuyor. İlk çizim
+maskotun rengiyle kontursuzdu ve açık zeminde 1.2:1 kontrastla kayboluyordu;
+ok artık koyu bir kılıf içinde.
+
+Kare modele **gitmiyor**. Her eylemde görsel göndermek tur başına ~1500
+token ve model zaten nereye tıkladığını biliyor; bilmeyen Berkay.
+
+Üç sınır, `side_launch` açıklamasında ajana da söyleniyor: Mağaza
+uygulamaları orada pencere açmıyor (Win11 Not Defteri dahil), kısayol
+kombinasyonları (`Ctrl+S`) çalışmıyor çünkü değiştirici tuş başka bir iş
+parçacığında basılı görünmüyor, ve sürükle-bırak yok.
+
+`python scripts/ikinci_imlec_dogrula.py` bunu uçtan uca ölçüyor.
+
 ## Uygulama çeşitliliği
 
 `launch_app` yalnızca PATH'e bakıyordu. Ölçüldü: on yedi yaygın uygulamadan
@@ -428,6 +473,10 @@ Bir README'de en işe yarayan bölüm bu.
 - **Belgeler salt okunur.** Tabloya ve yazı belgesine bakabiliyorsun, hücre
   seçebiliyorsun, formül çubuğu gerçek içeriği gösteriyor — ama
   düzenleyemiyorsun. Düzenlemeyi şu an sadece ajan yapıyor.
+- **Yan alanın canlı görüntüsü yok.** Kare her `side_act` sonrası
+  tazeleniyor ama ajan bir şey yapmadığı sürece donuk kalıyor; sürekli
+  akan bir görüntü değil. Yan alanı tıklanabilir yapmak — Berkay'ın
+  oraya elle müdahale etmesi — hiç yazılmadı.
 - **Sistem tepsisi ve global kısayol yok.** Uygulama açılışta başlamıyor.
 - **Workflow yok.** Kayıt/oynatma Faz 6. Yetenekler bunun bir kısmını
   karşılıyor ama tekrar eden bir GUI dizisini otomatik kaydetmiyorlar;

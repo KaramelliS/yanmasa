@@ -173,6 +173,18 @@ def classify(name: str, payload: dict, window_title: str = "") -> Verdict:
     if name in {"type", "key", "left_click", "double_click", "left_click_drag"}:
         return classify_window(window_title)
 
+    if name == "side_launch":
+        # Yan alanda açılan uygulamayı Berkay göremiyor — masaüstü görünmez.
+        # Görünür bir eylemi kaçırırsa fark eder, görünmez olanı fark etmez;
+        # o yüzden burada onay, ne açıldığının tek göstergesi.
+        return Verdict(Risk.CONFIRM, "görünmeyen çalışma alanında uygulama açıyor")
+
+    if name == "side_act" and payload.get("action") == "type":
+        # Yan alanda tıklama sormuyoruz, yoksa paralel çalışma diye bir şey
+        # kalmaz. Yazılan metin başka: kimlik bilgisi kalıpları burada da
+        # aynı kapıdan geçiyor.
+        return classify_typing(str(payload.get("text", "")))
+
     return SAFE
 
 

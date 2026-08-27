@@ -614,6 +614,108 @@ WRITE_FILES = {
     },
 }
 
+# --- yan çalışma alanı ------------------------------------------------------
+#
+# Bunlar `computer` araç setinin karşılığı değil, **paraleli**. Computer
+# araçları fiziksel fareyi sürüyor ve çalıştıkları sürece Berkay'ın
+# bilgisayarını işgal ediyorlar. Yan alan görünmez bir masaüstünde duruyor;
+# ajan orada çalışırken Berkay kendi işine devam edebiliyor.
+
+SIDE_LAUNCH = {
+    "name": "side_launch",
+    "description": (
+        "Bir uygulamayı YAN ÇALIŞMA ALANINDA başlatır — görünmez bir "
+        "masaüstünde. Berkay'ın ekranında hiçbir şey açılmaz, imleci ve "
+        "odağı hiç kıpırdamaz, yani sen çalışırken o da çalışabilir. "
+        "Uzun süren tarayıcı işleri için tercih et. Sınır: Microsoft Store "
+        "uygulamaları (Win11 Not Defteri dahil) burada pencere açmıyor; "
+        "klasik .exe ve Chrome çalışıyor."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": (
+                    "Tam komut satırı. Yolu tırnak içine al, örn: "
+                    '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" '
+                    "https://ornek.com"
+                ),
+            }
+        },
+        "required": ["command"],
+        "additionalProperties": False,
+    },
+}
+
+SIDE_WINDOWS = {
+    "name": "side_windows",
+    "description": (
+        "Yan çalışma alanındaki pencereleri listeler: hwnd, başlık, sınıf ve "
+        "konum. Tıklamadan ve görüntü almadan önce buradan hwnd al."
+    ),
+    "input_schema": {
+        "type": "object", "properties": {}, "additionalProperties": False,
+    },
+}
+
+SIDE_CAPTURE = {
+    "name": "side_capture",
+    "description": (
+        "Yan alandaki bir pencerenin görüntüsünü alır. Koordinatlar "
+        "pencerenin sol üst köşesine göre; side_act aynı uzayı kullanıyor."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"hwnd": {"type": "integer", "description": "Pencere tutamacı"}},
+        "required": ["hwnd"],
+        "additionalProperties": False,
+    },
+}
+
+SIDE_ACT = {
+    "name": "side_act",
+    "description": (
+        "Yan alanda tıklar, yazar, tuşa basar ya da kaydırır. Ajanın kendi "
+        "imleci kullanılır; Berkay'ın faresi kıpırdamaz. Kısayol "
+        "kombinasyonları (Ctrl+S gibi) BURADA ÇALIŞMAZ — menüye tıkla."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "hwnd": {"type": "integer"},
+            "action": {
+                "type": "string",
+                "enum": ["click", "right_click", "double_click", "type", "key", "scroll"],
+            },
+            "coordinate": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "[x, y], pencerenin sol üstüne göre",
+            },
+            "text": {
+                "type": "string",
+                "description": "type icin metin, key icin tus adi (enter, tab, escape, f5...)",
+            },
+            "amount": {"type": "integer", "description": "scroll adimi; pozitif yukari"},
+        },
+        "required": ["hwnd", "action"],
+        "additionalProperties": False,
+    },
+}
+
+SIDE_CLOSE = {
+    "name": "side_close",
+    "description": (
+        "Yan çalışma alanını kapatır ve orada başlattığın her uygulamayı "
+        "sonlandırır. İşin bitince çağır; yoksa süreçler görünmez şekilde "
+        "arkada yaşamaya devam eder."
+    ),
+    "input_schema": {
+        "type": "object", "properties": {}, "additionalProperties": False,
+    },
+}
+
 CUSTOM_TOOLS: list[dict[str, Any]] = [
     READ_UI_TREE,
     LAUNCH_APP,
@@ -645,6 +747,11 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
     REMOTE_READ,
     REMOTE_WRITE,
     REMOTE_RUN,
+    SIDE_LAUNCH,
+    SIDE_WINDOWS,
+    SIDE_CAPTURE,
+    SIDE_ACT,
+    SIDE_CLOSE,
 ]
 
 CUSTOM_TOOL_NAMES = {tool["name"] for tool in CUSTOM_TOOLS}

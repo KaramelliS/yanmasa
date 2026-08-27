@@ -25,6 +25,8 @@ from ..computer import uia
 from ..computer import windows as win
 from ..computer.capture import ScreenCapture
 from ..computer.displays import DisplayMap
+from ..computer.masaustu import Calisma, MasaustuHatasi, pencere_bilgisi
+from ..computer.mesaj import DesteklenmiyorHatasi, Girdi
 from ..computer.terminal import TerminalError, TerminalRegistry
 from ..office.sheet import SheetError, Workbook
 from ..office.store import OfficeError, OfficeStore
@@ -102,6 +104,14 @@ class Dispatcher:
         self.skills = SkillRegistry(reserved=frozenset(builtin | CUSTOM_TOOL_NAMES))
         self.buttons = ShortcutStore()
         self.remote: SshSession | None = None
+        #: Yan çalışma alanı — ilk kullanımda açılıyor. Masaüstü nesnesi
+        #: ucuz değil ve ajanların çoğu oturumu ona hiç dokunmadan bitiyor.
+        self.side: Calisma | None = None
+        self.side_input = Girdi()
+        #: Yan alanın son karesi, arayüz için. Modele gitmiyor — her
+        #: eylemde kare göndermek tur başına ~1500 görsel token ve
+        #: model zaten nereye tıkladığını biliyor. Berkay bilmiyor.
+        self.last_side_frame: bytes | None = None
         #: (yetenek adı, panel) — arayüzün alıp çizeceği son panel.
         self.last_panel: tuple[str, dict] | None = None
         #: Son yazılan dosyalar — arayüz kod panelini bunlardan açıyor.
@@ -110,6 +120,11 @@ class Dispatcher:
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
         self.terminals.close_all()
+        if self.side is not None:
+            # Yan alandaki süreçler görünmez; kapatılmazlarsa hiç kimsenin
+            # fark etmediği bir Chrome bellekte yaşamaya devam ediyor.
+            self.side.kapat()
+            self.side = None
 
     @property
     def active(self):
@@ -345,6 +360,137 @@ class Dispatcher:
         return ToolOutcome(content=out.strip() or "(çıktı yok)")
 
     # --- görsel -----------------------------------------------------------
+
+    # --- yan çalışma alanı ------------------------------------------------
+
+    def _side(self) -> Calisma:
+        if self.side is None:
+            self.side = Calisma()
+            self.side.ac()
+        return self.side
+
+    def _side_pencere(self, payload: dict[str, Any]):
+        """Modelin verdiği hwnd'yi doğrular.
+
+        Doğrulamanın nedeni: hwnd bir tamsayı ve model uydurabilir. Yan
+        alanda olmayan bir tutamaca ileti göndermek, kötü ihtimalle
+        Berkay'ın gerçek penceresine tıklamak demek — kaçınılan şeyin
+        tam olarak kendisi.
+        """
+        try:
+            hwnd = int(payload.get("hwnd"))
+        except (TypeError, ValueError):
+            raise ToolError("hwnd bir tamsayı olmalı; side_windows ile al.") from None
+        if hwnd not in {p.hwnd for p in self._side().pencereler()}:
+            raise ToolError(
+                f"{hwnd} yan çalışma alanında değil. side_windows ile güncel "
+                "listeyi al."
+            )
+        return pencere_bilgisi(hwnd)
+
+    def _do_side_launch(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "command")
+        try:
+            pid = self._side().baslat(str(payload["command"]))
+        except MasaustuHatasi as exc:
+            raise ToolError(str(exc)) from None
+        return ToolOutcome(
+            content=f"Yan alanda başlatıldı, pid {pid}. Pencere açılması birkaç "
+            "saniye sürebilir; side_windows ile bak."
+        )
+
+    def _do_side_windows(self, _payload: dict[str, Any]) -> ToolOutcome:
+        pencereler = self._side().pencereler()
+        if not pencereler:
+            return ToolOutcome(
+                content="Yan alanda pencere yok. Yeni açtıysan bir iki saniye "
+                "bekle; Store uygulamaları burada hiç pencere açmıyor."
+            )
+        satirlar = [
+            f"{p.hwnd}  {p.en}x{p.boy}  [{p.sinif}]  {p.baslik or '(başlıksız)'}"
+            for p in pencereler
+        ]
+        return ToolOutcome(content="\n".join(satirlar))
+
+    def _side_kare(self, hwnd: int):
+        """Yan alandan imleci çizilmiş bir kare."""
+        girdi = self.side_input
+        return self._side().yakala(
+            hwnd,
+            imlec=(girdi.imlec.x, girdi.imlec.y),
+            iz=list(girdi.iz)[:-1],  # son nokta okun kendisi; iki kez çizme
+            tik=girdi.son_tik,
+        )
+
+    def _do_side_capture(self, payload: dict[str, Any]) -> ToolOutcome:
+        pencere = self._side_pencere(payload)
+        try:
+            frame = self._side_kare(pencere.hwnd)
+        except MasaustuHatasi as exc:
+            raise ToolError(str(exc)) from None
+        self.last_side_frame = frame.to_png()
+        return ToolOutcome(content=_image_block(*frame.encode()))
+
+    def _do_side_act(self, payload: dict[str, Any]) -> ToolOutcome:
+        pencere = self._side_pencere(payload)
+        action = str(payload.get("action") or "").strip()
+        girdi = self.side_input
+
+        def nokta() -> tuple[int, int]:
+            c = payload.get("coordinate")
+            if not (isinstance(c, (list, tuple)) and len(c) == 2):
+                raise ToolError(f"{action} için coordinate [x, y] gerekli.")
+            # Model pencereye göre konuşuyor; masaüstü uzayına taşı.
+            return pencere.x + int(c[0]), pencere.y + int(c[1])
+
+        try:
+            if action in ("click", "right_click", "double_click"):
+                x, y = nokta()
+                girdi.tikla(pencere.hwnd, x, y,
+                            sag=action == "right_click",
+                            cift=action == "double_click")
+                return ToolOutcome(content=f"OK — ajan imleci ({x}, {y})")
+            if action == "type":
+                metin = payload.get("text")
+                if not metin:
+                    raise ToolError("type için text gerekli.")
+                girdi.yaz(str(metin))
+                return ToolOutcome(content="OK")
+            if action == "key":
+                girdi.tus(str(payload.get("text") or ""))
+                return ToolOutcome(content="OK")
+            if action == "scroll":
+                x, y = nokta()
+                girdi.kaydir(pencere.hwnd, x, y, int(payload.get("amount") or -3))
+                return ToolOutcome(content="OK")
+        except DesteklenmiyorHatasi as exc:
+            raise ToolError(str(exc)) from None
+        finally:
+            # Eylem başarısız olsa da kare çekiliyor: hata anındaki
+            # ekran, hatanın kendisinden daha çok şey anlatıyor.
+            self._side_kare_yenile(pencere.hwnd)
+        raise ToolError(f"Bilinmeyen eylem: {action!r}")
+
+    def _side_kare_yenile(self, hwnd: int) -> None:
+        """Arayüzün göreceği kareyi tazeler. Hata yutuluyor.
+
+        Yakalama, ajanın işini bozacak bir şey değil — sadece görüntü.
+        Pencere o arada kapandıysa eylem sonucu yine de dönmeli.
+        """
+        try:
+            self.last_side_frame = self._side_kare(hwnd).to_png()
+        except Exception:
+            self.last_side_frame = None
+
+    def _do_side_close(self, _payload: dict[str, Any]) -> ToolOutcome:
+        if self.side is None:
+            return ToolOutcome(content="Yan alan zaten kapalı.")
+        self.side.kapat()
+        self.side = None
+        self.side_input = Girdi()
+        return ToolOutcome(content="Yan alan kapatıldı, süreçler sonlandırıldı.")
+
+    # --- ekran görüntüsü ---------------------------------------------------
 
     def _do_screenshot(self, _payload: dict[str, Any]) -> ToolOutcome:
         frame = self.capture.grab(self.active)
