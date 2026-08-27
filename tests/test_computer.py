@@ -2288,8 +2288,9 @@ class TestAkisDokumu:
         for _ in range(4):
             a.add_step("screenshot", "Bakıyor", "Ekran 1")
         cok = a.heightForWidth(398)
+        from app.stream import ROW_H
         assert bos == 0 < tek < cok
-        assert cok - tek >= 4 * 26
+        assert cok - tek >= 4 * ROW_H
 
     def test_dusen_adim_kirmiziya_donuyor(self, qt_app):
         a = self._akis(qt_app)
@@ -3203,11 +3204,12 @@ class TestCubukBoyu:
         QApplication.processEvents()
         return bar
 
-    def test_dolu_cubuk_ekrani_kaplamiyor(self, qt_app):
-        from PySide6.QtWidgets import QApplication
+    def test_dolu_cubuk_kucuk_kaliyor(self, qt_app):
+        # Eşik mutlak, ekranın oranı değil: ekran boyutu ortama göre
+        # değişiyor ve test bir koşuda 1032, ötekinde 800 görüyordu.
+        # Önemli olan çubuğun kendi boyu — ölçüldüğünde 291'di.
         bar = self._dolu(qt_app)
-        ekran = QApplication.primaryScreen().availableGeometry().height()
-        assert bar.height() < ekran * 0.30, f"{bar.height()} / {ekran}"
+        assert bar.height() <= 280, bar.height()
 
     def test_bos_cubuk_kucuk(self, qt_app):
         from app import fluent
