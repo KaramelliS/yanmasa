@@ -106,6 +106,10 @@ def face_for(tool: str) -> str:
 class AjanKafasi(QWidget):
     """Ajanın yüzü. Durumu ve bakışı dışarıdan geliyor."""
 
+    #: Halkanın içinde kaplayacağı oran. Dolu gövde ağır bastığı için
+    #: konturlu hâlinden küçük duruyor.
+    fill = 0.56
+
     def __init__(self, t: Tokens, size: int = 44) -> None:
         super().__init__()
         self.t = t

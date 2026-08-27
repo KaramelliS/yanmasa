@@ -42,6 +42,17 @@ from .fluent import Tokens
 from .glyphs import glyph_for, paint_glyph
 from .kafa import AjanKafasi
 
+
+def _yuz(t: Tokens, size: int):
+    try:
+        from .bloub import Bloub, depo_var
+
+        if depo_var(koyu=t.dark):
+            return Bloub(t, size, koyu=t.dark)
+    except Exception:
+        pass       # varlık bozuksa çizilen yüz devreye giriyor
+    return AjanKafasi(t, size)
+
 #: Kare aralığı. 30 fps: 44 pikselik bir çizimde 60 fps'in farkı
 #: görünmüyor, işlemci farkı görünüyor.
 FRAME_MS = 33
@@ -84,8 +95,12 @@ class RunRing(QWidget):
         self.setFixedSize(size, size)
         self._done: list[bool] = []      # her biten adım: hata mı?
         # Halkanın içindeki yüz. Ayrı bir widget olarak üst üste koymak
-        # iki ortayı hizalamak demekti; kafa kendi çizimini buraya boyuyor.
-        self.face = AjanKafasi(t, size)
+        # iki ortayı hizalamak demekti; yüz kendi çizimini buraya boyuyor.
+        #
+        # Hazır kareler varsa maskot, yoksa çizilen yüz. İkisi aynı
+        # arayüzü sunuyor; halka hangisi olduğunu bilmiyor. Varlıksız bir
+        # kopyada uygulama yüzsüz kalmamalı.
+        self.face = _yuz(t, size)
         self.face.setParent(self)
         self.face.hide()
         self.face.on_change = self.update
@@ -244,10 +259,9 @@ class RunRing(QWidget):
         kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
         olduğunu yüzden.
         """
-        # Konturlu kafada 0.72 çalışıyordu; dolu gövde çok daha ağır
-        # basıyor ve halkanın rayını eziyordu. 0.56'da ikisi de nefes
-        # alıyor.
-        boyut = self.width() * 0.56
+        # Oran yüzden geliyor: hazır kareler kendi kenar boşluğunu
+        # taşıyor ve çizilen yüzle aynı oranda küçük kalıyorlar.
+        boyut = self.width() * getattr(self.face, "fill", 0.56)
         koken = QPointF((self.width() - boyut) / 2, (self.height() - boyut) / 2)
         self.face.paint(painter, boyut, koken)
 
