@@ -39,6 +39,25 @@ from PySide6.QtWidgets import (
 from .fluent import RADIUS_CONTROL, Tokens
 from .glyphs import glyph_icon
 
+
+def _varsayilan(alan: str) -> str:
+    """Bağlantı alanının `.env`'den gelen ön dolgusu.
+
+    Depoda gerçek bir sunucu adresi durmuyor: bir IP, kullanıcı adı ve
+    SSH portu tek başına parola değil ama açık bir depoda "şu adreste
+    root, şu portta" demek, kaba kuvvet denemesi için hazır bir hedef
+    vermek demek. Kendi sunucun `.env`'de.
+
+    Ayar okunamıyorsa boş dönüyor — bu panel bir kolaylık, ve eksik bir
+    `.env` yüzünden uygulamanın açılmaması saçma olurdu.
+    """
+    try:
+        from backend.config import Config
+
+        return str(getattr(Config.load(), alan, "") or "")
+    except Exception:
+        return ""
+
 #: Uzantıya göre çizim. Bir sunucuda en çok bunlar aranıyor.
 BY_SUFFIX = {
     ".sh": "kabuk", ".bash": "kabuk", ".zsh": "kabuk",
@@ -88,8 +107,8 @@ class ConnectDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(10)
 
-        self.alias = QLineEdit()
-        self.alias.setPlaceholderText("brky")
+        self.alias = QLineEdit(_varsayilan("ssh_alias"))
+        self.alias.setPlaceholderText("sunucum")
         self.alias.setStyleSheet(self._field(t))
         form.addRow("Takma ad", self.alias)
 
@@ -101,18 +120,20 @@ class ConnectDialog(QDialog):
         hint.setStyleSheet(f"color: {t.text_tertiary}; font-size: 11px;")
         form.addRow("", hint)
 
-        self.host = QLineEdit()
+        self.host = QLineEdit(_varsayilan("ssh_host"))
+        # Yer tutucu RFC 5737'nin belgeleme aralığından: gerçek bir
+        # makineye çözülemez, yani depoda kimsenin sunucusu durmuyor.
         self.host.setPlaceholderText("203.0.113.10")
         self.host.setStyleSheet(self._field(t))
         form.addRow("Sunucu", self.host)
 
-        self.user = QLineEdit("root")
+        self.user = QLineEdit(_varsayilan("ssh_user") or "root")
         self.user.setStyleSheet(self._field(t))
         form.addRow("Kullanıcı", self.user)
 
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
-        self.port.setValue(22)
+        self.port.setValue(int(_varsayilan("ssh_port") or 22))
         self.port.setStyleSheet(self._field(t))
         form.addRow("Port", self.port)
 

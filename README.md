@@ -473,6 +473,10 @@ Bir README'de en işe yarayan bölüm bu.
 - **Belgeler salt okunur.** Tabloya ve yazı belgesine bakabiliyorsun, hücre
   seçebiliyorsun, formül çubuğu gerçek içeriği gösteriyor — ama
   düzenleyemiyorsun. Düzenlemeyi şu an sadece ajan yapıyor.
+- **Maskotun silueti bize ait değil.** `varliklar/kaynak/bloub.svg`
+  Berkay'ın verdiği bir çizim ve lisansı belirsiz; pozların hepsi ondan
+  türüyor. Kendi siluetimizi çizmeyi denedim, karakteri tutmadı.
+  Yeniden kullanacak biri için bu bir engel.
 - **Yan alanın canlı görüntüsü yok.** Kare her `side_act` sonrası
   tazeleniyor ama ajan bir şey yapmadığı sürece donuk kalıyor; sürekli
   akan bir görüntü değil. Yan alanı tıklanabilir yapmak — Berkay'ın

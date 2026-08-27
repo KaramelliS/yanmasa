@@ -49,16 +49,17 @@ from .kafa import AjanKafasi
 def _yuz(t: Tokens, size: int):
     """Halkanın içindeki yüz.
 
-    Sıra: kendi SVG'miz, sonra hazır kare dizisi, sonra kodla çizilen
-    yüz. Üçü de aynı arayüzü sunuyor. Bu sıra bilinçli — SVG bizim,
-    temaya uyuyor ve gerçek veriye sürekli tepki verebiliyor; hazır
-    kareler tema bilmiyor ve gözbebeğini oynatamıyor.
+    Sıra: kendi SVG'miz, sonra kodla çizilen yüz. İkisi de aynı arayüzü
+    sunuyor.
+
+    Arada bir üçüncü katman vardı — hazır GIF karelerinden oynayan bir
+    maskot. Kaldırıldı: 1180 kare 8.8 MB tutuyordu, tema bilmiyordu,
+    gözbebeğini oynatamıyordu, ve kareler başkasının çizimlerinden
+    ayrılmıştı. SVG varlıkları depoda duruyor; yoksa `svg_yap.py` onları
+    yeniden üretiyor.
     """
-    for kur in (_svg_yuz, _bloub_yuz):
-        yuz = kur(t, size)
-        if yuz is not None:
-            return yuz
-    return AjanKafasi(t, size)
+    yuz = _svg_yuz(t, size)
+    return yuz if yuz is not None else AjanKafasi(t, size)
 
 
 def _svg_yuz(t: Tokens, size: int):
@@ -69,14 +70,6 @@ def _svg_yuz(t: Tokens, size: int):
     except Exception:
         return None
 
-
-def _bloub_yuz(t: Tokens, size: int):
-    try:
-        from .bloub import Bloub, depo_var
-
-        return Bloub(t, size, koyu=t.dark) if depo_var(koyu=t.dark) else None
-    except Exception:
-        return None
 
 #: Kare aralığı. 30 fps: 44 pikselik bir çizimde 60 fps'in farkı
 #: görünmüyor, işlemci farkı görünüyor.

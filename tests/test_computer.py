@@ -2417,63 +2417,18 @@ class TestAjanKafasi:
         assert len({calisan, hatali, biten}) == 3, (calisan, hatali, biten)
 
 
-class TestMaskot:
-    """Hazır karelerden oynayan maskot."""
-
-    def _b(self, qt_app):
-        from app import fluent
-        from app.bloub import Bloub, depo_var
-        import pytest as _p
-        if not depo_var(koyu=True):
-            _p.skip("varlıklar yok")
-        return Bloub(fluent.tokens(), 52)
-
-    def test_durum_kendi_parcasini_oynatiyor(self, qt_app):
-        b = self._b(qt_app)
-        araliklar = set()
-        for durum in ("bosta", "yaziyor", "dusunuyor", "hata", "bitti"):
-            b.set_state(durum)
-            araliklar.add((b._bas, b._son))
-        assert len(araliklar) == 5, "her durum ayrı bir parça oynamalı"
-
-    def test_parca_basindan_basliyor(self, qt_app):
-        b = self._b(qt_app)
-        b.set_state("dusunuyor")
-        assert b._i == b._bas
-
-    def test_dongu_basa_donuyor(self, qt_app):
-        b = self._b(qt_app)
-        b.set_state("bosta")
-        b._i = b._son
-        b._tick()
-        assert b._i == b._bas
-
-    def test_onbellek_sinirli(self, qt_app):
-        # 576 karenin hepsini bellekte tutmak 189 MB ederdi.
-        from app.bloub import ONBELLEK
-        b = self._b(qt_app)
-        for i in range(0, 576):
-            b.depo.kare(i)
-        assert len(b.depo._onbellek) <= ONBELLEK
-
-    def test_adlandirilmamis_kunye_donmuyor(self, qt_app):
-        # Önceki hâli (0, 0) dönüyor ve maskot ilk karede donuyordu —
-        # sessizce ölü bir yüz.
-        b = self._b(qt_app)
-        bas, son = b.depo.araligi("hic-boyle-bir-parca-yok")
-        assert son > bas
+class TestYuzSecimi:
+    """Halkanın içindeki yüz iki kademeli: SVG, sonra kodla çizilen yüz."""
 
     def test_varlik_yoksa_cizilen_yuze_dusuyor(self, qt_app, monkeypatch):
-        # Üç kademeli yedek: SVG, hazır kareler, kodla çizilen yüz.
-        from app import fluent, bloub, stream, svgyuz
+        from app import fluent, stream, svgyuz
         from app.kafa import AjanKafasi
         monkeypatch.setattr(svgyuz, "varlik_var", lambda: False)
-        monkeypatch.setattr(bloub, "depo_var", lambda koyu=True: False)
         assert isinstance(stream._yuz(fluent.tokens(), 52), AjanKafasi)
 
     def test_once_svg_seciliyor(self, qt_app):
         # SVG bizim: temaya uyuyor ve gerçek veriye sürekli tepki
-        # verebiliyor. Hazır kareler ikisini de yapamıyor.
+        # verebiliyor.
         from app import fluent, stream
         from app.svgyuz import SvgYuz, varlik_var
         if not varlik_var():
@@ -2483,63 +2438,13 @@ class TestMaskot:
 
     def test_iki_yuz_ayni_arayuzu_sunuyor(self, qt_app):
         # Halka hangisini kullandığını bilmemeli.
-        from app.bloub import Bloub
         from app.kafa import AjanKafasi
+        from app.svgyuz import SvgYuz
         gerekli = ("set_live", "set_state", "set_tool", "look_at",
                    "look_forward", "bump", "paint", "fill")
-        for sinif in (Bloub, AjanKafasi):
+        for sinif in (SvgYuz, AjanKafasi):
             eksik = [a for a in gerekli if not hasattr(sinif, a)]
             assert eksik == [], f"{sinif.__name__}: {eksik}"
-
-
-class TestGifBolucu:
-    def test_elle_verilen_adlar_korunuyor(self, tmp_path):
-        # Sınırları makine buluyor, adları insan veriyor; yeniden bölmek
-        # o işi silmemeli.
-        import json, sys
-        from PIL import Image
-        sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "scripts"))
-        import gif_bol
-
-        gif = tmp_path / "t.gif"
-        kareler = []
-        for i in range(30):
-            im = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
-            # ilk 15 kare sol ustte, sonrakiler sag altta: keskin bir kesme
-            x = 1 if i < 15 else 11
-            for yy in range(8):
-                for xx in range(8):
-                    im.putpixel((x + xx, x + yy), (0, 0, 0, 255))
-            kareler.append(im)
-        kareler[0].save(gif, save_all=True, append_images=kareler[1:], duration=50, loop=0)
-
-        hedef = tmp_path / "cikti" / "t"
-        gif_bol.bol(gif, hedef)
-        kunye = tmp_path / "cikti" / "t.json"
-        k = json.loads(kunye.read_text("utf-8"))
-        k["parcalar"][0]["ad"] = "benim-adim"
-        kunye.write_text(json.dumps(k), encoding="utf-8")
-
-        gif_bol.bol(gif, hedef)
-        yeni = json.loads(kunye.read_text("utf-8"))
-        assert yeni["parcalar"][0]["ad"] == "benim-adim"
-
-    def test_kunye_parcalari_tasiyor(self):
-        import json
-        from pathlib import Path
-        yol = Path(__file__).parent.parent / "varliklar" / "bloub-default-cycle.json"
-        if not yol.exists():
-            import pytest as _p
-            _p.skip("varlıklar yok")
-        k = json.loads(yol.read_text("utf-8"))
-        assert k["kare"] == 576 and k["fps"] == 20.0
-        assert len(k["parcalar"]) >= 8
-        # Parçalar boşluksuz ve çakışmasız bütün döngüyü kaplamalı.
-        beklenen = 0
-        for p in k["parcalar"]:
-            assert p["bas"] == beklenen
-            beklenen = p["son"] + 1
-        assert beklenen == k["kare"]
 
 
 class TestHareketMotoru:

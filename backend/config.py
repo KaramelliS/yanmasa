@@ -28,6 +28,14 @@ class Config:
     tts_backend: str = "elevenlabs"
     stt_model: str = "small"
     stt_language: str = "tr"
+    #: Uzak makine panelinin ön dolduracağı varsayılanlar. Depoda gerçek
+    #: bir adres durmasın diye: bir IP, kullanıcı adı ve SSH portu tek
+    #: başına parola değil ama "şu adreste root, şu portta" demek, kaba
+    #: kuvvet denemesi için hazır bir hedef listesi vermek demek.
+    ssh_alias: str = ""
+    ssh_host: str = ""
+    ssh_user: str = "root"
+    ssh_port: int = 22
 
     @classmethod
     def load(cls) -> Config:
@@ -49,4 +57,8 @@ class Config:
             tts_backend=os.environ.get("TTS_BACKEND", "elevenlabs"),
             stt_model=os.environ.get("STT_MODEL", "small"),
             stt_language=os.environ.get("STT_LANGUAGE", "tr"),
+            ssh_alias=os.environ.get("SSH_ALIAS", "").strip(),
+            ssh_host=os.environ.get("SSH_HOST", "").strip(),
+            ssh_user=os.environ.get("SSH_USER", "root").strip(),
+            ssh_port=int(os.environ.get("SSH_PORT", "22") or 22),
         )
