@@ -3296,15 +3296,43 @@ class TestAdimIzi:
         sol = TRACK_X + TRACK_W + (alan - boyut) / 2
         assert sol >= TRACK_X + TRACK_W
 
+    def _sahne(self, qt_app):
+        from app import fluent
+        from app.sahne import GENISLIK, YUKSEKLIK, Sahne
+        from app.stream import RunRing
+
+        t = fluent.tokens()
+        s = Sahne(t, RunRing(t, 52))
+        s.resize(GENISLIK, YUKSEKLIK)
+        s._yerlestir()
+        return s
+
+    def test_nesne_yuzle_ayni_eksende(self, qt_app):
+        # Asıl kusur buydu: halka sütundan dar ve yüz merkezi 30'da
+        # kalıyordu, nesne ise sütun ortasına, 43'e gidiyordu. Maskot bir
+        # yana, elindeki nesne öbür yana düşüyordu.
+        s = self._sahne(qt_app)
+        merkez, _ = s._nesne_yeri()
+        assert abs(merkez - s.halka.yuz_kutusu().center().x()) < 0.01
+
+    def test_eller_nesneyle_birlikte_taşınıyor(self, qt_app):
+        # Eller sütuna göre mutlak konumdaydı; nesne yer değiştirince
+        # yerlerinde kalıyorlardı.
+        s = self._sahne(qt_app)
+        _, ust = s._nesne_yeri()
+        for _, ey in s._el_yerleri("laptop", 1.0):
+            assert ust < ey < ust + 36
+
     def test_yuz_nesnenin_ustunu_ortmuyor(self, qt_app):
-        # 1.5 çarpanı vardı ve yüz nesneyi örtüyordu: elinde bir şey
-        # tutuyor ama göremiyorsun.
-        from app.stream import TRACK_W, TRACK_X
-        from app.sahne import NESNE_Y
-        r = self._r(qt_app)
-        alan = r.width() - TRACK_X - TRACK_W
-        boyut = alan * getattr(r.face, "fill", 0.56)
-        assert boyut <= NESNE_Y + 6, f"yüz {boyut:.0f}, nesne {NESNE_Y}'de"
+        # Yüz nesneyi yutmamalı: bindirme çenenin altına sokacak kadar,
+        # nesneyi gizleyecek kadar değil.
+        from app.sahne import NESNE_BINDIRME
+
+        s = self._sahne(qt_app)
+        kutu = s.halka.yuz_kutusu()
+        _, ust = s._nesne_yeri()
+        assert 0 <= kutu.bottom() - ust <= kutu.height() * 0.25
+        assert NESNE_BINDIRME >= 0
 
     def test_adimlar_hala_birikiyor(self, qt_app):
         r = self._r(qt_app)

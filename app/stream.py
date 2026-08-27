@@ -352,13 +352,29 @@ class RunRing(QWidget):
         kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
         olduğunu yüzden.
         """
-        # Yüz izin sağında, üstte. Ortalamıyoruz: altta nesne var.
-        # 1.5 çarpanı vardı ve yüz nesnenin üstünü örtüyordu: elinde bir
-        # şey tutuyor ama göremiyorsun. Oran doğrudan yüzden geliyor.
+        kutu = self.yuz_kutusu()
+        self.face.paint(painter, kutu.width(), kutu.topLeft())
+
+    def yuz_kutusu(self) -> QRectF:
+        """Yüzün gerçekten çizildiği kare.
+
+        Dışarıya açık, çünkü maskotun elindeki nesneyi yerleştiren
+        `sahne.py` yüzün nerede olduğunu bilmek zorunda. Eskiden bilmiyordu
+        ve kendi hesabını yapıyordu: sütunun ortası. Halka sütundan dar
+        olduğu için yüz merkezi 30'da, nesne merkezi 43'te kalıyordu —
+        ölçtüm. Ekranda maskot bir yana, elindeki nesne öbür yana
+        düşüyordu ve hiçbir şeyi tuttuğu okunmuyordu.
+
+        Aynı sayıyı iki yerde hesaplamanın bedeli buydu. Artık tek yer
+        burası.
+
+        Yüz izin sağında ve üstte; ortalanmıyor çünkü altta nesne var.
+        """
         alan = self.width() - TRACK_X - TRACK_W
         boyut = alan * getattr(self.face, "fill", 0.56)
-        koken = QPointF(TRACK_X + TRACK_W + (alan - boyut) / 2, FACE_Y)
-        self.face.paint(painter, boyut, koken)
+        return QRectF(
+            TRACK_X + TRACK_W + (alan - boyut) / 2, FACE_Y, boyut, boyut
+        )
 
 
 class AkanMetin(QWidget):

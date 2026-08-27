@@ -24,7 +24,7 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QWidget
 
@@ -77,16 +77,32 @@ GENISLIK = 78
 NESNE = 36
 EL = 11
 
-#: Sütunun üstünden itibaren.
-NESNE_Y = 46
-#: Eller nesnenin üst kenarının biraz altında: kenarına asılmış değil,
-#: üstünde duruyorlar.
-EL_Y = 50
+#: Nesnenin yüzün alt kenarına **bindirmesi**. Eksi değer boşluk
+#: bırakırdı; artı değer nesneyi çenenin altına sokuyor.
+#:
+#: Nesne eskiden sütunun üstünden sabit 46 pikseldeydi ve yüzün altında
+#: 15 piksellik boşluk kalıyordu. Boşluk nesneyi elde tutulan bir şey
+#: değil, altta duran bir resim yapıyordu.
+NESNE_BINDIRME = 1.5
+#: Ellerin nesnenin **üst kenarına** göre inişi. Mutlak değildi ve nesne
+#: yer değiştirince eller yerinde kalıyordu.
+#:
+#: 4'tü ve eller yüzle aynı hizaya düşüyordu: kol görünmüyor, eller kulak
+#: gibi duruyordu. 9'da kol ortaya çıkıyor ve el nesnenin üstünde.
+EL_Y = 9.0
 
 #: Ellerin merkezden uzaklığı. Nesnenin yarı eninden biraz içeride.
 EL_X = 14
 
-#: Nesneye özel el konumu — (merkezden uzaklık, sütun üstünden y).
+#: Kolun kalınlığı ve omzun yüz kutusuna göre yeri.
+#:
+#: İlk deneme 5 kalınlık ve ±%20 omuzdu: iki kol geniş bir V çiziyor ve
+#: pelerin gibi okunuyordu — çizip baktım. Kol ince ve omuz dar olunca
+#: çizgi kalıyor, kütle kalmıyor.
+KOL = 3.4
+OMUZ_X, OMUZ_Y = 0.10, 0.16
+
+#: Nesneye özel el konumu — (merkezden uzaklık, nesnenin üstünden iniş).
 #:
 #: Varsayılan eller nesnenin iki üst köşesinde: dizüstü, terminal, sayfa
 #: ve sunucu birer levha ve köşelerinden tutuluyorlar. Mercek levha
@@ -94,13 +110,14 @@ EL_X = 14
 #: karakterden kopuk okunuyor. Ölçtüm: camın yarıçapı sütun ölçeğinde
 #: 11.3 piksel, eller merkeze 19.8 piksel uzaktaydı — arada 8 piksel
 #: boşluk. Burada eller camın alt yanaklarına, çemberin üstüne iniyor.
-EL_KONUM = {"mercek": (8.0, 69.5)}
+EL_KONUM = {"mercek": (8.0, 23.5)}
 
 #: Nesne ve eller izin sağında kalıyor, üstünde değil.
 IZ_PAY = 8
 
-#: Sütunun boyu: gövde + nesne + biraz nefes.
-YUKSEKLIK = 100
+#: Sütunun boyu: yüz + nesne + biraz nefes. 100'dü ve nesne yukarı
+#: alınınca altta 37 piksel boş kalıyordu.
+YUKSEKLIK = 76
 
 
 def _renkli(ad: str, t: Tokens) -> QSvgRenderer | None:
@@ -239,9 +256,15 @@ class Sahne(QWidget):
             return
 
         boyut = NESNE * (0.78 + 0.22 * k)
-        x = IZ_PAY + (self.width() - IZ_PAY - boyut) / 2
+        merkez, ust = self._nesne_yeri()
+        x = merkez - boyut / 2
         # Aşağıdan gelip ellerine oturuyor.
-        y = NESNE_Y + (NESNE - boyut) / 2 + (1.0 - k) * 12.0
+        y = ust + (NESNE - boyut) / 2 + (1.0 - k) * 12.0
+
+        # Kollar nesnenin **arkasında**: nesne kolun önünde, el nesnenin
+        # önünde. Sıra bu olmazsa tutma okunmuyor — el nesnenin arkasında
+        # kalırsa maskot ona dokunuyor bile görünmüyor.
+        self._kollari_ciz(painter, ad, k)
 
         painter.save()
         painter.setOpacity(min(1.0, k))
@@ -253,6 +276,44 @@ class Sahne(QWidget):
 
         self._elleri_ciz(painter, ad, k)
 
+    def _nesne_yeri(self) -> tuple[float, float]:
+        """Nesnenin merkezi ve üst kenarı — **yüzün kutusundan** türüyor.
+
+        Sütunun ortasını kendi başına hesaplamak, yüzün nerede olduğunu
+        tahmin etmekti ve tahmin yanlıştı: halka sütundan dar, yüz merkezi
+        30'da kalıyordu, nesne 43'e gidiyordu.
+        """
+        kutu = self.halka.yuz_kutusu()
+        return kutu.center().x(), kutu.bottom() - NESNE_BINDIRME
+
+    def _el_yerleri(self, nesne: str, k: float) -> list[tuple[float, float]]:
+        """İki elin merkezi. Nesnenin yerine göre, sütuna göre değil."""
+        merkez, ust = self._nesne_yeri()
+        el_x, el_y = EL_KONUM.get(nesne, (EL_X, EL_Y))
+        dusus = (1.0 - k) * 12.0
+        return [(merkez + taraf * el_x, ust + el_y + dusus)
+                for taraf in (-1, 1)]
+
+    def _kollari_ciz(self, painter: QPainter, nesne: str, k: float) -> None:
+        """Yüzün altından ellere inen iki kol.
+
+        Kolsuz eller havada duruyordu: bir el, bağlı olduğu bir şey
+        olmadan tutuyor gibi okunmuyor — Berkay da "eliyle tutup
+        bakmasını istiyorum" derken tam bunu söyledi. Kollar yüzün alt
+        kenarından çıkıyor ve maskotla aynı renkte; ayrı bir parça değil,
+        aynı yaratığın uzantısı.
+        """
+        kutu = self.halka.yuz_kutusu()
+        omuz_y = kutu.bottom() - kutu.height() * OMUZ_Y
+        painter.save()
+        painter.setOpacity(min(1.0, k))
+        painter.setPen(QPen(QColor(self._el_rengi()), KOL,
+                            Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        for taraf, (ex, ey) in zip((-1, 1), self._el_yerleri(nesne, k)):
+            omuz_x = kutu.center().x() + taraf * kutu.width() * OMUZ_X
+            painter.drawLine(QPointF(omuz_x, omuz_y), QPointF(ex, ey))
+        painter.restore()
+
     def _elleri_ciz(self, painter: QPainter, nesne: str, k: float) -> None:
         """İki el, nesnenin iki yanında.
 
@@ -262,21 +323,18 @@ class Sahne(QWidget):
         yol = self._el_yolu()
         if yol is None:
             return
-        merkez = IZ_PAY + (self.width() - IZ_PAY) / 2
-        el_x, el_y = EL_KONUM.get(nesne, (EL_X, EL_Y))
         tusa_basiyor = nesne in TUSLU
+        yerler = self._el_yerleri(nesne, k)
 
         painter.save()
         painter.setOpacity(min(1.0, k))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(self._el_rengi()))
-        for i, taraf in enumerate((-1, 1)):
+        for i, (ex, ey) in enumerate(yerler):
             vur = 0.0
             if tusa_basiyor:
                 vur = max(0.0, math.sin(self._gecen * 7.0 + i * math.pi)) * 2.6
-            self._el_ciz(painter, yol,
-                         merkez + taraf * el_x - EL / 2,
-                         el_y + (1.0 - k) * 12.0 + vur)
+            self._el_ciz(painter, yol, ex - EL / 2, ey - EL / 2 + vur)
         painter.restore()
 
     def _el_ciz(self, painter: QPainter, yol: QPainterPath,
