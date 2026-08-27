@@ -116,6 +116,7 @@ class RunRing(QWidget):
     def step(self, tool: str) -> None:
         """Yeni bir araç çağrısı başladı."""
         self.face.set_tool(tool)
+        self.face.bump()
         yeni = glyph_for(tool)
         if yeni != self._glyph:
             self._prev_glyph = self._glyph
@@ -128,6 +129,7 @@ class RunRing(QWidget):
     def settle(self, is_error: bool) -> None:
         """Adım bitti — halkada kalıcı bir dilim bırakıyor."""
         self._done.append(bool(is_error))
+        self.face.bump()
         if is_error:
             self.face.set_state("hata")
         self._arc = self._arc_target = 0.0
@@ -136,6 +138,7 @@ class RunRing(QWidget):
     def pulse(self) -> None:
         """Modelden bir parça düştü."""
         self._arc_target = min(ARC_CEILING, self._arc_target + ARC_STEP)
+        self.face.bump()
         self._mark()
 
     def finish(self) -> None:
@@ -241,9 +244,10 @@ class RunRing(QWidget):
         kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
         olduğunu yüzden.
         """
-        # 0.72 idi: kulaklar halkaya değiyordu ve hata durumunda kırmızı
-        # kafa halkayı yiyordu.
-        boyut = self.width() * 0.66
+        # Konturlu kafada 0.72 çalışıyordu; dolu gövde çok daha ağır
+        # basıyor ve halkanın rayını eziyordu. 0.56'da ikisi de nefes
+        # alıyor.
+        boyut = self.width() * 0.56
         koken = QPointF((self.width() - boyut) / 2, (self.height() - boyut) / 2)
         self.face.paint(painter, boyut, koken)
 

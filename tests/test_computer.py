@@ -2364,12 +2364,37 @@ class TestAjanKafasi:
         assert not k._timer.isActive()
 
     def test_hata_hem_renk_hem_bicim(self, qt_app):
-        # Bu temada kırmızı ile vurgu rengi birbirine yakın; çatık kaş
-        # renkten bağımsız okunuyor.
-        import inspect
-        from app.kafa import AjanKafasi
-        kaynak = inspect.getsource(AjanKafasi._gozler)
-        assert "hata" in kaynak and "drawLine" in kaynak
+        # Bu temada kırmızı ile vurgu rengi birbirine yakın; hatayı renk
+        # tek başına taşıyamaz. Yarıklar içeri dönüyor.
+        k = self._k(qt_app)
+        k.set_state("bosta")
+        notr = k._slit_angle(1)
+        k.set_state("hata")
+        assert k._slit_angle(1) != notr
+        assert k._slit_angle(1) * k._slit_angle(-1) < 0, "iki yarık ters dönmeli"
+
+    def test_yariklar_paralel(self, qt_app):
+        # Aynalı eğimde yüz sürekli hafif asık duruyordu: içe bakan iki
+        # çizgi çatık kaş okunuyor. Kızgınlık yalnızca hataya ait.
+        k = self._k(qt_app)
+        k.set_state("bosta")
+        assert k._slit_angle(1) == k._slit_angle(-1)
+
+    def test_ezilme_sinirli(self, qt_app):
+        # Kareler arasında biriken itkiler kafayı krep yapıyordu.
+        from app.kafa import SQUASH_MAX
+        k = self._k(qt_app)
+        k.set_live(True)
+        for _ in range(200):
+            k.bump()
+            k._tick()
+        assert abs(k._squash) <= SQUASH_MAX
+
+    def test_acilirken_goz_kirpmiyor(self, qt_app):
+        # `_blink_at` sıfırdan başlıyordu: yüz açılır açılmaz gözünü
+        # kırpıyor ve kısa turda ömrünü gözü kapalı geçiriyordu.
+        k = self._k(qt_app)
+        assert k._blink == 0 and k._blink_at > 10
 
     def test_halka_yuzu_suruyor(self, qt_app):
         from app import fluent

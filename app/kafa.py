@@ -1,9 +1,9 @@
 """Ajanın yüzü.
 
-Karikatür bir kafa: yuvarlatılmış bir gövde, iki göz, bir ağız ve yanlarda
-iki kulak. Uygulamanın geri kalanıyla aynı geometriden çizilmiş —
-yuvarlatılmış dikdörtgen, tek kalınlıkta çizgi, aynı palet. Başka bir
-yerden alınmış bir maskot burada yabancı dururdu.
+Karikatür bir kafa: dolu bir squircle gövde ve iki eğik yarık göz. Tam
+daire değil — uygulamanın bütün yüzeyleri yuvarlatılmış dikdörtgen ve
+kafa da onlardan biri gibi durmalı. Başka bir yerden alınmış bir maskot
+burada yabancı dururdu.
 
 **Gözler gerçekten baktığı yere bakıyor.** Ajan ekranın sağ altına
 tıklayacaksa gözbebekleri oraya kayıyor; koordinat zaten elimizde. Bu
@@ -13,12 +13,15 @@ kıpırdayan bir maskot bu kuralı bozardı ve süs olurdu.
 
 Yüz ifadesi de uydurma değil, ajanın o an ne yaptığı:
 
-- **bakiyor** — gözler iri, ağız nötr (bakmak bir duygu değil)
-- **tikliyor** — gözbebekleri hedefe kayıyor
-- **yaziyor** — gözler aşağıda, ağız yazarken açık
-- **dusunuyor** — bakış yukarı sola, ağız düz
-- **hata** — kaşlar çatık, çizgi kırmızı
-- **bitti** — gözler gülümseme yayına dönüyor
+- **bakiyor** — yarıklar açılıyor, gözler irileşiyor
+- **tikliyor** — yarıklar hedefe kayıyor
+- **yaziyor** — yarıklar kısılıyor, dikkat toplanıyor
+- **dusunuyor** — bakış yukarı sola
+- **hata** — yarıklar içeri dönüyor, gövde kırmızı
+- **bitti** — yarıklar yukarı kıvrılıyor
+
+Ağız yok, kontur yok: dolu bir gövde ve iki eğik yarık. İfadeyi taşıyan
+tek şey gözler, ve gövde onlarla birlikte eziliyor.
 
 Göz kırpma tek rastgele şey ve sebebi var: hiç kırpmayan bir yüz ölü
 görünüyor. Kırpma tur sürerken oluyor, boştayken durmuyor.
@@ -45,6 +48,31 @@ BLINK_MIN, BLINK_MAX = 2.2, 5.5
 
 #: Kırpmanın süresi, kare sayısı.
 BLINK_FRAMES = 4
+
+#: Gövdenin çapı, ızgara birimi.
+BODY = 20.0
+
+#: Köşe yarıçapı. 10 tam daire yapardı; 7.4 squircle bırakıyor — bütün
+#: yüzeylerimiz yuvarlatılmış dikdörtgen ve kafa da onlardan biri.
+CORNER = 7.4
+
+#: Yarık gözün eni, boyu ve eğimi.
+SLIT_W, SLIT_H, SLIT_TILT = 1.8, 6.0, 13.0
+
+#: Gözlerin merkeze uzaklığı.
+EYE_X, EYE_Y = 2.9, -1.4
+
+#: Ezilip uzama yayının katsayıları. Sertlik yüksek, sönüm orta: itki
+#: hızla sönüyor, yoksa kafa boşta da sallanmaya devam ederdi.
+SPRING_K, SPRING_DAMP = 0.28, 0.26
+
+#: Bir olayın gövdeye verdiği itki.
+IMPULSE = 0.055
+
+#: Ezilmenin sınırı. Sınırsızken kafa krep oluyordu: iki kare arasında
+#: gelen itkiler toplanıyor ve akış hızlandığında gövde yassılıyordu.
+#: Ölçtüm — tek karede on bir itki biriktiğinde 2.5:1 bir hap çıkıyor.
+SQUASH_MAX = 0.16
 
 #: Gözbebeğinin kaçabileceği en uzak yer, ızgara birimi.
 #:
@@ -86,9 +114,13 @@ class AjanKafasi(QWidget):
         self._gaze = QPointF(0.0, 0.0)
         self._gaze_hedef = QPointF(0.0, 0.0)
         self._blink = 0
-        self._blink_at = 0.0
+        # İlk kırpma rastgele bir geleceğe kuruluyor. Sıfırdan başlarken
+        # yüz açılır açılmaz gözünü kırpıyordu — ve tur kısa sürerse
+        # bütün ömrünü gözü kapalı geçiriyordu.
+        self._blink_at = random.uniform(BLINK_MIN, BLINK_MAX) * (1000 / FRAME_MS)
         self._live = False
-        self._mouth = 0.0          # yazarken açılıp kapanan ağız
+        self._squash = 0.0         # + geniş ve basık, - dar ve uzun
+        self._vel = 0.0
         self._frame = 0
         #: Yüz değiştiğinde çağrılıyor. Kafa `RunRing`in içine boyandığında
         #: kendi widget'ı görünmez oluyor; yeniden çizmesi gereken halka.
@@ -143,9 +175,21 @@ class AjanKafasi(QWidget):
                 BLINK_MIN, BLINK_MAX
             ) * (1000 / FRAME_MS)
 
-        if self._state == "yaziyor":
-            self._mouth = (self._frame % 12) / 12.0
+        # Yay: itki verilmediğinde sıfıra dönüyor ve orada duruyor.
+        self._vel += -self._squash * SPRING_K
+        self._vel *= (1.0 - SPRING_DAMP)
+        self._squash = max(-SQUASH_MAX,
+                           min(SQUASH_MAX, self._squash + self._vel))
         self.on_change()
+
+    def bump(self) -> None:
+        """Bir şey geldi — gövdeye küçük bir itki.
+
+        Boşta salınan bir kafa "bir şey oluyor" derdi; oysa hareket
+        yalnızca gerçekten bir şey geldiğinde olmalı. Model bir parça
+        yazdığında ya da bir adım bittiğinde buraya geliniyor.
+        """
+        self._vel = min(self._vel + IMPULSE, IMPULSE * 2)
 
     # --- çizim ------------------------------------------------------------
 
@@ -159,91 +203,96 @@ class AjanKafasi(QWidget):
         """Yüzü verilen boyutta, verilen köşeden boyar.
 
         Ayrı bir metot çünkü kafa `RunRing`in ortasına da giriyor: halka
-        koşunun kaydı, kafa onun içindeki yüz. İki ayrı widget üst üste
-        koymak, ikisinin ortasını hizalamak demekti.
+        koşunun kaydı, kafa onun içindeki yüz.
         """
         t = self.t
         hata = self._state == "hata"
-        cizgi = QColor(t.critical if hata else t.text_secondary)
-        ic = QColor(t.critical if hata else t.accent)
+        govde = QColor(t.critical if hata else t.accent)
 
         painter.save()
         painter.translate(origin)
-        olcek = size / GRID
-        painter.scale(olcek, olcek)
+        painter.scale(size / GRID, size / GRID)
+        painter.translate(12.0, 12.0)
 
-        kalem = QPen(cizgi, 1.5 / max(olcek, 0.001) * olcek)
-        kalem.setWidthF(1.5)
-        kalem.setCapStyle(Qt.PenCapStyle.RoundCap)
-        kalem.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(kalem)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-
-        self._kulaklar(painter, kalem)
-        painter.drawRoundedRect(QRectF(4.5, 5.0, 15.0, 13.0), 5.0, 5.0)
-        self._gozler(painter, kalem, ic)
-        self._agiz(painter, kalem)
+        self._govde(painter, govde)
+        self._gozler(painter)
         painter.restore()
 
-    def _kulaklar(self, painter: QPainter, kalem: QPen) -> None:
-        """Yanlardaki iki çentik. Yüzü insan değil makine yapan şey bu:
-        çentiksiz hâli kaşsız bir surat gibi duruyordu."""
-        painter.drawLine(QPointF(3.2, 10.0), QPointF(3.2, 13.0))
-        painter.drawLine(QPointF(20.8, 10.0), QPointF(20.8, 13.0))
+    def _govde(self, painter: QPainter, renk: QColor) -> None:
+        """Dolu gövde — konturu yok.
 
-    def _gozler(self, painter: QPainter, kalem: QPen, ic: QColor) -> None:
+        Daire değil squircle: uygulamanın bütün yüzeyleri yuvarlatılmış
+        dikdörtgen ve kafa da onlardan biri gibi durmalı. Tam daire
+        başka bir yerden gelmiş gibi dururdu.
+
+        Ezilip uzuyor. Bir parça geldiğinde gövdeye küçük bir itki
+        biniyor ve yay gibi sönüyor: hareket, gerçekten bir şeyin geldiği
+        anlamına geliyor. Boşta hiç kıpırdamıyor.
+        """
+        yari = BODY / 2
+        w = yari * (1.0 + self._squash)
+        h = yari * (1.0 - self._squash)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(renk)
+        painter.drawRoundedRect(
+            QRectF(-w, -h, w * 2, h * 2), CORNER, CORNER
+        )
+
+    def _gozler(self, painter: QPainter) -> None:
+        """İki eğik yarık. Ağız yok — ifadeyi gözler taşıyor.
+
+        Yarıklar gövdeye oyuluyor: arka planın rengiyle boyanıyorlar, o
+        yüzden gövde nereye giderse gözler onunla gidiyor.
+        """
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self.t.background))
+
         kapali = self._blink > 0
-        sol = QPointF(9.4 + self._gaze.x() * GAZE, 10.6 + self._gaze.y() * GAZE)
-        sag = QPointF(14.6 + self._gaze.x() * GAZE, 10.6 + self._gaze.y() * GAZE)
+        dx = self._gaze.x() * GAZE
+        dy = self._gaze.y() * GAZE
+        # Gövde ezildiğinde gözler de onunla hareket ediyor; sabit kalsalar
+        # yüzün içinde kayıyormuş gibi görünürdü.
+        dy -= self._squash * 2.2
 
         if self._state == "bitti" and not kapali:
-            # Gülümseyen göz: iki yay. Nokta göz + gülen ağız, ikisi birden
-            # fazla neşe oluyordu; sevinç tek yerde.
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(kalem)
-            for merkez in (sol, sag):
-                painter.drawArc(
-                    QRectF(merkez.x() - 1.9, merkez.y() - 1.4, 3.8, 2.8),
-                    20 * 16, 140 * 16,
-                )
+            self._gulen_gozler(painter, dx, dy)
             return
 
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(ic)
-        if kapali:
-            for merkez in (sol, sag):
-                painter.drawRoundedRect(
-                    QRectF(merkez.x() - 1.8, merkez.y() - 0.4, 3.6, 0.8), 0.4, 0.4
-                )
-            return
+        h = SLIT_H * (0.12 if kapali else self._slit_scale())
+        for taraf in (-1, 1):
+            painter.save()
+            painter.translate(EYE_X * taraf + dx, EYE_Y + dy)
+            painter.rotate(self._slit_angle(taraf))
+            painter.drawRoundedRect(
+                QRectF(-SLIT_W / 2, -h / 2, SLIT_W, h), SLIT_W / 2, SLIT_W / 2
+            )
+            painter.restore()
 
-        # "bakiyor" gözü büyütüyor: ekrana bakmak, dikkatin dışarıda olması.
-        r = 2.0 if self._state == "bakiyor" else 1.6
-        for merkez in (sol, sag):
-            painter.drawEllipse(merkez, r, r)
+    def _slit_scale(self) -> float:
+        """Yarığın boyu. Bakarken açılıyor, yazarken kısılıyor —
+        dikkatini nereye verdiği."""
+        return {"bakiyor": 1.25, "yaziyor": 0.62, "dusunuyor": 0.85}.get(
+            self._state, 1.0
+        )
 
+    def _slit_angle(self, taraf: int) -> float:
+        """Yarığın eğimi. Hatada ikisi içeri dönüyor: renk tek başına
+        yetmiyor, bu temada kırmızı ile vurgu rengi birbirine çok yakın."""
         if self._state == "hata":
-            # Çatık kaş. Kırmızı tek başına yetmiyor, biçim de söylemeli.
-            painter.setPen(kalem)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawLine(QPointF(7.6, 7.9), QPointF(11.0, 8.9))
-            painter.drawLine(QPointF(16.4, 7.9), QPointF(13.0, 8.9))
+            return -34.0 * taraf
+        # İki yarık **paralel**. Aynalı eğimle denedim ve yüz sürekli hafif
+        # asık duruyordu: içe bakan iki çizgi çatık kaş okunuyor. Paralel
+        # eğim nötr kalıyor ve kızgın ifadeyi hataya bırakıyor.
+        return SLIT_TILT
 
-    def _agiz(self, painter: QPainter, kalem: QPen) -> None:
+    def _gulen_gozler(self, painter: QPainter, dx: float, dy: float) -> None:
+        """Bitti: yarıklar yukarı kıvrılıyor."""
+        kalem = QPen(QColor(self.t.background), SLIT_W)
+        kalem.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(kalem)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        y = 14.6
-        if self._state == "yaziyor":
-            # Yazarken açılıp kapanan ağız — tuşa basma ritmi.
-            h = 0.6 + self._mouth * 1.6
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(self.t.text_secondary))
-            painter.drawRoundedRect(
-                QRectF(10.6, y - h / 2, 2.8, h), 0.6, 0.6
+        for taraf in (-1, 1):
+            painter.drawArc(
+                QRectF(EYE_X * taraf + dx - 1.5, EYE_Y + dy - 1.0, 3.0, 2.6),
+                20 * 16, 140 * 16,
             )
-        elif self._state == "bitti":
-            painter.drawLine(QPointF(10.4, y), QPointF(13.6, y))
-        elif self._state == "hata":
-            painter.drawArc(QRectF(10.0, y - 0.2, 4.0, 2.6), 20 * 16, 140 * 16)
-        else:
-            painter.drawLine(QPointF(10.6, y), QPointF(13.4, y))
