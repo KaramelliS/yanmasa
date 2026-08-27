@@ -59,7 +59,7 @@ from .glyphs import PreviewFrame
 DETAIL_MAX_HEIGHT = 190
 
 #: Cevap alanının tavanı. Bunun üstünde çubuk büyümüyor, içerik kayıyor.
-REPLY_MAX_HEIGHT = 170
+REPLY_MAX_HEIGHT = 148
 
 #: Sürüklerken çubuğun ekranda kalması gereken en küçük payı. Tamamen
 #: dışarı çıkarılamamalı: geri getirmenin tek yolu ayar dosyasını elle
@@ -188,6 +188,60 @@ class MicDot(QWidget):
         painter.drawRoundedRect(QRectF(cx - 3.2, cy - 7.5, 6.4, 10.5), 3.2, 3.2)
         painter.drawArc(QRectF(cx - 6.5, cy - 4, 13, 11.5), 200 * 16, 140 * 16)
         painter.drawLine(QPointF(cx, cy + 5.5), QPointF(cx, cy + 8.5))
+        painter.end()
+
+
+class StopDot(QWidget):
+    """Durdur. Yalnızca ajan çalışırken var.
+
+    Durdurmanın tek yolu Esc x3'tü ve bunu bilmenin yolu yoktu: ana
+    pencerede bir düğme vardı ama insan çubuğa bakıyor. Duran bir şeyi
+    durdurma düğmesi de göstermiyoruz — boşta duran kırmızı bir düğme,
+    basılacak bir şey varmış gibi duruyor.
+    """
+
+    clicked = Signal()
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.setFixedSize(MIC_SIZE, MIC_SIZE)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Durdur — Esc ×3 her yerden çalışır")
+        self._hover = False
+
+    def enterEvent(self, event) -> None:
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        self._hover = False
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+
+    def paintEvent(self, _event) -> None:
+        t = self.t
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        merkez = QPointF(self.width() / 2, self.height() / 2)
+        r = MIC_SIZE / 2 - 3
+
+        dolgu = QColor(t.critical)
+        dolgu.setAlpha(46 if self._hover else 26)
+        painter.setPen(QPen(QColor(t.critical), 1.4))
+        painter.setBrush(dolgu)
+        painter.drawEllipse(merkez, r, r)
+
+        # Kare: evrensel "dur". Üçgen "oynat" demek olurdu.
+        k = 5.4
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(t.critical))
+        painter.drawRoundedRect(
+            QRectF(merkez.x() - k / 2, merkez.y() - k / 2, k, k), 1.4, 1.4
+        )
         painter.end()
 
 
@@ -372,6 +426,7 @@ class CommandBar(QWidget):
     hold_started = Signal()
     hold_ended = Signal()
     submitted = Signal(str)
+    stop_requested = Signal()
 
     def __init__(self, t: Tokens) -> None:
         super().__init__()
@@ -496,6 +551,11 @@ class CommandBar(QWidget):
         self.field.installEventFilter(self)
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
+
+        self.stop = StopDot(t)
+        self.stop.setVisible(False)
+        self.stop.clicked.connect(self.stop_requested)
+        row_layout.addWidget(self.stop)
 
 
         card_layout.addWidget(row)
@@ -650,11 +710,9 @@ class CommandBar(QWidget):
         # maskotun sağında kalanı kaplıyor.
         width = BAR_WIDTH - 28 - 14 - self.sahne.width()
         needed = self.reply.heightForWidth(width) if dolu else 0
-        yukseklik = min(REPLY_MAX_HEIGHT, max(0, needed) + 18)
-        self._reply_scroll.setFixedHeight(yukseklik)
-        # Sütun dökümle aynı boyda: maskot metnin yanında duruyor, altına
-        # ya da üstüne taşmıyor.
-        self.sahne.setFixedHeight(max(96, yukseklik))
+        self._reply_scroll.setFixedHeight(
+            min(REPLY_MAX_HEIGHT, max(0, needed) + 14)
+        )
         self._grow()
         bar = self._reply_scroll.verticalScrollBar()
         bar.setValue(bar.maximum())
@@ -686,6 +744,7 @@ class CommandBar(QWidget):
         # hangisi düştü — cevabı okurken hâlâ orada. Bitince silmek, tam
         # da bakmak isteyeceğin anda veriyi çöpe atmak olurdu. Yeni bir
         # talimat verildiğinde `clear_run` siliyor.
+        self.stop.setVisible(busy)
         if busy:
             self.sahne.setVisible(True)
             self.ring.begin()

@@ -183,6 +183,14 @@ class Agent:
         """Bir talimatı ajan bitene kadar sürer. Son metni döndürür."""
         turn = turn or Turn()
         self.kill.reset()
+        # Yarım kalmış araç çağrıları kapatılıyor. Bir tur durdurulunca
+        # (Esc, durdur düğmesi, çökme) `tool_use` içeren asistan mesajı
+        # geçmişte kalıyor ama sonuçları hiç eklenmiyor. API her
+        # `tool_use` için hemen sonraki mesajda bir `tool_result`
+        # istiyor; olmayınca **bütün sohbet** reddediliyor ve uygulamayı
+        # yeniden başlatmadan bir daha konuşamıyorsun.
+        self._close_open_tools("Durduruldu.")
+
         self.messages.append({"role": "user", "content": instruction})
 
         final_text = ""
@@ -208,7 +216,13 @@ class Agent:
             if response.stop_reason != "tool_use":
                 return final_text
 
-            results = self._run_batch(response.content, turn, seen_errors)
+            try:
+                results = self._run_batch(response.content, turn, seen_errors)
+            except Aborted:
+                # Geçmişi hemen onar. Bir sonraki tura bırakmak, arada
+                # başka bir şey yazılırsa o mesajı da bozardı.
+                self._close_open_tools("Durduruldu.")
+                raise
             stuck = any(r.get("is_error") for r in results)
             tekrar = max(seen_errors.values(), default=0)
             if tekrar >= SAME_ERROR_LIMIT:
@@ -234,6 +248,40 @@ class Agent:
             self._prune_images()
 
         return final_text or f"{max_steps} adımda bitmedi, durdum."
+
+    def _close_open_tools(self, reason: str) -> str | None:
+        """Sonucu yazılmamış araç çağrılarını kapatır.
+
+        Geçmişin sonundaki asistan mesajında `tool_use` varsa ve peşinden
+        `tool_result` gelmiyorsa, her biri için hata sonucu ekliyor.
+        Kapatılan varsa araçların adını döndürüyor.
+        """
+        if not self.messages or self.messages[-1].get("role") != "assistant":
+            return None
+        acik = [b for b in _blocks(self.messages[-1])
+                if getattr(b, "type", None) == "tool_use"
+                or (isinstance(b, dict) and b.get("type") == "tool_use")]
+        if not acik:
+            return None
+
+        sonuclar = []
+        adlar = []
+        for blok in acik:
+            kimlik = getattr(blok, "id", None) or blok.get("id")
+            ad = getattr(blok, "name", None) or blok.get("name", "")
+            adlar.append(ad)
+            sonuc = {
+                "type": "tool_result",
+                "tool_use_id": kimlik,
+                "content": reason,
+                "is_error": True,
+            }
+            toolset = getattr(blok, "toolset_name", None)
+            if toolset:
+                sonuc["toolset_name"] = toolset
+            sonuclar.append(sonuc)
+        self.messages.append({"role": "user", "content": sonuclar})
+        return ", ".join(a for a in adlar if a)
 
     def _drop_last_images(self) -> None:
         """Geçmişteki görselleri metin yer tutucuyla değiştirir."""

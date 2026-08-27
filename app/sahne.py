@@ -69,7 +69,9 @@ TUSLU = {"laptop", "terminal", "sayfa"}
 #: Sütunun eni ve içindekilerin ölçüleri. Hepsi sütunun üst kenarına
 #: göre, ortalanmış: gövde üstte, nesne onun alt üçte birine biniyor,
 #: eller nesnenin üst kenarında.
-GENISLIK = 88
+#: 88'de sütunun sağında boşluk kalıyordu; gövde 52, nesne 36 ve 72
+#: ikisini de sığdırıyor.
+GENISLIK = 72
 #: Nesne gövdeden **dar** olmalı. 42'de gövdeden genişti ve maskot onu
 #: tutuyor değil, arkasında duruyor gibi okunuyordu — çizip baktım.
 NESNE = 36
@@ -84,6 +86,9 @@ EL_Y = 50
 
 #: Ellerin merkezden uzaklığı. Nesnenin yarı eninden biraz içeride.
 EL_X = 14
+
+#: Sütunun boyu: gövde + nesne + biraz nefes.
+YUKSEKLIK = 100
 
 
 def _renkli(ad: str, t: Tokens) -> QSvgRenderer | None:
@@ -110,7 +115,10 @@ class Sahne(QWidget):
         self.halka = halka
         self.halka.setParent(self)
         self.yuz = getattr(halka, "face", halka)
-        self.setFixedWidth(GENISLIK)
+        # Sütun yalnızca maskotun boyu kadar. Dökümle aynı boya
+        # zorlandığında altında doksan piksellik boşluk kalıyordu —
+        # ölçtüm: 88x170'in yarısı boştu.
+        self.setFixedSize(GENISLIK, YUKSEKLIK)
 
         self._ciziciler: dict[str, QSvgRenderer] = {}
         self._nesne: str | None = None

@@ -372,6 +372,7 @@ def main() -> int:
     bar.submitted.connect(on_submit)
     bar.set_commands(bridge.commands)
     window.stop_requested.connect(bridge.stop)
+    bar.stop_requested.connect(bridge.stop)
     app.aboutToQuit.connect(bridge.shutdown)
 
     bridge.start()

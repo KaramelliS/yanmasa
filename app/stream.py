@@ -99,8 +99,9 @@ SLOT_GAP = 7.0
 #: Bu kadar süre hiçbir şey gelmezse yayın ucu soluyor.
 STALL_AFTER = 0.9
 
-#: Akıştaki bir adım satırının yüksekliği.
-ROW_H = 26
+#: Akıştaki bir adım satırının yüksekliği. 26'ydı; yedi satırlık bir
+#: dökümde 28 piksel fazladan yer kaplıyordu ve satırlar zaten 12 punto.
+ROW_H = 22
 
 #: Düşen adımın yayı bu kadar içeri kaçıyor.
 #:

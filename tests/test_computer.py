@@ -3026,3 +3026,201 @@ class TestMaskotSutunu:
         assert "addWidget(self.sahne" in kaynak
         yatay = kaynak[kaynak.index("self._govde"):]
         assert "QHBoxLayout" in yatay, "sütun yan yana olmalı, alt alta değil"
+
+
+class TestYarimKalanArac:
+    """Durdurulan turdan sonra sohbet bozulmamalı.
+
+    Gerçek hata: `messages.10: tool_use ids were found without
+    tool_result blocks immediately after`. Bir tur durdurulunca
+    `tool_use` içeren asistan mesajı geçmişte kalıyor ama sonuçları hiç
+    eklenmiyor; sonraki her istek reddediliyor ve uygulamayı yeniden
+    başlatmadan bir daha konuşamıyorsun.
+    """
+
+    class Blok:
+        type = "tool_use"
+        name = "screenshot"
+        id = "toolu_test"
+        input: dict = {}
+        toolset_name = "computer"
+
+    def _agent(self, mesajlar):
+        from backend.agent.loop import Agent, _new_lock
+        a = Agent.__new__(Agent)
+        a.messages = mesajlar
+        a._pending = []
+        a._pending_lock = _new_lock()
+        return a
+
+    def _gecerli(self, mesajlar) -> bool:
+        """API kuralı: her `tool_use`u hemen sonraki mesajda bir
+        `tool_result` izlemeli."""
+        for i, m in enumerate(mesajlar):
+            kullanilan = [
+                b for b in (m.get("content") or [])
+                if (getattr(b, "type", None) == "tool_use"
+                    or (isinstance(b, dict) and b.get("type") == "tool_use"))
+            ]
+            if not kullanilan:
+                continue
+            sonraki = mesajlar[i + 1] if i + 1 < len(mesajlar) else None
+            if sonraki is None:
+                return False
+            doner = {
+                b.get("tool_use_id")
+                for b in (sonraki.get("content") or [])
+                if isinstance(b, dict) and b.get("type") == "tool_result"
+            }
+            for b in kullanilan:
+                kimlik = getattr(b, "id", None) or b.get("id")
+                if kimlik not in doner:
+                    return False
+        return True
+
+    def test_yarim_kalan_gecmis_gercekten_gecersiz(self):
+        # Önce hatanın var olduğunu göster.
+        yarim = [
+            {"role": "user", "content": "bir iş yap"},
+            {"role": "assistant", "content": [self.Blok()]},
+            {"role": "user", "content": "bir şey daha"},
+        ]
+        assert not self._gecerli(yarim)
+
+    def test_kapatinca_gecerli_oluyor(self):
+        a = self._agent([
+            {"role": "user", "content": "bir iş yap"},
+            {"role": "assistant", "content": [self.Blok()]},
+        ])
+        assert a._close_open_tools("Durduruldu.") == "screenshot"
+        a.messages.append({"role": "user", "content": "bir şey daha"})
+        assert self._gecerli(a.messages)
+
+    def test_sonuc_hata_olarak_isaretli(self):
+        # Modele "bu adım olmadı" demek gerekiyor; sessiz bir boşluk
+        # bıraksaydık ajan onu yapılmış sanardı.
+        a = self._agent([
+            {"role": "user", "content": "x"},
+            {"role": "assistant", "content": [self.Blok()]},
+        ])
+        a._close_open_tools("Durduruldu.")
+        sonuc = a.messages[-1]["content"][0]
+        assert sonuc["is_error"] is True
+        assert sonuc["tool_use_id"] == "toolu_test"
+        assert sonuc["toolset_name"] == "computer"
+
+    def test_kapatacak_bir_sey_yoksa_dokunmuyor(self):
+        for gecmis in (
+            [],
+            [{"role": "user", "content": "x"}],
+            [{"role": "assistant", "content": [{"type": "text", "text": "bitti"}]}],
+        ):
+            a = self._agent(list(gecmis))
+            assert a._close_open_tools("Durduruldu.") is None
+            assert a.messages == gecmis
+
+    def test_tur_baslarken_onariliyor(self):
+        # Durdurmadan sonra yazılan ilk mesaj geçmişi bozmamalı.
+        import inspect
+        from backend.agent.loop import Agent
+        kaynak = inspect.getsource(Agent.run)
+        onarim = kaynak.index("_close_open_tools")
+        ekleme = kaynak.index('"role": "user", "content": instruction')
+        assert onarim < ekleme, "onarım, yeni mesajı eklemeden önce olmalı"
+
+    def test_durdurmada_hemen_kapatiliyor(self):
+        # Bir sonraki tura bırakmak, arada başka bir şey yazılırsa o
+        # mesajı da bozardı.
+        import inspect
+        from backend.agent.loop import Agent
+        kaynak = inspect.getsource(Agent.run)
+        assert "except Aborted:" in kaynak
+        blok = kaynak[kaynak.index("except Aborted:"):]
+        assert "_close_open_tools" in blok[:400]
+
+
+class TestDurdurma:
+    """Çalışan turu durdurmak."""
+
+    def _bar(self, qt_app):
+        from app import fluent
+        from app.commandbar import CommandBar
+        return CommandBar(fluent.tokens())
+
+    def test_dugme_yalnizca_calisirken(self, qt_app):
+        # Boşta duran kırmızı bir düğme, basılacak bir şey varmış gibi
+        # duruyor.
+        bar = self._bar(qt_app)
+        assert not bar.stop.isVisible()
+        bar.set_busy(True)
+        bar.show()
+        assert bar.stop.isVisibleTo(bar)
+        bar.set_busy(False)
+        assert not bar.stop.isVisibleTo(bar)
+
+    def test_dugme_sinyal_yayiyor(self, qt_app):
+        bar = self._bar(qt_app)
+        gelen = []
+        bar.stop_requested.connect(lambda: gelen.append(1))
+        bar.stop.clicked.emit()
+        assert gelen == [1]
+
+    def test_cubuk_durdurmaya_bagli(self):
+        # Ana pencerede bir düğme vardı ama insan çubuğa bakıyor.
+        import inspect, ajan
+        kaynak = inspect.getsource(ajan.main)
+        assert "bar.stop_requested.connect(bridge.stop)" in kaynak
+
+
+class TestCubukBoyu:
+    """Çubuk sessizce büyümesin.
+
+    Ölçüldü: yedi adımlık bir turda 291 piksele çıkmıştı ve maskot
+    sütununun yarısı boştu. Bu testler eşiği tutuyor.
+    """
+
+    def _dolu(self, qt_app):
+        from app import fluent
+        from app.commandbar import CommandBar
+        from PySide6.QtWidgets import QApplication
+        t = fluent.tokens()
+        bar = CommandBar(t)
+        bar.set_voice_available(False)
+        bar.show()
+        bar.clear_run()
+        bar.add_user("Bütçeyi güncelle ve rapor et")
+        bar.set_busy(True)
+        bar.stream("Tamam, tabloyu açıyorum.")
+        for a, b, d in (("screenshot", "Ekrana bakıyor", "Ekran 2"),
+                        ("office_open", "Tabloyu açıyor", "butce.xlsx"),
+                        ("office_edit", "Hücre yazıyor", "B12 = 4200"),
+                        ("office_save", "Kaydediyor", "butce.xlsx")):
+            bar.ring.step(a)
+            bar.set_tool(a)
+            bar.add_step(a, b, d)
+            bar.settle_step(False)
+        bar.stream("Bütçe güncellendi.")
+        QApplication.processEvents()
+        return bar
+
+    def test_dolu_cubuk_ekrani_kaplamiyor(self, qt_app):
+        from PySide6.QtWidgets import QApplication
+        bar = self._dolu(qt_app)
+        ekran = QApplication.primaryScreen().availableGeometry().height()
+        assert bar.height() < ekran * 0.30, f"{bar.height()} / {ekran}"
+
+    def test_bos_cubuk_kucuk(self, qt_app):
+        from app import fluent
+        from app.commandbar import CommandBar
+        from PySide6.QtWidgets import QApplication
+        bar = CommandBar(fluent.tokens())
+        bar.show()
+        QApplication.processEvents()
+        assert bar.height() <= 130, bar.height()
+
+    def test_sutun_bos_yer_kaplamiyor(self, qt_app):
+        # 88x170'in yarısı boştu.
+        from app.sahne import GENISLIK, YUKSEKLIK
+        bar = self._dolu(qt_app)
+        assert bar.sahne.width() == GENISLIK <= 76
+        assert bar.sahne.height() == YUKSEKLIK <= 108
