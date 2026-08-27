@@ -12,6 +12,7 @@ Ana pencere belgeleri tutuyor.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -74,6 +75,21 @@ def _describe(tool: str, payload: dict) -> Operation:
         detail=detail or tool,
         key=tool,
     )
+
+
+def _ortak_klasor(paths: list[str]) -> str:
+    """Yazılan dosyaların ortak üst klasörü — kod ağacının kökü.
+
+    Tek dosya yazıldıysa onun klasörü. Farklı sürücülere yazıldıysa
+    (`commonpath` orada hata veriyor) ilk dosyanın klasörü.
+    """
+    klasorler = [str(Path(p).resolve().parent) for p in paths]
+    if len(set(klasorler)) == 1:
+        return klasorler[0]
+    try:
+        return os.path.commonpath(klasorler)
+    except ValueError:
+        return klasorler[0]
 
 
 def _panel_for(shot, tokens):
@@ -162,6 +178,7 @@ def main() -> int:
 
     steps = {"n": 0}
     unsaved: dict[str, int] = {}
+    ide: dict = {"view": None}
 
     def open_remote(session, title_suffix: str = "") -> None:
         """Sunucu panelini açar ya da öne getirir."""
@@ -207,19 +224,26 @@ def main() -> int:
         """Ajan dosya yazdı — kodu göster.
 
         "yazıldı" demek yetmiyor: ajan diske kod koyuyor ve görmeden ona
-        güvenmen gerekiyor. En son yazılan dosya panelde açılıyor.
-        """
-        from app.code_view import CodeView
+        güvenmen gerekiyor.
 
-        for path in paths[-3:]:
-            try:
-                icerik = Path(path).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if len(icerik) > 200_000:
-                continue
-            ad = Path(path).name
-            window.open_panel(f"__kod__{path}", ad, CodeView(tokens, path, icerik))
+        Dosya başına bir panel açmak eskiden ekranı sekmelerle dolduruyordu
+        ve dosyalar arasındaki ilişkiyi göstermiyordu. Tek bir kod paneli
+        var: solda projenin ağacı, sağda sekmeler.
+        """
+        gecerli = [p for p in paths if Path(p).is_file()]
+        if not gecerli:
+            return
+        kok = _ortak_klasor(gecerli)
+        if ide["view"] is None:
+            from app.ide import IdeView
+
+            ide["view"] = IdeView(tokens, kok)
+        else:
+            ide["view"].set_root(kok)
+            ide["view"].reload()
+        window.open_panel("__kod__", f"Kod · {Path(kok).name}", ide["view"])
+        for path in gecerli[-3:]:
+            ide["view"].open_file(path)
 
     def on_document(shot) -> None:
         """Ajan bir belge açtığında ya da değiştirdiğinde panel belirir."""

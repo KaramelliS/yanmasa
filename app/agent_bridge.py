@@ -46,6 +46,8 @@ class AgentBridge(QObject):
     document = Signal(object)    # DocSnapshot — ajan bir belge açtı ya da değiştirdi
     panel = Signal(str, object)  # yetenek adı, panel tanımı
     wrote = Signal(list)         # ajanın az önce yazdığı dosya yolları
+    queued = Signal(str)         # araya sıkıştırılan cümle sıraya alındı
+    landed = Signal(str)         # ajan o cümleyi gördü
 
     def __init__(self) -> None:
         super().__init__()
@@ -148,7 +150,17 @@ class AgentBridge(QObject):
     # --- koşu -------------------------------------------------------------
 
     def run(self, instruction: str) -> None:
-        if self._agent is None or self._busy:
+        """Yeni bir tur başlatır ya da çalışan tura cümleyi ekler.
+
+        Eskiden çalışırken gelen mesaj **sessizce düşüyordu**: yazıyordun,
+        Enter'a basıyordun, hiçbir şey olmuyordu. Artık kuyruğa giriyor ve
+        ajan bir sonraki adımda görüyor.
+        """
+        if self._agent is None:
+            return
+        if self._busy:
+            self._agent.interject(instruction)
+            self.queued.emit(instruction)
             return
         self._busy = True
         self._kill.reset()
@@ -170,6 +182,12 @@ class AgentBridge(QObject):
             self.failed.emit(error)
         else:
             self.finished.emit(text)
+
+        # Tur biterken kuyrukta kalan varsa yeni bir tur olarak sürüyor.
+        # Son adımdan sonra yazılan bir cümle yoksa kaybolurdu.
+        kalan = self._agent.take_pending() if self._agent else []
+        if kalan:
+            self.run("\n".join(kalan))
 
 
 class _Worker(QObject):
@@ -222,6 +240,7 @@ class _Worker(QObject):
             on_thinking=self._bridge.thought.emit,
             on_action=lambda name, payload: self._bridge.acted.emit(name, dict(payload)),
             on_result=self._on_result,
+            on_interjection=self._bridge.landed.emit,
         )
         try:
             text = self._agent.run(self._instruction, turn)

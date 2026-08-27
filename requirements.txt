@@ -22,6 +22,9 @@ formulas==1.3.4
 
 # Masaüstü arayüzü
 PySide6==6.11.2
+# Kod görünümünün sözdizimi renklendirmesi. Elle yazılmış düzenli ifadeler
+# çok satırlı metinlerde yanılıyordu ve ajan her dilde kod yazabiliyor.
+pygments==2.21.0
 
 # Test
 pytest==9.0.1

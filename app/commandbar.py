@@ -461,25 +461,11 @@ class CommandBar(QWidget):
         self.mic.released.connect(self.hold_ended.emit)
         row_layout.addWidget(self.mic)
 
+        self._busy = False
         self.field = QLineEdit()
         self.field.setPlaceholderText("Yaz ya da konuş…")
         self.field.setFixedHeight(34)
-        self.field.setStyleSheet(
-            f"""
-            QLineEdit {{
-                background: {t.control};
-                border: 1px solid {t.control_stroke};
-                border-bottom: 2px solid {t.text_tertiary};
-                border-radius: {RADIUS_CONTROL}px;
-                padding: 0 10px;
-                color: {t.text};
-                font-size: 14px;
-                selection-background-color: {t.accent};
-                selection-color: {t.on_accent};
-            }}
-            QLineEdit:focus {{ border-bottom-color: {t.accent}; }}
-            """
-        )
+        self.field.setStyleSheet(self._field_style(t))
         self.field.returnPressed.connect(self._submit)
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
@@ -514,6 +500,22 @@ class CommandBar(QWidget):
         self.mic.set_available(available)
         if not available:
             self.set_status("Ses motoru bağlı değil — yazarak komut verebilirsin.")
+
+    def _field_style(self, t: Tokens, live: bool = False) -> str:
+        """Yazı alanının biçimi. `live` ajan çalışırken: alt kenar vurgu
+        rengine dönüyor, yazdığın şeyin yeni bir iş değil süren işe
+        eklendiği görünür olsun."""
+        alt = t.accent if live else t.text_tertiary
+        return (
+            f"QLineEdit {{ background: {t.control};"
+            f" border: 1px solid {t.control_stroke};"
+            f" border-bottom: 2px solid {alt};"
+            f" border-radius: {RADIUS_CONTROL}px; padding: 0 10px;"
+            f" color: {t.text}; font-size: 14px;"
+            f" selection-background-color: {t.accent};"
+            f" selection-color: {t.on_accent}; }}"
+            f"QLineEdit:focus {{ border-bottom-color: {t.accent}; }}"
+        )
 
     def _run_shortcut(self, instruction: str) -> None:
         """Düğmeye basıldı. Metni alana yazıp göndermek yerine doğrudan
@@ -587,9 +589,23 @@ class CommandBar(QWidget):
         self._grow()
 
     def set_busy(self, busy: bool) -> None:
-        self.field.setEnabled(not busy)
+        """Çalışırken yazı alanı **açık kalıyor**.
+
+        Kapalıydı: ajan çalışırken yazamıyordun, yazdıysan da mesaj
+        sessizce düşüyordu. Oysa bir işi izlerken araya bir cümle
+        sıkıştırmak en çok istenen şey — "şunu da ekle", "orayı atla",
+        "yanlış klasör". Artık kuyruğa giriyor ve ajan bir sonraki adımda
+        görüyor.
+        """
+        self._busy = busy
         self.field.setPlaceholderText(
-            "Ajan çalışıyor…" if busy else "Yaz ya da konuş…"
+            "Araya yaz — ajan sıradaki adımda görür" if busy
+            else "Yaz ya da konuş…"
+        )
+        # Çalışırken alanın kenarı vurgu rengine dönüyor: yazdığın şeyin
+        # yeni bir iş değil, süren işe eklendiği görünür olsun.
+        self.field.setStyleSheet(
+            self._field_style(self.t, live=busy)
         )
 
     def show_operation(self, op: Operation | None) -> None:

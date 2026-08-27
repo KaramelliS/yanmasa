@@ -236,7 +236,11 @@ class MainWindow(QMainWindow):
         """
         existing = self._panels.get(key)
         if existing is not None:
-            existing.setWidget(body)
+            # Aynı gövde tekrar geliyorsa dokunma: `setWidget` onu bir an
+            # için düzenden çıkarıyor ve kod panelinde kaydırma konumu
+            # başa dönüyordu.
+            if existing.widget() is not body:
+                existing.setWidget(body)
             existing.setWindowTitle(title)
             existing.show()
             existing.raise_()

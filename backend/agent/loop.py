@@ -44,6 +44,8 @@ class Turn:
     on_thinking: Callable[[str], None] = lambda _t: None
     on_action: Callable[[str, dict[str, Any]], None] = lambda _n, _i: None
     on_result: Callable[[str, ToolOutcome], None] = lambda _n, _o: None
+    #: Araya sıkıştırılan cümle ajana ulaştığında.
+    on_interjection: Callable[[str], None] = lambda _t: None
 
 
 #: Reddedilme mesajı. Computer-use çağrılarında Anthropic bir güvenlik
@@ -93,6 +95,12 @@ def _error_key(name: str, outcome: ToolOutcome) -> str:
     return f"{name}|{text}"
 
 
+def _new_lock():
+    import threading
+
+    return threading.Lock()
+
+
 @dataclass
 class Agent:
     displays: DisplayMap
@@ -102,6 +110,10 @@ class Agent:
     approve: Callable[[str, str, str], bool] | None = None
     dispatcher: Dispatcher = field(init=False)
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: Ajan çalışırken araya sıkıştırılan cümleler. Kilitli, çünkü arayüz
+    #: thread'inden yazılıp ajan thread'inden okunuyor.
+    _pending: list[str] = field(default_factory=list, repr=False)
+    _pending_lock: Any = field(default_factory=_new_lock, repr=False)
 
     def __post_init__(self) -> None:
         self.dispatcher = Dispatcher(
@@ -140,6 +152,23 @@ class Agent:
             {**CUSTOM_TOOLS[-1], "cache_control": {"type": "ephemeral"}},
         ]
         return [*static, *self.dispatcher.skills.tools()]
+
+    def interject(self, text: str) -> None:
+        """Ajan çalışırken araya bir cümle sıkıştırır.
+
+        Ajan bir sonraki adıma geçerken bunu görüyor. Turu kesmiyor —
+        yarım kalmış bir tıklama dizisini ortasından bölmek, ekranı
+        beklenmedik bir durumda bırakırdı. Bir sonraki karar noktasında
+        okunuyor ve oradan itibaren geçerli oluyor.
+        """
+        with self._pending_lock:
+            self._pending.append(text)
+
+    def take_pending(self) -> list[str]:
+        """Bekleyenleri alır ve kuyruğu boşaltır."""
+        with self._pending_lock:
+            bekleyen, self._pending = self._pending, []
+        return bekleyen
 
     def run(self, instruction: str, turn: Turn | None = None, max_steps: int = 60) -> str:
         """Bir talimatı ajan bitene kadar sürer. Son metni döndürür."""
@@ -181,6 +210,17 @@ class Agent:
                     f"durdum — denemeye devam etmek boşuna masraf.\n\n"
                     f"{final_text}".strip()
                 )
+            # Araya sıkıştırılan cümleler araç sonuçlarıyla aynı mesaja
+            # ekleniyor. Sıra önemli: API tool_result bloklarının kullanıcı
+            # turunun **başında** olmasını istiyor, metin sonra geliyor.
+            araya = self.take_pending()
+            if araya:
+                results = results + [
+                    {"type": "text", "text": f"[Berkay araya yazdı] {metin}"}
+                    for metin in araya
+                ]
+                for metin in araya:
+                    turn.on_interjection(metin)
             self.messages.append({"role": "user", "content": results})
             self._prune_images()
 

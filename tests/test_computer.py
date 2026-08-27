@@ -1733,7 +1733,7 @@ class TestTopluYazma:
     def test_bozuk_girdi_anlasilir_hata(self, tmp_path):
         from backend.agent.dispatch import ToolError
         d = self._dispatcher(lambda *_: True)
-        with pytest.raises(ToolError, match="files\[1\]"):
+        with pytest.raises(ToolError, match=r"files\[1\]"):
             d.run("write_files", {"files": [
                 {"path": str(tmp_path / "a"), "content": "x"},
                 {"yol": "eksik"},
@@ -1741,16 +1741,254 @@ class TestTopluYazma:
 
 
 class TestKodGorunumu:
-    def test_uzantiya_gore_dil(self):
-        from app.code_view import language_for
-        assert language_for("a.py") == "python"
-        assert language_for("b.tsx") == "c"
-        assert language_for("c.sh") == "shell"
-        assert language_for("d.json") == "data"
-        assert language_for("e.bilinmeyen") == "duz"
+    """Renklendirme artık `pygments` ile. Elle yazılmış düzenli ifadeler
+    çok satırlı metinlerde yanılıyordu."""
 
-    def test_tanimadigi_dosya_duz_gosteriliyor(self):
-        # Yanlış dille renklendirmek, renklendirmemekten kötü.
-        from app.code_view import LANGUAGES, language_for
-        assert language_for("veri.bin") == "duz"
-        assert "duz" not in LANGUAGES.values()
+    def _lex(self, path, text):
+        from pygments.lexers import get_lexer_for_filename
+        return get_lexer_for_filename(path, text)
+
+    def test_uzantiya_gore_dil(self):
+        assert self._lex("a.py", "x=1").name == "Python"
+        # Eski düzenli ifade sürümü .tsx'i "c" sanıyordu.
+        assert self._lex("b.tsx", "const x = 1").name == "TSX"
+        assert self._lex("c.sh", "echo hi").name == "Bash"
+
+    def test_belirtec_rengi_en_ozgul_esleseni_seciyor(self):
+        # `Name.Function` tanımlıysa `Name.Function.Magic` de onu almalı,
+        # daha genel `Name`e düşmemeli.
+        from pygments.token import Name
+        from app.ide import _format_for
+        renkler = {"Name": "#111111", "Name.Function": "#222222"}
+        assert _format_for(Name.Function.Magic, renkler).foreground().color().name() == "#222222"
+        assert _format_for(Name.Variable, renkler).foreground().color().name() == "#111111"
+
+    def test_tanimsiz_belirtec_bicimsiz_kaliyor(self):
+        from pygments.token import Whitespace
+        from app.ide import _format_for
+        assert _format_for(Whitespace, {"Keyword": "#fff"}) is None
+
+    def test_cok_satirli_metin_dogru_bitiyor(self):
+        # Eski düzenli ifade sürümünün yanıldığı yer: üç tırnaklı bir
+        # metinden sonraki kod hâlâ metin sanılıyordu.
+        kaynak = '''x = """
+bir
+iki
+"""
+def f(): pass
+'''
+        from pygments.token import Keyword, String
+        turler = [t for _, t, v in self._lex("a.py", kaynak).get_tokens_unprocessed(kaynak)
+                  if v.strip()]
+        assert any(t in String for t in turler)
+        assert Keyword in turler  # `def` metnin içinde kalmadı
+
+    def test_buyuk_dosya_renklendirilmiyor(self):
+        # `pygments` bir megabaytta saniyeler harcıyor; o dosyaya zaten
+        # kimse göz atmıyor.
+        from app.ide import MAX_HIGHLIGHT
+        assert MAX_HIGHLIGHT < 1_000_000
+
+
+class TestArayaGirme:
+    """Ajan çalışırken araya bir cümle sıkıştırmak.
+
+    Eskiden çalışırken yazdığın mesaj **sessizce düşüyordu**: yazıyordun,
+    Enter'a basıyordun, hiçbir şey olmuyordu.
+    """
+
+    def _agent(self):
+        from backend.agent.loop import Agent, _new_lock
+
+        agent = Agent.__new__(Agent)
+        agent._pending = []
+        agent._pending_lock = _new_lock()
+        agent.messages = []
+        return agent
+
+    def test_kuyruk_sirayla_bosaliyor(self):
+        a = self._agent()
+        a.interject("bir")
+        a.interject("iki")
+        assert a.take_pending() == ["bir", "iki"]
+        assert a.take_pending() == []
+
+    def test_kuyruk_kilitli(self):
+        # İki thread: arayüz yazıyor, ajan okuyor. Kayıp cümle olmamalı.
+        import threading
+
+        a = self._agent()
+        yazanlar = [
+            threading.Thread(target=lambda i=i: a.interject(str(i)))
+            for i in range(50)
+        ]
+        for t in yazanlar:
+            t.start()
+        for t in yazanlar:
+            t.join()
+        assert sorted(int(x) for x in a.take_pending()) == list(range(50))
+
+    def _kosu(self, araya_yaz):
+        """Tek araç çağrısı, sonra bitiş — arada bir cümle sıkışıyor."""
+        from backend.agent.loop import Agent, ToolOutcome, Turn
+
+        agent = self._agent()
+
+        class SahteKill:
+            def reset(self): pass
+            def check(self): pass
+
+        class SahteDispatcher:
+            def run(self, name, payload):
+                araya_yaz(agent)
+                return ToolOutcome(content="OK", is_error=False)
+
+        agent.kill = SahteKill()
+        agent.dispatcher = SahteDispatcher()
+
+        class Blok:
+            type = "tool_use"
+            name = "screenshot"
+            id = "t1"
+            input = {}
+            toolset_name = "computer"
+
+        class Yanit:
+            def __init__(self, content, stop):
+                self.content = content
+                self.stop_reason = stop
+
+        yanitlar = [Yanit([Blok()], "tool_use"), Yanit([], "end_turn")]
+        agent._call_model = lambda turn, effort=None: yanitlar.pop(0)
+        agent._prune_images = lambda: None
+
+        gorulen = []
+        agent.run("bir iş yap", Turn(on_interjection=gorulen.append))
+        return agent, gorulen
+
+    def test_cumle_arac_sonuclarindan_sonra_geliyor(self):
+        # API tool_result bloklarının kullanıcı turunun başında olmasını
+        # istiyor; metin bloğu araya girerse istek reddediliyor.
+        agent, gorulen = self._kosu(lambda a: a.interject("bir de şunu ekle"))
+        kullanici = [m for m in agent.messages if m["role"] == "user"][-1]
+        turler = [b["type"] if isinstance(b, dict) else b.type
+                  for b in kullanici["content"]]
+        assert turler[0] == "tool_result"
+        assert turler[-1] == "text"
+        assert "bir de şunu ekle" in kullanici["content"][-1]["text"]
+
+    def test_arayuze_haber_veriliyor(self):
+        _, gorulen = self._kosu(lambda a: a.interject("şunu da yap"))
+        assert gorulen == ["şunu da yap"]
+
+    def test_hicbir_sey_yazilmazsa_mesaj_degismiyor(self):
+        agent, gorulen = self._kosu(lambda a: None)
+        kullanici = [m for m in agent.messages if m["role"] == "user"][-1]
+        assert all(b["type"] == "tool_result" for b in kullanici["content"])
+        assert gorulen == []
+
+    def test_calisirken_yazilan_dusmuyor(self):
+        # Köprü: meşgulken gelen talimat sessizce atılmıyor, kuyruğa giriyor.
+        import inspect
+        from app import agent_bridge
+
+        kaynak = inspect.getsource(agent_bridge.AgentBridge.run)
+        assert "interject" in kaynak
+        assert "self._busy: return" not in kaynak.replace("\n", " ")
+
+    def test_yazi_alani_mesgulken_kapanmiyor(self):
+        # Kapalı bir alana yazamazsın; araya girmenin tek yolu o alan.
+        import inspect
+        from app import commandbar
+
+        kaynak = inspect.getsource(commandbar.CommandBar.set_busy)
+        assert "field.setEnabled" not in kaynak
+
+
+class TestIdeGorunumu:
+    """Ajanın yazdığı kodu gösteren panel."""
+
+    def test_ortak_klasor_tek_dosyada_kendi_klasoru(self, tmp_path):
+        import ajan
+        (tmp_path / "a.py").write_text("x")
+        assert ajan._ortak_klasor([str(tmp_path / "a.py")]) == str(tmp_path.resolve())
+
+    def test_ortak_klasor_alt_klasorleri_topluyor(self, tmp_path):
+        import ajan
+        (tmp_path / "src").mkdir()
+        (tmp_path / "tests").mkdir()
+        kok = ajan._ortak_klasor([
+            str(tmp_path / "src" / "a.py"), str(tmp_path / "tests" / "b.py"),
+        ])
+        assert kok == str(tmp_path.resolve())
+
+    def test_ortak_klasor_farkli_surucude_patlamiyor(self):
+        # `commonpath` farklı sürücülerde ValueError atıyor; panel bu
+        # yüzden hiç açılmamamalı değil.
+        import ajan
+        assert ajan._ortak_klasor([r"C:\a\x.py", r"D:\b\y.py"]).startswith("C:")
+
+    def test_agac_gurultuyu_atliyor(self, tmp_path, qt_app):
+        # __pycache__ içinde ajanın yazdığı kodu aramak istemiyorsun.
+        from app import fluent
+        from app.ide import IdeView
+
+        (tmp_path / "__pycache__").mkdir()
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "gercek.py").write_text("x = 1", encoding="utf-8")
+        ide = IdeView(fluent.tokens(), str(tmp_path))
+        agac = ide.tree
+        adlar = {agac.topLevelItem(i).text(0) for i in range(agac.topLevelItemCount())}
+        assert adlar == {"gercek.py"}
+
+    def test_ayni_dosya_iki_sekme_acmiyor(self, tmp_path, qt_app):
+        from app import fluent
+        from app.ide import IdeView
+
+        yol = tmp_path / "a.py"
+        yol.write_text("print(1)", encoding="utf-8")
+        ide = IdeView(fluent.tokens(), str(tmp_path))
+        ide.open_file(str(yol))
+        ide.open_file(str(yol))
+        assert ide.tabs.count() == 1
+
+    def test_sekme_kapaninca_esleme_kayiyor(self, tmp_path, qt_app):
+        # Indeksler kaydığında eski eşleme yanlış sekmeyi gösteriyordu.
+        from app import fluent
+        from app.ide import IdeView
+
+        yollar = []
+        for ad in ("a.py", "b.py", "c.py"):
+            p = tmp_path / ad
+            p.write_text(f"# {ad}", encoding="utf-8")
+            yollar.append(str(p))
+        ide = IdeView(fluent.tokens(), str(tmp_path))
+        for y in yollar:
+            ide.open_file(y)
+        ide._close(0)
+        ide.open_file(yollar[2])
+        assert ide.tabs.count() == 2
+        assert ide.tabs.tabText(ide.tabs.currentIndex()) == "c.py"
+
+    def test_okunamayan_dosya_panelde_soyluyor(self, tmp_path, qt_app):
+        from app import fluent
+        from app.ide import IdeView
+
+        ide = IdeView(fluent.tokens(), str(tmp_path))
+        ide.open_file(str(tmp_path / "yok.py"))
+        assert "Okunamadı" in ide.tabs.currentWidget().editor.toPlainText()
+
+    def test_arama_buyuk_kucuk_harf_ayirmiyor(self, tmp_path, qt_app):
+        from app import fluent
+        from app.ide import CodePane
+
+        pane = CodePane(fluent.tokens(), "a.py", "Path = 1\npath = 2\n")
+        assert pane.editor.search("PATH") == 2
+
+    def test_cetvel_basamak_sayisina_gore_genisliyor(self, qt_app):
+        from app import fluent
+        from app.ide import Editor
+
+        dar = Editor(fluent.tokens(), "a.py", "x\n" * 5)
+        genis = Editor(fluent.tokens(), "a.py", "x\n" * 500)
+        assert genis.gutter_width() > dar.gutter_width()
