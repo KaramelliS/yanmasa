@@ -2007,3 +2007,98 @@ class TestIdeGorunumu:
         ide.open_file(str(yol))
         assert ide.tabs.count() == 1
         assert "x = 2" in ide.tabs.currentWidget().editor.toPlainText()
+
+
+class TestTekOrnek:
+    """İki ajan aynı fareyi süremez.
+
+    Eski koruma `QLocalServer` ile kilitliyordu ve Windows'ta çalışmıyordu:
+    `QLocalServer` adlandırılmış boru kullanıyor, Windows aynı adlı borunun
+    birden çok örneğine izin veriyor, yani `listen()` herkese başarı
+    dönüyor. Ölçüldü: aynı anda başlatılan altı örnekten dördü birden "ilk
+    örneğim" dedi. Gerçekten iki pencere açıldı.
+    """
+
+    KOD = '''
+import sys, time, glob, os.path
+sys.path.insert(0, {kok!r})
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from app.single import InstanceGuard
+
+app = QApplication([])
+g = InstanceGuard()
+# Bariyer: PySide6 içe aktarımı ~1 sn sürüyor ve o jitter süreçlerin
+# claim()'e aynı anda girmesini engelliyordu — yarış hiç oluşmuyordu.
+hazir = sys.argv[1] + ".hazir"
+open(hazir, "w").close()
+kalip = os.path.join(os.path.dirname(hazir), "*.hazir")
+while len(glob.glob(kalip)) < int(sys.argv[2]):
+    time.sleep(0.005)
+sonuc = g.claim()
+open(sys.argv[1], "w").write("1" if sonuc else "0")
+if sonuc:
+    QTimer.singleShot(2500, app.quit)   # kilidi tut ki rakipler görsün
+    app.exec()
+'''
+
+    def test_es_zamanli_baslatmada_tek_kazanan(self, tmp_path):
+        import subprocess, sys as _sys
+        from pathlib import Path as _Path
+
+        kok = _Path(__file__).resolve().parent.parent
+        kod = tmp_path / "cocuk.py"
+        kod.write_text(self.KOD.format(kok=str(kok)), encoding="utf-8")
+
+        N = 4
+        ciktilar = [tmp_path / f"{i}.txt" for i in range(N)]
+        surecler = [
+            subprocess.Popen([_sys.executable, str(kod), str(o), str(N)])
+            for o in ciktilar
+        ]
+        for p in surecler:
+            p.wait(timeout=90)
+        kazanan = sum(1 for o in ciktilar if o.exists() and o.read_text() == "1")
+        assert kazanan == 1, f"{N} eş zamanlı başlatmada {kazanan} kazanan"
+
+    def test_coken_ornekten_sonra_acilabiliyor(self, tmp_path):
+        # Mutex'in tutamacını çekirdek bırakıyor; ölü kilit diye bir şey yok.
+        import subprocess, sys as _sys, time
+        from pathlib import Path as _Path
+
+        kok = _Path(__file__).resolve().parent.parent
+        kod = tmp_path / "tut.py"
+        kod.write_text('''
+import sys, time
+sys.path.insert(0, {kok!r})
+from PySide6.QtWidgets import QApplication
+from app.single import InstanceGuard
+app = QApplication([])
+g = InstanceGuard()
+print("EVET" if g.claim() else "HAYIR", flush=True)
+time.sleep(60)
+'''.format(kok=str(kok)), encoding="utf-8")
+
+        def baslat():
+            return subprocess.Popen(
+                [_sys.executable, str(kod)], stdout=subprocess.PIPE, text=True
+            )
+
+        ilk = baslat()
+        try:
+            assert ilk.stdout.readline().strip() == "EVET"
+            ikinci = baslat()
+            try:
+                assert ikinci.stdout.readline().strip() == "HAYIR"
+            finally:
+                ikinci.kill()
+        finally:
+            ilk.kill()
+            ilk.wait()
+
+        time.sleep(0.5)
+        ucuncu = baslat()
+        try:
+            assert ucuncu.stdout.readline().strip() == "EVET"
+        finally:
+            ucuncu.kill()
