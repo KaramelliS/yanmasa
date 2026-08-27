@@ -127,6 +127,37 @@ def find_window(title_contains: str) -> int:
     return bulunan[0] if bulunan else 0
 
 
+def force_foreground(hwnd: int) -> None:
+    """Bir pencereyi ön plana zorlar.
+
+    Windows ön plan hırsızlığını engelliyor: `SetForegroundWindow` yalnızca
+    çağıran süreç zaten ön plandaysa ya da yakın zamanda kullanıcı girdisi
+    aldıysa çalışıyor. Kural şu: iki thread girdi kuyruğunu paylaşıyorsa
+    biri diğerinin penceresini öne getirebiliyor. Ön plandaki thread'e
+    geçici olarak bağlanıp izni alıyoruz.
+
+    Sonucu doğrulamıyor — çağıran doğrulasın. Bu yalnızca çağrının
+    yapılabilecek en iyi hâli.
+    """
+    user32 = ctypes.windll.user32
+    hedef_thread = user32.GetWindowThreadProcessId(hwnd, None)
+    on_hwnd = user32.GetForegroundWindow()
+    on_thread = user32.GetWindowThreadProcessId(on_hwnd, None) if on_hwnd else 0
+    bizim_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+
+    bagli = []
+    for thread in {on_thread, hedef_thread} - {0, bizim_thread}:
+        if user32.AttachThreadInput(bizim_thread, thread, True):
+            bagli.append(thread)
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        user32.SetActiveWindow(hwnd)
+    finally:
+        for thread in bagli:
+            user32.AttachThreadInput(bizim_thread, thread, False)
+
+
 def activate(title_contains: str, timeout: float = 3.0) -> bool:
     """Pencereyi öne getirir. Getiremezse `False` — yalan söylemiyor.
 
@@ -144,31 +175,7 @@ def activate(title_contains: str, timeout: float = 3.0) -> bool:
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, SW_RESTORE)
 
-    # Windows ön plan hırsızlığını engelliyor: `SetForegroundWindow` yalnızca
-    # çağıran süreç zaten ön plandaysa ya da yakın zamanda kullanıcı girdisi
-    # aldıysa çalışıyor. Aksi hâlde sessizce yok sayılıp görev çubuğunu yakıp
-    # söndürüyor — ölçüldü, çağrıların çoğu böyle düşüyordu ve ajan Discord'u
-    # açamayıp turlarca deniyordu.
-    #
-    # Kural şu: iki thread girdi kuyruğunu paylaşıyorsa biri diğerinin
-    # penceresini öne getirebiliyor. Ön plandaki thread'e geçici olarak
-    # bağlanıp izni alıyoruz.
-    hedef_thread = user32.GetWindowThreadProcessId(hwnd, None)
-    on_hwnd = user32.GetForegroundWindow()
-    on_thread = user32.GetWindowThreadProcessId(on_hwnd, None) if on_hwnd else 0
-    bizim_thread = ctypes.windll.kernel32.GetCurrentThreadId()
-
-    bagli = []
-    for thread in {on_thread, hedef_thread} - {0, bizim_thread}:
-        if user32.AttachThreadInput(bizim_thread, thread, True):
-            bagli.append(thread)
-    try:
-        user32.BringWindowToTop(hwnd)
-        user32.SetForegroundWindow(hwnd)
-        user32.SetActiveWindow(hwnd)
-    finally:
-        for thread in bagli:
-            user32.AttachThreadInput(bizim_thread, thread, False)
+    force_foreground(hwnd)
 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

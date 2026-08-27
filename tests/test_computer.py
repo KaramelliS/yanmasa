@@ -2024,10 +2024,15 @@ import sys, time, glob, os.path
 sys.path.insert(0, {kok!r})
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
-from app.single import InstanceGuard
+from app import single
+
+# Kendi kilit adı: testin sonucu Ajan'ın o an açık olup olmamasına
+# bağlı olmamalı.
+single.MUTEX = r"Local\ajan-test-" + sys.argv[3]
+single.SOCKET = "ajan-test-" + sys.argv[3]
 
 app = QApplication([])
-g = InstanceGuard()
+g = single.InstanceGuard()
 # Bariyer: PySide6 içe aktarımı ~1 sn sürüyor ve o jitter süreçlerin
 # claim()'e aynı anda girmesini engelliyordu — yarış hiç oluşmuyordu.
 hazir = sys.argv[1] + ".hazir"
@@ -2051,9 +2056,10 @@ if sonuc:
         kod.write_text(self.KOD.format(kok=str(kok)), encoding="utf-8")
 
         N = 4
+        etiket = tmp_path.name
         ciktilar = [tmp_path / f"{i}.txt" for i in range(N)]
         surecler = [
-            subprocess.Popen([_sys.executable, str(kod), str(o), str(N)])
+            subprocess.Popen([_sys.executable, str(kod), str(o), str(N), etiket])
             for o in ciktilar
         ]
         for p in surecler:
@@ -2072,12 +2078,14 @@ if sonuc:
 import sys, time
 sys.path.insert(0, {kok!r})
 from PySide6.QtWidgets import QApplication
-from app.single import InstanceGuard
+from app import single
+single.MUTEX = r"Local\ajan-test-" + {etiket!r}
+single.SOCKET = "ajan-test-" + {etiket!r}
 app = QApplication([])
-g = InstanceGuard()
+g = single.InstanceGuard()
 print("EVET" if g.claim() else "HAYIR", flush=True)
 time.sleep(60)
-'''.format(kok=str(kok)), encoding="utf-8")
+'''.format(kok=str(kok), etiket=tmp_path.name), encoding="utf-8")
 
         def baslat():
             return subprocess.Popen(

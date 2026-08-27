@@ -26,12 +26,14 @@ from pathlib import Path
 
 from PySide6.QtCore import (
     QEasingCurve,
+    QEvent,
     QPoint,
     QPointF,
     QPropertyAnimation,
     QRect,
     QRectF,
     Qt,
+    QTimer,
     Signal,
 )
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
@@ -467,6 +469,9 @@ class CommandBar(QWidget):
         self.field.setFixedHeight(34)
         self.field.setStyleSheet(self._field_style(t))
         self.field.returnPressed.connect(self._submit)
+        # Alana doğrudan yapılan tıklama `mousePressEvent`e ulaşmıyor —
+        # QLineEdit onu yiyor. Süzgeç o tıklamayı da yakalıyor.
+        self.field.installEventFilter(self)
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
         card_layout.addWidget(row)
@@ -699,9 +704,44 @@ class CommandBar(QWidget):
         except OSError:
             pass  # konumu kaydedememek kullanıcıyı durduracak bir şey değil
 
+    def eventFilter(self, watched, event) -> bool:
+        if (watched is self.field
+                and event.type() == QEvent.Type.MouseButtonPress):
+            self.claim_focus()
+        return super().eventFilter(watched, event)
+
+    def showEvent(self, event) -> None:
+        """Çubuk göründüğünde odak hazır olsun — tıklamak gerekmesin."""
+        super().showEvent(event)
+        QTimer.singleShot(0, self.claim_focus)
+
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_from = event.globalPosition().toPoint() - self.pos()
+            self.claim_focus()
+
+    def claim_focus(self) -> None:
+        """Çubuğu ön plana alıp yazı alanına odaklanır.
+
+        Çubuk sahipsiz bir `Qt.Tool` penceresi: görev çubuğunda yeri yok ve
+        ana pencereye bağlı değil, çünkü pencere kapansa da yaşamaya devam
+        etmeli. Bedeli şu: uygulama hiç ön plana gelmediyse Windows ona
+        klavye odağı vermiyor ve alana tıklasan da yazamıyorsun.
+
+        `activateWindow()` tek başına yetmiyor — Windows ön plan hırsızlığı
+        korumasına takılıyor ve çağrı sessizce yok sayılıyor. Ajanın başka
+        pencereleri öne getirmek için kullandığı `force_foreground` burada
+        da işi görüyor: ön plandaki thread'e bağlanıp izni alıyor.
+        """
+        self.raise_()
+        self.activateWindow()
+        try:
+            from backend.computer.windows import force_foreground
+
+            force_foreground(int(self.winId()))
+        except Exception:
+            pass  # odak alamamak yazmayı engelliyor, çökmeyi değil
+        self.field.setFocus(Qt.FocusReason.MouseFocusReason)
 
     def mouseMoveEvent(self, event) -> None:
         if self._drag_from is None:
