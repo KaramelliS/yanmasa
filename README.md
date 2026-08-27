@@ -646,6 +646,8 @@ scripts/
   ajan.py               terminal arayüzü (ajan çekirdeği)
   svg_yap.py            maskotun pozlarını ve nesnelerini üretir
   svg_onizleme.py       üretilen SVG'lerin PNG önizlemesi + tabaka
+  sahne_svg.py          maskotun beş sahnesi: her iş için ayrı kompozisyon
+  sahne_onizleme.py     sahnelerin **canlı** hâli — yüzüyle, bakışıyla
 varliklar/
   kaynak/bloub.svg      maskotun asıl silueti; pozlar buradan türüyor
   svg/                  üretilen varlıklar — elle düzenlenmez
