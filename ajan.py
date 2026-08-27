@@ -258,6 +258,23 @@ def main() -> int:
         window.open_panel(shot.name, title, _panel_for(shot, tokens))
         window.set_counters(steps["n"], sum(unsaved.values()), 0)
 
+    def _bakis(payload: dict) -> None:
+        """Gözler gerçekten tıklanacak yere bakıyor.
+
+        Koordinat zaten elimizde ve yakalanan ekran 1920x1080; merkeze
+        göre -1..1 aralığına çeviriyoruz. Rastgele kıpırdayan bir maskot
+        süs olurdu — buradaki her hareket gibi bu da bir veriyi taşıyor.
+        """
+        nokta = payload.get("coordinate")
+        if isinstance(nokta, (list, tuple)) and len(nokta) == 2:
+            try:
+                x, y = float(nokta[0]), float(nokta[1])
+            except (TypeError, ValueError):
+                return
+            bar.ring.face.look_at(x / 960.0 - 1.0, y / 540.0 - 1.0)
+        else:
+            bar.ring.face.look_forward()
+
     def on_said(parca: str) -> None:
         """Model yazarken harfler düşüyor.
 
@@ -269,6 +286,7 @@ def main() -> int:
     def on_action(tool: str, payload: dict) -> None:
         op = _describe(tool, payload)
         bar.ring.step(tool)
+        _bakis(payload)
         bar.add_step(tool, op.tool, op.target or op.detail)
         bar.show_operation(op)
         window.activity.add_step(op.tool, op.target, op.detail, tool)

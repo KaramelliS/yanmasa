@@ -40,6 +40,7 @@ from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from .fluent import Tokens
 from .glyphs import glyph_for, paint_glyph
+from .kafa import AjanKafasi
 
 #: Kare aralığı. 30 fps: 44 pikselik bir çizimde 60 fps'in farkı
 #: görünmüyor, işlemci farkı görünüyor.
@@ -77,11 +78,17 @@ FAIL_INSET = 3.5
 class RunRing(QWidget):
     """Turun şeklini biriktiren halka, ortasında o anki işin çizimi."""
 
-    def __init__(self, t: Tokens, size: int = 44) -> None:
+    def __init__(self, t: Tokens, size: int = 52) -> None:
         super().__init__()
         self.t = t
         self.setFixedSize(size, size)
         self._done: list[bool] = []      # her biten adım: hata mı?
+        # Halkanın içindeki yüz. Ayrı bir widget olarak üst üste koymak
+        # iki ortayı hizalamak demekti; kafa kendi çizimini buraya boyuyor.
+        self.face = AjanKafasi(t, size)
+        self.face.setParent(self)
+        self.face.hide()
+        self.face.on_change = self.update
         self._glyph = "goz"
         self._prev_glyph = ""
         self._fade = 1.0
@@ -99,6 +106,8 @@ class RunRing(QWidget):
         self._done.clear()
         self._arc = self._arc_target = 0.0
         self._live = True
+        self.face.set_live(True)
+        self.face.set_state("dusunuyor")
         self._mark()
         if not self._timer.isActive():
             self._timer.start(FRAME_MS)
@@ -106,6 +115,7 @@ class RunRing(QWidget):
 
     def step(self, tool: str) -> None:
         """Yeni bir araç çağrısı başladı."""
+        self.face.set_tool(tool)
         yeni = glyph_for(tool)
         if yeni != self._glyph:
             self._prev_glyph = self._glyph
@@ -118,6 +128,8 @@ class RunRing(QWidget):
     def settle(self, is_error: bool) -> None:
         """Adım bitti — halkada kalıcı bir dilim bırakıyor."""
         self._done.append(bool(is_error))
+        if is_error:
+            self.face.set_state("hata")
         self._arc = self._arc_target = 0.0
         self._mark()
 
@@ -129,6 +141,9 @@ class RunRing(QWidget):
     def finish(self) -> None:
         """Tur bitti. Şekil ekranda kalıyor, hareket duruyor."""
         self._live = False
+        self.face.set_state("bitti")
+        self.face.look_forward()
+        self.face.set_live(False)
         self._arc_target = 0.0
         self._timer.stop()
         self.update()
@@ -219,18 +234,18 @@ class RunRing(QWidget):
         )
 
     def _paint_glyph(self, painter: QPainter) -> None:
-        """Ortadaki çizim. Araç değişince eskisi sönerken yenisi geliyor —
-        bir anda takas etmek, neyin neye dönüştüğünü göstermiyordu."""
-        boyut = self.width() * 0.46
+        """Ortadaki yüz.
+
+        Eskiden burada aracın çizimi vardı; o çizimler artık dökümde, her
+        adımın kendi satırında. Burada tek bir şey olmalı ve o da ajanın
+        kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
+        olduğunu yüzden.
+        """
+        # 0.72 idi: kulaklar halkaya değiyordu ve hata durumunda kırmızı
+        # kafa halkayı yiyordu.
+        boyut = self.width() * 0.66
         koken = QPointF((self.width() - boyut) / 2, (self.height() - boyut) / 2)
-        t = self.t
-        if self._prev_glyph and self._fade < 1.0:
-            painter.setOpacity(1.0 - self._fade)
-            paint_glyph(painter, self._prev_glyph, boyut,
-                        t.accent, t.text_tertiary, koken)
-        painter.setOpacity(self._fade if self._prev_glyph else 1.0)
-        paint_glyph(painter, self._glyph, boyut, t.accent, t.text_secondary, koken)
-        painter.setOpacity(1.0)
+        self.face.paint(painter, boyut, koken)
 
 
 class AkanMetin(QWidget):

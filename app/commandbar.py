@@ -79,6 +79,10 @@ BREAK = "\n\n"
 
 MIC_SIZE = 40
 
+#: Koşu halkası. Mikrofondan büyük: içinde bir yüz var ve 40 pikselde
+#: ifade okunmuyor — ölçtüm.
+RING_SIZE = 52
+
 
 @dataclass
 class Operation:
@@ -477,8 +481,8 @@ class CommandBar(QWidget):
 
         # Halka alanın sağında: gözün metni bıraktığı yer, "ne oluyor"
         # sorusunun sorulduğu yer.
-        self.ring = RunRing(t, MIC_SIZE)
-        self.ring.setToolTip("Turun şekli: her dilim bir adım, kırmızı olan düştü")
+        self.ring = RunRing(t, RING_SIZE)
+        self.ring.setToolTip("Ajan. Halkadaki her dilim bir adım, kırmızı olan düştü")
         self.ring.setVisible(False)
         row_layout.addWidget(self.ring)
         card_layout.addWidget(row)

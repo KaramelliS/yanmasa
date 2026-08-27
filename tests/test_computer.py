@@ -2319,3 +2319,67 @@ class TestAkisDokumu:
         assert "bar.add_step(" in kaynak
         assert "bar.add_user(" in kaynak
         assert "bar.settle_step(" in kaynak
+
+
+class TestAjanKafasi:
+    """Yüz. Hareketi süs değil, ajanın ne yaptığı."""
+
+    def _k(self, qt_app):
+        from app import fluent
+        from app.kafa import AjanKafasi
+        return AjanKafasi(fluent.tokens())
+
+    def test_arac_yuze_donusuyor(self):
+        from app.kafa import face_for
+        assert face_for("screenshot") == "bakiyor"
+        assert face_for("left_click") == "tikliyor"
+        assert face_for("type") == "yaziyor"
+        assert face_for("write_file") == "yaziyor"
+
+    def test_tanimadigi_arac_dusunuyor(self):
+        # Uydurma bir ifade koymaktansa nötr kalmak dürüst.
+        from app.kafa import face_for
+        assert face_for("hic_boyle_bir_arac_yok") == "dusunuyor"
+
+    def test_bakis_sinirlanmis(self, qt_app):
+        # Gözbebeği kafanın dışına çıkamaz.
+        k = self._k(qt_app)
+        k.look_at(9.0, -9.0)
+        assert k._gaze_hedef.x() == 1.0 and k._gaze_hedef.y() == -1.0
+
+    def test_bakis_gercek_koordinattan(self):
+        # Rastgele kıpırdayan bir maskot süs olurdu; bakış tıklanacak yeri
+        # gösteriyor.
+        import inspect, ajan
+        kaynak = inspect.getsource(ajan.main)
+        assert "look_at" in kaynak and "coordinate" in kaynak
+
+    def test_bostayken_hareket_yok(self, qt_app):
+        # Boşta kırpan bir yüz, bir şey oluyormuş gibi görünürdü.
+        k = self._k(qt_app)
+        assert not k._timer.isActive()
+        k.set_live(True)
+        assert k._timer.isActive()
+        k.set_live(False)
+        assert not k._timer.isActive()
+
+    def test_hata_hem_renk_hem_bicim(self, qt_app):
+        # Bu temada kırmızı ile vurgu rengi birbirine yakın; çatık kaş
+        # renkten bağımsız okunuyor.
+        import inspect
+        from app.kafa import AjanKafasi
+        kaynak = inspect.getsource(AjanKafasi._gozler)
+        assert "hata" in kaynak and "drawLine" in kaynak
+
+    def test_halka_yuzu_suruyor(self, qt_app):
+        from app import fluent
+        from app.stream import RunRing
+        r = RunRing(fluent.tokens())
+        r.begin()
+        r.step("left_click")
+        assert r.face._state == "tikliyor"
+        r.settle(True)
+        assert r.face._state == "hata"
+        r.finish()
+        assert r.face._state == "bitti"
+        assert not r.face._timer.isActive()
