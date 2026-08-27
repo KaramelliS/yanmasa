@@ -55,7 +55,8 @@ PARCALAR = {
                "tus-1", "tus-2", "kol-yakin", "el-yakin"],
     "terminal": ["--yuz--", "pencere", "nokta-1", "nokta-2", "istem",
                  "imlec"],
-    "sayfa": ["--yuz--", "kagit", "sirt", "kol-yakin", "kalem", "el-yakin"],
+    "sayfa": ["kol-yakin", "--yuz--", "kagit", "sirt", "kalem",
+              "el-yakin"],
     "sunucu": ["kablo", "--yuz--", "raf-ust", "yuva-ust", "isik-ust",
                "raf-alt", "yuva-alt", "isik-alt", "kivilcim"],
 }

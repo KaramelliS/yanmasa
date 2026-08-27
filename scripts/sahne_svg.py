@@ -165,9 +165,12 @@ def mercek():
     # yüz uzayında (59.0, 37.5), profil kayması +16 ile (75.0, 37.5).
     # 46/96 ölçeğinde sahnede (37.9, 22.0) ediyor.
     cam = (38.0, 22.0)
-    sap_ucu = (56.0, 44.0)
-    el = (53.0, 40.0)
-    omuz = (28.0, 34.0)
+    # Sap camın hemen altında bitiyor ve el orada. Uç 56'daydı: el
+    # gövdeden 25 birim uzağa düşüyor ve kol geriliyordu. Bir merceği
+    # kolunu uzatarak değil, sapından tutarsın.
+    sap_ucu = (51.0, 39.0)
+    el = (47.0, 34.0)
+    omuz = (30.0, 32.0)
     return [
         ("--yuz--", None),
         ("sap", f'<path id="sap" d="{_serit(cam, sap_ucu, 3.2, 2.4, 0.5)}" '
@@ -197,13 +200,16 @@ def laptop():
     göstermiyor ve göstermemeli: ne yazdığı onun işi, bizim gördüğümüz
     şey çalıştığı.
     """
-    taban_sol, taban_sag, taban_y = 46.0, 90.0, 44.0
+    # Dizüstü gövdenin **önünde**, uzağında değil. 46..90 idi ve eller
+    # gövdeden 30 birim ötede kalıyordu: kollar uzayıp çubuğa dönüyordu.
+    # Yazan biri bilgisayarı kucağına çeker.
+    taban_sol, taban_sag, taban_y = 32.0, 78.0, 44.0
     # Menteşe sağ uçta ve ekranın tepesi **sola**, maskota doğru
     # yatıyor. Önceki hâlde sağa yatıyordu: ekran bize dönüktü ve
     # maskot arkasına bakıyordu.
-    ekran = [(88.0, 44.5), (64.0, 18.0), (70.0, 14.0), (93.0, 41.0)]
-    eller = [(54.0, 41.0), (66.0, 41.0)]
-    omuzlar = [(24.0, 28.0), (26.0, 34.0)]
+    ekran = [(76.0, 44.5), (52.0, 19.0), (58.0, 15.0), (81.0, 41.0)]
+    eller = [(40.0, 41.0), (51.0, 41.0)]
+    omuzlar = [(28.0, 28.0), (30.0, 34.0)]
     return [
         ("kol-uzak", f'<path id="kol-uzak" d="{_kol(omuzlar[0], eller[0], 0.6)}" '
                      f'fill="{RENK_UZAK}"/>'),
@@ -213,8 +219,8 @@ def laptop():
         ("ekran", f'<path id="ekran" d="{_yol(ekran)}" fill="{RENK_GOVDE}"/>'),
         ("taban", f'<path id="taban" d="{_yol([(taban_sol, taban_y), (taban_sag, taban_y), (taban_sag - 3, taban_y + 5), (taban_sol + 2, taban_y + 5)])}" '
                   f'fill="{RENK_GOVDE}"/>'),
-        ("tus-1", _kutu("tus-1", 52, taban_y + 1.5, 10, 1.8, 0.9, RENK_OYUK)),
-        ("tus-2", _kutu("tus-2", 65, taban_y + 1.5, 14, 1.8, 0.9, RENK_OYUK)),
+        ("tus-1", _kutu("tus-1", 38, taban_y + 1.5, 9, 1.8, 0.9, RENK_OYUK)),
+        ("tus-2", _kutu("tus-2", 50, taban_y + 1.5, 13, 1.8, 0.9, RENK_OYUK)),
         ("kol-yakin", f'<path id="kol-yakin" d="{_kol(omuzlar[1], eller[1], 0.6)}" '
                       f'fill="{RENK_TEN}"/>'),
         ("el-yakin", f'<path id="el-yakin" d="{_el(eller[1])}" '
@@ -256,18 +262,24 @@ def sayfa():
     arkasını görüyoruz. Satır çizmiyoruz: arkadan bakılan bir kâğıtta
     satır görünmez, göstermek sayfayı camdan yapmak olurdu.
     """
-    kagit = [(54.0, 48.0), (60.0, 14.0), (92.0, 18.0), (86.0, 52.0)]
-    sirt = [(54.0, 48.0), (60.0, 14.0), (63.5, 14.4), (57.5, 48.4)]
-    kalem_ust, kalem_uc = (78.0, 8.0), (66.0, 34.0)
-    el = (73.0, 16.0)
-    omuz = (26.0, 30.0)
+    # Sayfa küçüldü ve gövdeye yanaştı. 54..92 arasında koca bir levha
+    # olarak duruyordu: sahnenin yarısı kâğıttı ve el ona yetişmek için
+    # geriliyordu.
+    kagit = [(38.0, 46.0), (42.0, 20.0), (70.0, 23.0), (66.0, 49.0)]
+    sirt = [(38.0, 46.0), (42.0, 20.0), (45.0, 20.3), (41.0, 46.3)]
+    kalem_ust, kalem_uc = (62.0, 15.0), (52.0, 33.0)
+    el = (58.0, 20.0)
+    omuz = (32.0, 32.0)
     return [
+        # Kol sayfanın **arkasında**, el ve kalem önünde. Kol önde
+        # olduğunda sayfanın üstünden geçip kompozisyonu karıştırıyordu:
+        # neyin kâğıt neyin kol olduğu okunmuyordu.
+        ("kol-yakin", f'<path id="kol-yakin" d="{_kol(omuz, el, 0.5)}" '
+                      f'fill="{RENK_TEN}"/>'),
         ("--yuz--", None),
         ("kagit", f'<path id="kagit" d="{_yol(kagit)}" fill="{RENK_GOVDE}"/>'),
         ("sirt", f'<path id="sirt" d="{_yol(sirt)}" fill="{RENK_OYUK}" '
                  f'opacity="0.2"/>'),
-        ("kol-yakin", f'<path id="kol-yakin" d="{_kol(omuz, el, 0.5)}" '
-                      f'fill="{RENK_TEN}"/>'),
         ("kalem", f'<path id="kalem" d="'
                   f'{_serit(kalem_ust, kalem_uc, 2.6, 0.6, 0.5)}" '
                   f'fill="{RENK_UZAK}"/>'),
