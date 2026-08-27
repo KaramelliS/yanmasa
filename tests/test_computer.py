@@ -2146,16 +2146,17 @@ class TestKosuHalkasi:
         r.begin()
         assert r._done == []
 
-    def test_bitince_hareket_duruyor(self, qt_app):
-        # Boşta dönen bir zamanlayıcı, hiçbir şey olmazken işlemci yakar.
-        # Halka artık ortak saate abone; her şey dinlenince aboneliği
-        # bırakıyor ve saatin de abonesi kalmıyor.
+    def test_gizlenince_hareket_duruyor(self, qt_app):
+        # Halka görünür olduğu sürece nefes alıyor — bekleme animasyonu
+        # tur bitince de sürüyor. Ama görünmeyeni canlandırmak boşa iş:
+        # gizlenince saatten iniyor.
+        from PySide6.QtCore import Qt
         r = self._ring(qt_app)
+        r.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+        r.show()
         r.begin()
         assert r._abone
-        r.finish()
-        for _ in range(400):
-            r._tick(1 / 120)
+        r.hide()
         assert not r._abone
 
     def test_dusen_adim_renkten_bagimsiz_ayirt_ediliyor(self):
@@ -2400,17 +2401,18 @@ class TestAjanKafasi:
         k = self._k(qt_app)
         assert k._blink == 0 and k._blink_at > 10
 
-    def test_halka_yuzu_suruyor(self, qt_app):
+    def test_halka_yuzun_durumunu_suruyor(self, qt_app):
         from app import fluent
         from app.stream import RunRing
         r = RunRing(fluent.tokens())
         r.begin()
         r.step("left_click")
-        assert r.face._state == "tikliyor"
+        calisan = getattr(r.face, "_anim", r.face._state)
         r.settle(True)
-        assert r.face._state == "hata"
+        hatali = getattr(r.face, "_anim", r.face._state)
         r.finish()
-        assert r.face._state == "bitti"
+        biten = getattr(r.face, "_anim", r.face._state)
+        assert len({calisan, hatali, biten}) == 3, (calisan, hatali, biten)
 
 
 class TestMaskot:
@@ -2649,7 +2651,7 @@ class TestHareketMotoru:
 
 
 class TestSvgYuz:
-    """Kendi SVG'mizden çizilen, yaylarla oynayan yüz."""
+    """Poz değiştiren gövde, kendi başına bakan gözler."""
 
     def _y(self, qt_app):
         from app import fluent
@@ -2659,80 +2661,149 @@ class TestSvgYuz:
             _p.skip("svg yok")
         return SvgYuz(fluent.tokens(), 64)
 
-    def test_svg_gecerli_ve_parcali(self):
-        # Tek parça bir SVG gövdeyi ezerken gözleri kaydıramazdı.
-        from PySide6.QtCore import QByteArray
-        from PySide6.QtSvg import QSvgRenderer
-        from app.svgyuz import VARLIK
-        if not VARLIK.is_file():
+    def test_butun_pozlar_ayni_nokta_sayisinda(self):
+        # Kritik: sayılar farklı olsaydı iki şekil arasında geçiş yol
+        # eşleştirme problemi olurdu ve ara karelerde şekil bozulurdu.
+        from app.svgyuz import ANIMASYON, _poz_noktalari, varlik_var
+        if not varlik_var():
             import pytest as _p
             _p.skip("svg yok")
-        r = QSvgRenderer(QByteArray(VARLIK.read_bytes()))
+        adlar = {p for a in ANIMASYON.values() for p in a[:2]}
+        sayilar = {len(_poz_noktalari(ad)) for ad in adlar}
+        assert len(sayilar) == 1 and sayilar.pop() > 100
+
+    def test_gozler_svg_parcali(self):
+        from PySide6.QtCore import QByteArray
+        from PySide6.QtSvg import QSvgRenderer
+        from app.svgyuz import SVG_DIZIN, varlik_var
+        if not varlik_var():
+            import pytest as _p
+            _p.skip("svg yok")
+        r = QSvgRenderer(QByteArray((SVG_DIZIN / "gozler.svg").read_bytes()))
         assert r.isValid()
-        for ad in ("govde", "goz-normal-sol", "goz-genis-sag",
-                   "goz-kapali-sol", "goz-kizgin-sag", "goz-gulen-sol"):
+        for ad in ("goz-normal-sol", "goz-genis-sag", "goz-kapali-sol",
+                   "goz-kizgin-sag", "goz-gulen-sol"):
             assert r.elementExists(ad), ad
 
+    def test_her_is_kendi_animasyonunu_aliyor(self, qt_app):
+        # İstenen buydu: bekleme, iş ve ofis ayrı görünmeli.
+        y = self._y(qt_app)
+        y.set_state("bosta")
+        bosta = y._anim
+        y.set_tool("left_click")
+        is_ = y._anim
+        y.set_tool("office_edit")
+        ofis = y._anim
+        y.set_state("dusunuyor")
+        dusun = y._anim
+        assert len({bosta, is_, ofis, dusun}) == 4, (bosta, is_, ofis, dusun)
+
+    def test_ofis_araclarinin_hepsi_ofis(self, qt_app):
+        y = self._y(qt_app)
+        for arac in ("office_open", "office_read", "office_edit",
+                     "office_save", "office_close", "office_history"):
+            y.set_tool(arac)
+            assert y._anim == "ofis", arac
+
+    def test_animasyonlar_farkli_hizda(self):
+        # Bekleme ağır, iş çabuk. Aynı hızda olsalar karakterleri olmazdı.
+        from app.svgyuz import ANIMASYON
+        assert ANIMASYON["is"][2] < ANIMASYON["ofis"][2] < ANIMASYON["bosta"][2]
+
+    def test_govde_poz_arasinda_geciyor(self, qt_app):
+        y = self._y(qt_app)
+        y.set_state("bosta")
+        y._faz = 0.0
+        bas = y._govde_yolu().elementAt(3)
+        y._faz = 1.0
+        son = y._govde_yolu().elementAt(3)
+        assert (bas.x, bas.y) != (son.x, son.y)
+
+    def test_faz_ileri_geri_gidiyor(self, qt_app):
+        y = self._y(qt_app)
+        y.set_state("bosta")
+        for _ in range(2000):
+            y.step(1 / 60)
+            assert 0.0 <= y._faz <= 1.0
+
     def test_renk_temadan_geliyor(self, qt_app):
-        # SVG'ye sabit renk gömülü olsaydı tema değiştiğinde maskot
-        # yabancı kalırdı.
         from app import fluent
-        from app.svgyuz import YER_GOVDE, YER_OYUK, _renkli
-        metin = bytes(_renkli(fluent.tokens())).decode("utf-8")
-        assert YER_GOVDE not in metin and YER_OYUK not in metin
+        from app.svgyuz import YER_OYUK, _gozler_renkli
+        metin = bytes(_gozler_renkli(fluent.tokens())).decode("utf-8")
+        assert YER_OYUK not in metin
 
     def test_govde_halkanin_rengiyle_ayni_degil(self, qt_app):
-        # İkisi de vurgu rengi olsaydı yüz, koşu kaydının önünü kapatırdı.
-        from app import fluent
-        from app.svgyuz import _renkli
-        t = fluent.tokens()
-        metin = bytes(_renkli(t)).decode("utf-8")
-        assert t.accent.lower() not in metin.lower()
-
-    def test_durum_goz_turunu_degistiriyor(self, qt_app):
+        # İkisi de vurgu rengi olsaydı yüz koşu kaydının önünü kapatırdı.
         y = self._y(qt_app)
-        turler = set()
-        for d in ("bosta", "bakiyor", "yaziyor", "hata", "bitti"):
-            y.set_state(d)
-            turler.add(y._goz)
-        assert len(turler) >= 4
+        y._hata = False
+        assert y._govde_rengi().lower() != y.t.accent.lower()
 
-    def test_bakis_sinirli_ve_yayli(self, qt_app):
+    def test_bakis_saga_sola_gidiyor(self, qt_app):
+        # Açıkça istenen: sağa sola baksın.
         y = self._y(qt_app)
-        y.look_at(5.0, -5.0)
-        assert y._gaze_x.target == 1.0 and y._gaze_y.target == -1.0
-        # Yay: hedefe anında atlamıyor.
-        assert y._gaze_x.value < 1.0
+        y.look_at(-1.0, 0.0)
+        for _ in range(200):
+            y.step(1 / 120)
+        sol = y._gaze_x.value
+        y.look_at(1.0, 0.0)
+        for _ in range(200):
+            y.step(1 / 120)
+        assert sol < -0.9 and y._gaze_x.value > 0.9
+
+    def test_bostayken_bakis_geziniyor(self, qt_app):
+        # Boştaki tek uydurma hareket. Çalışırken devreye girmemeli.
+        y = self._y(qt_app)
+        y.set_live(False)
+        y._takip = False
+        hedefler = set()
+        for _ in range(4000):
+            y.step(1 / 60)
+            hedefler.add(round(y._gaze_x.target, 3))
+        assert len(hedefler) > 2
+
+    def test_calisirken_gezinme_yok(self, qt_app):
+        y = self._y(qt_app)
+        y.look_at(0.5, 0.0)
+        for _ in range(4000):
+            y.step(1 / 60)
+        assert y._gaze_x.target == 0.5
 
     def test_ezilme_sinirli(self, qt_app):
         from app.svgyuz import SQUASH_MAX
         y = self._y(qt_app)
-        y.set_live(True)
         for _ in range(300):
             y.bump()
-            y._tick(1 / 120)
+            y.step(1 / 120)
         assert abs(y._squash.value) <= SQUASH_MAX + 1e-9
 
-    def test_bostayken_saatten_iniyor(self, qt_app):
-        y = self._y(qt_app)
-        y.set_live(True)
-        assert y._abone
-        y.set_live(False)
-        for _ in range(400):
-            y._tick(1 / 120)
-        assert not y._abone
+    def test_halka_yuzu_suruyor(self, qt_app):
+        # Yüz halkanın içinde gizli bir çocuk widget: kendi `showEvent`i
+        # gelmiyor, kendi başına saate abone olamıyor. Halka sürmezse
+        # yüz hiç kıpırdamaz.
+        from app import fluent
+        from app.stream import RunRing
+        r = RunRing(fluent.tokens())
+        if not hasattr(r.face, "step"):
+            import pytest as _p
+            _p.skip("svg yüz değil")
+        once = r.face._gecen
+        r._tick(1 / 60)
+        assert r.face._gecen > once
 
-    def test_uretici_ayni_ciktiyi_veriyor(self, tmp_path):
+    def test_uretici_ayni_ciktiyi_veriyor(self):
         # Varlık elle düzenlenmiş olmamalı: betik neyse dosya o.
         import sys
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
         import svg_yap
-        from app.svgyuz import VARLIK
-        if not VARLIK.is_file():
+        from app.svgyuz import SVG_DIZIN, varlik_var
+        if not varlik_var():
             import pytest as _p
             _p.skip("svg yok")
-        assert VARLIK.read_text("utf-8") == svg_yap.yuz_svg()
+        for ad in svg_yap.POZLAR:
+            yol = SVG_DIZIN / f"poz-{ad}.svg"
+            assert yol.read_text("utf-8") == svg_yap.poz_svg(ad), ad
+        assert (SVG_DIZIN / "gozler.svg").read_text("utf-8") == svg_yap.gozler_svg()
 
 
 class TestSatirGirisi:

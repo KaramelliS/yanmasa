@@ -225,9 +225,20 @@ class RunRing(QWidget):
         self._dinle(False)
         super().hideEvent(event)
 
+    def showEvent(self, event) -> None:
+        # Yüz görünür olduğu sürece nefes alıyor: bekleme animasyonu tur
+        # bitince de sürüyor.
+        super().showEvent(event)
+        self._dinle(True)
+
     # --- kare -------------------------------------------------------------
 
     def _tick(self, dt: float) -> None:
+        # Yüz gizli bir çocuk widget: kendi saatine abone olamıyor,
+        # halka onu buradan sürüyor.
+        adim = getattr(self.face, "step", None)
+        if adim is not None:
+            adim(dt)
         self._arc_spring.to(self._arc_target)
         self._arc_spring.step(dt)
         self._land.step(dt)
@@ -236,10 +247,8 @@ class RunRing(QWidget):
         if self._fade < 1.0:
             self._fade = min(1.0, self._fade + dt / 0.22)
         self.update()
-        # Her şey durduysa saatten in.
-        if (not self._live and self._arc_spring.resting and self._land.resting
-                and not self._ripple.alive and self._shake.resting):
-            self._dinle(False)
+        # Yüz görünür olduğu sürece devam: bekleme animasyonu duruyorsa
+        # halka ölü bir rozete dönüyor.
 
     @property
     def _arc(self) -> float:
