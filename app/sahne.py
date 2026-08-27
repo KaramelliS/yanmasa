@@ -251,6 +251,11 @@ class Sahne(QWidget):
 
     def _tick(self, dt: float) -> None:
         self._gecen += dt
+        # Yüz beklemeye döndüyse nesne de elinden bırakılıyor. Yoksa
+        # maskot bitmiş bir işin nesnesiyle sonsuza kadar duruyor —
+        # canlı bir şey değil, bir ekran görüntüsü.
+        if self._nesne and getattr(self.yuz, "bosta", False):
+            self.clear()
         self._gelis.step(dt)
         self.update()
 

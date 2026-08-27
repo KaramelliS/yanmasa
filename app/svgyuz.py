@@ -88,6 +88,15 @@ DURUM_ANIMASYON = {
 #: 2.3 piksel ediyor.
 GAZE = 13.0
 
+#: "Bitti" pozu bu kadar duruyor, sonra beklemeye dönülüyor.
+#:
+#: Eskiden dönülmüyordu: tur biten maskot son pozunda donuyor, gözünü
+#: kırpmayı bırakıyor ve elindeki nesneyle öylece kalıyordu. Berkay
+#: "idle felan geçmiyor" derken bunu söyledi ve haklıydı — bitmiş bir
+#: işin pozunda sonsuza kadar durmak, canlı bir şey değil bir ekran
+#: görüntüsü.
+BITTI_SURESI = 1.6
+
 #: Profil: yüz yandan görünüyor. 0 önden, 1 tam yandan.
 #:
 #: 2B karikatürün klasik hilesi: profil ayrı bir çizim değil, iki gözün
@@ -171,6 +180,7 @@ class SvgYuz(QWidget):
         self._blink = 0.0
         self._blink_at = random.uniform(BLINK_MIN, BLINK_MAX)
         self._gecen = 0.0
+        self._durum_at = 0.0
         self._takip = False        # bakış gerçek koordinatta mı
         self._live = False
         self._abone = False
@@ -184,9 +194,15 @@ class SvgYuz(QWidget):
             self._blink = 0.0
         self.on_change()
 
+    @property
+    def bosta(self) -> bool:
+        """Beklemeye döndü mü. Sahne buna bakıp nesneyi bırakıyor."""
+        return self._state == "bosta"
+
     def set_state(self, state: str) -> None:
         if state == self._state:
             return
+        self._durum_at = self._gecen
         self._state = state
         self._hata = state == "hata"
         self._goz = DURUM_GOZ.get(state, "normal")
@@ -250,6 +266,11 @@ class SvgYuz(QWidget):
         sürüyor. Bunu fark etmeden bıraksaydım yüz hiç kıpırdamazdı.
         """
         self._gecen += dt
+        # Bitiş pozu geçici. Süre dolunca beklemeye dönüyor ve göz
+        # kırpması geri geliyor.
+        if self._state == "bitti" and self._gecen - self._durum_at > BITTI_SURESI:
+            self.set_state("bosta")
+            self._live = True
         self._squash.step(dt)
         self._squash.value = max(-SQUASH_MAX, min(SQUASH_MAX, self._squash.value))
         self._profil.step(dt)
