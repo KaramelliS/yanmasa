@@ -20,12 +20,31 @@ Renkler yer tutucu; yükleme anında temadan gelenlerle değişiyor.
 
 from __future__ import annotations
 
+import re
+
 #: Nesnelerin çizim alanı. Yüzden küçük: nesne yanda duruyor, sahneyi
 #: paylaşıyorlar.
 VB = 64.0
 
 RENK_GOVDE = "#E7BABD"
 RENK_OYUK = "#1C1C1C"
+
+
+def _parcala(*parcalar: str) -> list[tuple[str, str]]:
+    """Şekilleri `(id, markup)` çiftlerine ayırır.
+
+    Nesneler iki yerde kullanılıyor: kendi başına duran önizleme
+    dosyasında ve maskotun elinde durduğu sahne dosyasında. İkincisinde
+    her parça bir dönüşümün içine sarılıyor, o yüzden markup'ın kendisi
+    değil parçaları gerekiyor. Kimlikleri elle ikinci kez yazmak yerine
+    şeklin içinden okunuyor — iki liste böylece ayrı düşemiyor.
+    """
+    return [(re.search(r'id="([^"]+)"', m).group(1), m) for m in parcalar]
+
+
+def svg(ad: str) -> str:
+    """Tek nesnenin kendi başına duran SVG'si — önizleme için."""
+    return _svg(*(m for _, m in NESNELER[ad]()))
 
 
 def _svg(*parcalar: str) -> str:
@@ -45,11 +64,11 @@ def _kutu(id_, x, y, w, h, r, renk, ek="") -> str:
             f'rx="{r}" fill="{renk}"{ek}/>')
 
 
-def laptop() -> str:
+def laptop() -> list[tuple[str, str]]:
     """Açık bir dizüstü. Ekran satırları ayrı: yazarken sırayla uzayıp
     kısalıyorlar ve bu, ekranda bir şeyin yazıldığını anlatan en ucuz
     hareket."""
-    return _svg(
+    return _parcala(
         f'<path id="taban" d="M9 45 L55 45 L59 52 Q59 54 57 54 L7 54 '
         f'Q5 54 5 52 Z" fill="{RENK_GOVDE}"/>',
         _kutu("tus", 24, 48, 16, 2.6, 1.3, RENK_OYUK),
@@ -60,9 +79,9 @@ def laptop() -> str:
     )
 
 
-def terminal() -> str:
+def terminal() -> list[tuple[str, str]]:
     """Kabuk penceresi: iki düğme, istem işareti, yanıp sönen imleç."""
-    return _svg(
+    return _parcala(
         _kutu("pencere", 6, 12, 52, 40, 5, RENK_GOVDE),
         _kutu("nokta-1", 11, 16, 4, 4, 2, RENK_OYUK, ' opacity="0.5"'),
         _kutu("nokta-2", 18, 16, 4, 4, 2, RENK_OYUK, ' opacity="0.5"'),
@@ -73,7 +92,7 @@ def terminal() -> str:
     )
 
 
-def mercek() -> str:
+def mercek() -> list[tuple[str, str]]:
     """Mercek: halka cam ve sap. Parıltı ayrı, cam üstünde geziniyor.
 
     **Cam kutunun ortasında.** Önce (27, 26)'daydı ve maskotun sağ eli
@@ -91,7 +110,7 @@ def mercek() -> str:
     merceğe değil çembere benziyordu. Şimdi camdan aşağı, iki elin
     arasındaki boşluğa iniyor.
     """
-    return _svg(
+    return _parcala(
         f'<rect id="sap" x="28" y="44" width="8" height="16" rx="4" '
         f'fill="{RENK_GOVDE}"/>',
         f'<circle id="cam" cx="32" cy="28" r="20" fill="{RENK_GOVDE}"/>',
@@ -101,9 +120,9 @@ def mercek() -> str:
     )
 
 
-def sunucu() -> str:
+def sunucu() -> list[tuple[str, str]]:
     """Sunucu: üst üste iki raf, sırayla yanan iki ışık."""
-    return _svg(
+    return _parcala(
         _kutu("raf-ust", 12, 13, 40, 17, 4.5, RENK_GOVDE),
         _kutu("yuva-ust", 18, 19.5, 14, 3.4, 1.7, RENK_OYUK),
         f'<circle id="isik-ust" cx="45" cy="21.2" r="2.8" fill="{RENK_OYUK}"/>',
@@ -113,9 +132,9 @@ def sunucu() -> str:
     )
 
 
-def sayfa() -> str:
+def sayfa() -> list[tuple[str, str]]:
     """Dosya: köşesi kıvrık sayfa, satırlar sırayla beliriyor."""
-    return _svg(
+    return _parcala(
         f'<path id="kagit" d="M15 7 L39 7 L50 18 L50 55 Q50 57 48 57 '
         f'L17 57 Q15 57 15 55 Z" fill="{RENK_GOVDE}"/>',
         f'<path id="kivrim" d="M39 7 L39 18 L50 18 Z" fill="{RENK_OYUK}" '

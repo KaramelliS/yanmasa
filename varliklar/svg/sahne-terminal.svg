@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 62" width="96" height="62">
+  <!-- Üreten: scripts/sahne_svg.py — elle düzenleme, betiği düzenle. -->
+  <rect id="pencere" x="27.00" y="38.00" width="42.00" height="22.00" rx="4.00" fill="#E7BABD"/>
+  <rect id="nokta-1" x="31.50" y="42.00" width="3.00" height="3.00" rx="1.50" fill="#1C1C1C" opacity="0.5"/>
+  <rect id="nokta-2" x="37.00" y="42.00" width="3.00" height="3.00" rx="1.50" fill="#1C1C1C" opacity="0.5"/>
+  <path id="istem" d="M33.0 49.5 L37.0 52.8 L33.0 56.0" fill="none" stroke="#1C1C1C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect id="imlec" x="42.00" y="51.50" width="12.00" height="2.60" rx="1.30" fill="#1C1C1C"/>
+  <rect id="yuva" x="27.00" y="0.00" width="42.00" height="42.00" fill="none"/>
+</svg>

@@ -196,3 +196,52 @@ class TestKayitOkuma:
         assert [s["talimat"] for s in Kayit(tmp_path).satirlar()] == [
             "eski", "yeni",
         ]
+
+
+class TestSahneListeleri:
+    """Uygulamadaki çizim sırası, üreten betikle aynı olmak zorunda.
+
+    İki liste var: `scripts/sahne_svg.py` sahneyi çiziyor,
+    `app/sahne.py` onu sırayla boyuyor. Ayrı düşerlerse maskotun bir
+    parçası sessizce kaybolur — hata yok, uyarı yok, sadece eksik bir el.
+    """
+
+    def _uretici(self):
+        import sys
+        from pathlib import Path
+
+        kok = Path(__file__).resolve().parent.parent
+        sys.path.insert(0, str(kok / "scripts"))
+        import sahne_svg
+
+        return sahne_svg
+
+    def test_cizim_sirasi_ureticiyle_ayni(self):
+        from app.sahne import PARCALAR
+
+        uretici = self._uretici()
+        for ad in uretici.SAHNELER:
+            _, sira, _ = uretici.sahne(ad)
+            assert PARCALAR[ad] == sira, ad
+
+    def test_profil_tablosu_ureticiyle_ayni(self):
+        from app.sahne import PROFIL
+
+        uretici = self._uretici()
+        for ad in uretici.SAHNELER:
+            _, _, profil = uretici.sahne(ad)
+            assert PROFIL[ad] is profil, ad
+
+    def test_her_sahnenin_yuvasi_var(self):
+        # Yüz yuvaya oturuyor; yuvası olmayan sahnede yüz nereye
+        # çizileceğini bilmiyor.
+        uretici = self._uretici()
+        for ad in uretici.SAHNELER:
+            metin, _, _ = uretici.sahne(ad)
+            assert 'id="yuva"' in metin, ad
+
+    def test_yuz_sirada_bir_kez_geciyor(self):
+        from app.sahne import PARCALAR, YUZ
+
+        for ad, sira in PARCALAR.items():
+            assert sira.count(YUZ) == 1, ad

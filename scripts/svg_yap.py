@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bloub_kaynak import POZLAR as KAYNAK_POZLAR  # noqa: E402
 from bloub_kaynak import poz as poz_uret  # noqa: E402
 from bloub_kaynak import taban_noktalari  # noqa: E402
+import nesneler  # noqa: E402
 from nesneler import NESNELER  # noqa: E402
 
 HEDEF = Path(__file__).resolve().parent.parent / "varliklar" / "svg"
@@ -114,6 +115,15 @@ GOZLER = {
     "kizgin": (0.9, 26.0, True),
 }
 
+#: Simetrik olmayan göz türleri: (sol, sağ) ayrı ayrı (boy, ek eğim).
+#:
+#: Sarhoş bakış simetrik olamaz — iki göz aynı biçimde yarı kapalıysa
+#: yorgun görünüyor, sarhoş değil. Fark asimetride: biri neredeyse
+#: kapalı ve düşük, öteki fal taşı gibi açık ve ters eğik.
+ASIMETRIK = {
+    "sarhos": ((0.34, 14.0), (1.55, -9.0)),
+}
+
 
 def _svg(ic: str) -> str:
     return (
@@ -145,6 +155,10 @@ def gozler_svg() -> str:
         for i, yon in ((0, "sol"), (1, "sag")):
             e = ek * (1 if i else -1) if aynali else ek
             parcalar.append(f'<g id="goz-{ad}-{yon}">{goz(i, boy, e)}</g>')
+    for ad, taraflar in ASIMETRIK.items():
+        for i, yon in ((0, "sol"), (1, "sag")):
+            boy, ek = taraflar[i]
+            parcalar.append(f'<g id="goz-{ad}-{yon}">{goz(i, boy, ek)}</g>')
     for i, yon in ((0, "sol"), (1, "sag")):
         parcalar.append(f'<g id="goz-gulen-{yon}">{gulen(i)}</g>')
     return _svg("\n  ".join(parcalar))
@@ -155,8 +169,10 @@ def main() -> int:
     for ad in POZLAR:
         (HEDEF / f"poz-{ad}.svg").write_text(poz_svg(ad), encoding="utf-8")
     (HEDEF / "gozler.svg").write_text(gozler_svg(), encoding="utf-8")
-    for ad, yap in NESNELER.items():
-        (HEDEF / f"nesne-{ad}.svg").write_text(yap(), encoding="utf-8")
+    for ad in NESNELER:
+        (HEDEF / f"nesne-{ad}.svg").write_text(
+            nesneler.svg(ad), encoding="utf-8"
+        )
     print(f"{len(POZLAR)} poz + gözler + {len(NESNELER)} nesne -> {HEDEF}")
     print("  poz:   " + ", ".join(POZLAR))
     print("  nesne: " + ", ".join(NESNELER))

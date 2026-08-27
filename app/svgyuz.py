@@ -67,6 +67,10 @@ ARAC_GOZ = {
     "type": "kisik", "key": "kisik", "hold_key": "kisik",
     "write_file": "kisik", "write_files": "kisik", "edit_file": "kisik",
     "office_edit": "kisik", "office_write": "kisik", "skill_write": "kisik",
+    # Uzak makine işleri: sarhoş bakış. Berkay istedi ve doğru da —
+    # sunucuya bağlanmak bu evde hiç düzgün gitmiyor.
+    "remote_connect": "sarhos", "remote_list": "sarhos",
+    "remote_read": "sarhos", "remote_write": "sarhos", "remote_run": "sarhos",
 }
 
 DURUM_GOZ = {"hata": "kizgin", "bitti": "gulen", "bakiyor": "genis",
@@ -83,6 +87,17 @@ DURUM_ANIMASYON = {
 #: okunmuyordu: yüz halkanın içinde ~32 piksele düşüyor ve 7 birim orada
 #: 2.3 piksel ediyor.
 GAZE = 13.0
+
+#: Profil: yüz yandan görünüyor. 0 önden, 1 tam yandan.
+#:
+#: 2B karikatürün klasik hilesi: profil ayrı bir çizim değil, iki gözün
+#: baktığı yöne kayması ve uzaktakinin küçülmesi. Ayrı bir profil
+#: silueti çizmek iki poz kümesi demek olurdu ve aralarındaki geçiş
+#: pozları eşleştirme problemi haline gelirdi — gövde 140 noktalı bir
+#: çokgen ve iki farklı çokgen arasında yumuşak geçiş yok.
+PROFIL_KAYMA = 16.0
+PROFIL_UZAK = 0.24
+PROFIL_DARALMA = 0.12
 
 #: Boştayken bakışın gezinme aralığı, saniye.
 GEZINME_MIN, GEZINME_MAX = 1.8, 4.2
@@ -147,6 +162,9 @@ class SvgYuz(QWidget):
         self._hata = False
 
         self._squash = Spring(0.0, stiffness=190.0, damping=13.0)
+        # Profil yumuşak geçsin diye yay: ani dönen bir kafa, dönmüyor,
+        # takılıyor gibi görünüyor.
+        self._profil = Spring(0.0, stiffness=95.0, damping=17.0)
         self._gaze_x = Spring(0.0, stiffness=110.0)
         self._gaze_y = Spring(0.0, stiffness=110.0)
         self._gezinme_at = random.uniform(GEZINME_MIN, GEZINME_MAX)
@@ -187,6 +205,10 @@ class SvgYuz(QWidget):
         self._takip = True
         self._gaze_x.to(max(-1.0, min(1.0, x)))
         self._gaze_y.to(max(-1.0, min(1.0, y)))
+
+    def set_profil(self, yandan: bool) -> None:
+        """Yüzü yana çevirir ya da öne döndürür. Geçiş yay ile."""
+        self._profil.to(1.0 if yandan else 0.0)
 
     def look_forward(self) -> None:
         self._takip = False
@@ -230,6 +252,7 @@ class SvgYuz(QWidget):
         self._gecen += dt
         self._squash.step(dt)
         self._squash.value = max(-SQUASH_MAX, min(SQUASH_MAX, self._squash.value))
+        self._profil.step(dt)
         self._gaze_x.step(dt)
         self._gaze_y.step(dt)
 
@@ -281,7 +304,11 @@ class SvgYuz(QWidget):
 
         painter.save()
         painter.translate(48.0, 48.0)
-        painter.scale(1.0 + s, 1.0 - s)
+        # Profilde gövde biraz daralıyor: yandan bakılan bir şey öne
+        # bakılandan dardır. Fazlası maskotu inceltip başka bir yaratığa
+        # çevirirdi, bu yüzden %12.
+        painter.scale((1.0 + s) * (1.0 - self._profil.value * PROFIL_DARALMA),
+                      1.0 - s)
         painter.translate(-48.0, -48.0)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(self._govde_rengi()))
@@ -337,7 +364,8 @@ class SvgYuz(QWidget):
 
     def _gozleri_ciz(self, painter: QPainter, s: float) -> None:
         tur = "kapali" if self._blink > 0.0 else self._goz
-        dx = self._gaze_x.value * GAZE
+        pr = self._profil.value
+        dx = self._gaze_x.value * GAZE + pr * PROFIL_KAYMA
         # Gövde ezilince gözler onunla gidiyor; sabit kalsalar yüzün
         # içinde kayıyormuş gibi görünürdü.
         dy = self._gaze_y.value * GAZE - s * 8.6
@@ -346,4 +374,14 @@ class SvgYuz(QWidget):
             if not self._gozler.elementExists(ad):
                 ad = f"goz-normal-{yon}"
             kutu: QRectF = self._gozler.boundsOnElement(ad)
-            self._gozler.render(painter, ad, kutu.translated(dx, dy))
+            kutu = kutu.translated(dx, dy)
+            if yon == "sol":
+                # Uzaktaki göz: profil arttıkça küçülüp yaklaşıyor.
+                # Tamamen kaybolmuyor — kaybolan göz, kapanmış göz gibi
+                # okunuyor ve maskot uyuyor sanılıyor.
+                k = 1.0 - pr * (1.0 - PROFIL_UZAK)
+                merkez = kutu.center()
+                kutu.setWidth(kutu.width() * k)
+                kutu.setHeight(kutu.height() * (0.55 + 0.45 * k))
+                kutu.moveCenter(QPointF(merkez.x() + pr * 5.0, merkez.y()))
+            self._gozler.render(painter, ad, kutu)

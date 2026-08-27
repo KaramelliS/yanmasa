@@ -134,6 +134,10 @@ class RunRing(QWidget):
         # kopyada uygulama yüzsüz kalmamalı.
         self.face = _yuz(t, size)
         self.face.setParent(self)
+        #: Yüzü halkanın kendisi mi çiziyor. Sahnenin içindeyken hayır:
+        #: halka bir çocuk pencere ve çocuklar ebeveynden sonra boyanıyor,
+        #: yani yüz her zaman nesnenin önünde kalırdı.
+        self.yuzu_ciz = True
         self.face.hide()
         self.face.on_change = self.update
         self._glyph = "goz"
@@ -352,6 +356,8 @@ class RunRing(QWidget):
         kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
         olduğunu yüzden.
         """
+        if not self.yuzu_ciz:
+            return
         kutu = self.yuz_kutusu()
         self.face.paint(painter, kutu.width(), kutu.topLeft())
 

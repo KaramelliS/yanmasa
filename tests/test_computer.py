@@ -2943,28 +2943,38 @@ class TestMaskotSutunu:
         s.set_tool("read_file")
         assert s._gelis.value == 1.0
 
-    def test_nesne_varken_asagi_bakiyor(self, qt_app):
-        # Nesne elinde, gözler yukarıdaysa nesne elinde değil önünde
-        # duran bir resim gibi görünüyor.
+    def test_terminalde_asagi_bakiyor(self, qt_app):
+        # Terminalde el görünmüyor; yazdığını anlatan tek şey bakışı.
         s = self._s(qt_app)
-        s.set_tool("office_edit")
+        s.set_tool("run_shell")
         assert s.yuz._gaze_y.target > 0.5
         s.set_tool("left_click")
         assert s.yuz._gaze_y.target == 0.0
 
-    def test_el_govdenin_silueti(self, qt_app):
-        # Ayrı bir daire çizmek maskotu birbirine yapıştırılmış parçalar
-        # gibi gösterirdi.
+    def test_mercekte_ileri_bakiyor(self, qt_app):
+        # Merceğe bakmıyor, onun **içinden** bakıyor. Aşağı bakan bir
+        # göz camın altında kalırdı.
         s = self._s(qt_app)
-        yol = s._el_yolu()
-        assert yol is not None and yol.elementCount() > 50
+        s.set_tool("screenshot")
+        assert abs(s.yuz._gaze_y.target) < 0.2
 
-    def test_nesne_govdeden_dar(self, qt_app):
-        # 42'de gövdeden genişti ve maskot onu tutuyor değil, arkasında
-        # duruyor gibi okunuyordu.
-        from app.sahne import NESNE
+    def test_yandan_bakilan_sahnede_profil_aciliyor(self, qt_app):
         s = self._s(qt_app)
-        assert NESNE < s.halka.width()
+        s.set_tool("office_edit")     # dizüstü: yandan
+        assert s.yuz._profil.target == 1.0
+        s.set_tool("run_shell")       # terminal: bize dönük
+        assert s.yuz._profil.target == 0.0
+
+    def test_el_govdenin_silueti(self):
+        # Ayrı bir daire çizmek maskotu birbirine yapıştırılmış parçalar
+        # gibi gösterirdi. El artık sahnenin içinde ve aynı siluetten
+        # üretiliyor.
+        import sys
+        from pathlib import Path as _P
+        sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+        import sahne_svg
+        yol = sahne_svg._el((10.0, 10.0))
+        assert yol.count("L") > 40
 
     def test_sutun_dokumu_asagi_itmiyor(self):
         # Sahne önce çubuğun üstünde bir şeritti: iş başlayınca cevabı
@@ -3307,32 +3317,29 @@ class TestAdimIzi:
         s._yerlestir()
         return s
 
-    def test_nesne_yuzle_ayni_eksende(self, qt_app):
-        # Asıl kusur buydu: halka sütundan dar ve yüz merkezi 30'da
-        # kalıyordu, nesne ise sütun ortasına, 43'e gidiyordu. Maskot bir
-        # yana, elindeki nesne öbür yana düşüyordu.
+    def test_yuva_sahnenin_icinde(self, qt_app):
+        # Yüz yuvaya oturuyor; yuva sahnenin dışına taşarsa yüzün bir
+        # kısmı sütunun dışında kalır.
         s = self._sahne(qt_app)
-        merkez, _ = s._nesne_yeri()
-        assert abs(merkez - s.halka.yuz_kutusu().center().x()) < 0.01
+        kutu = s._sahne_kutusu()
+        for ad in ("mercek", "laptop", "terminal", "sayfa", "sunucu"):
+            s.set_tool({"mercek": "screenshot", "laptop": "office_edit",
+                        "terminal": "run_shell", "sayfa": "write_file",
+                        "sunucu": "remote_list"}[ad])
+            yuva = s.yuz_kutusu()
+            assert kutu.contains(yuva), ad
 
-    def test_eller_nesneyle_birlikte_taşınıyor(self, qt_app):
-        # Eller sütuna göre mutlak konumdaydı; nesne yer değiştirince
-        # yerlerinde kalıyorlardı.
+    def test_kivilcim_kablonun_uzerinde(self, qt_app):
+        # Eğrinin denklemi iki yerde olsaydı bir gün ayrı düşerlerdi ve
+        # kıvılcım kablonun yanından geçerdi.
         s = self._sahne(qt_app)
-        _, ust = s._nesne_yeri()
-        for _, ey in s._el_yerleri("laptop", 1.0):
-            assert ust < ey < ust + 36
-
-    def test_yuz_nesnenin_ustunu_ortmuyor(self, qt_app):
-        # Yüz nesneyi yutmamalı: bindirme çenenin altına sokacak kadar,
-        # nesneyi gizleyecek kadar değil.
-        from app.sahne import NESNE_BINDIRME
-
-        s = self._sahne(qt_app)
-        kutu = s.halka.yuz_kutusu()
-        _, ust = s._nesne_yeri()
-        assert 0 <= kutu.bottom() - ust <= kutu.height() * 0.25
-        assert NESNE_BINDIRME >= 0
+        s.set_tool("remote_list")
+        cizici = s._cizici("sunucu")
+        kablo = cizici.boundsOnElement("kablo")
+        for u in (0.0, 0.5, 1.0):
+            nokta = s._kablo_noktasi(cizici, u)
+            assert nokta is not None
+            assert kablo.adjusted(-2, -2, 2, 2).contains(nokta), u
 
     def test_adimlar_hala_birikiyor(self, qt_app):
         r = self._r(qt_app)
