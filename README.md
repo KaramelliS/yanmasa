@@ -1,15 +1,21 @@
-# Ajan
+# Yan Masa
 
-Windows'u yöneten bir bilgisayar kontrol ajanı. Ekranı Claude Opus 5'in
+Yan masanda oturan bir bilgisayar kontrol ajanı. Ekranı Claude Opus 5'in
 `computer_toolset_20260801` araç setiyle görüyor, fareyi ve klavyeyi ham Win32
 `SendInput` ile sürüyor.
+
+Adı buradan geliyor: ajanın **kendi masaüstü ve kendi imleci** var. Uzun bir
+işi görünmez bir çalışma alanında yaparken senin faren, odağın ve
+pencerelerin sende kalıyor — ikiniz aynı anda çalışabiliyorsunuz.
 
 Yerel bir Qt (PySide6) masaüstü uygulaması — web katmanı, tarayıcı motoru ya
 da HTTP köprüsü yok. Görsel dil Windows 11 Fluent; renkler ve tema kayıt
 defterinden okunuyor, sabit palet yok.
 
-Ayakta olanlar: yakalama, girdi, ajan döngüsü, UIA yan kanalı, dosya araçları,
-kalıcı terminal oturumları, güvenlik kapısı, acil durdurma. Ses ve arayüz yok — "Ne eksik" bölümüne bak.
+Ayakta olanlar: yakalama, girdi, ajan döngüsü, ikinci imleç, UIA yan kanalı,
+dosya araçları, kalıcı terminal oturumları, ofis belgeleri, yetenek yazma,
+uzak makine paneli, güvenlik kapısı, acil durdurma ve Qt arayüzü. Ses hâlâ
+yok — "Ne eksik, ne kırık" bölümü hepsini sayıyor.
 
 ## Neden bu mimari
 
@@ -29,7 +35,7 @@ OmniParser/Qwen-VL sınıfı bir model çalışmıyor.
 ## Arayüz
 
 ```
-.venv/Scripts/pythonw.exe ajan.py
+.venv/Scripts/pythonw.exe yanmasa.py
 ```
 
 İki pencere açılır:
@@ -72,7 +78,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 ## Çalıştırma ve doğrulama
 
 ```
-.venv/Scripts/pythonw.exe ajan.py                          # uygulama
+.venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
 .venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 110 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
@@ -586,7 +592,7 @@ app/
   sheet_view.py         Excel benzeri tablo: formül çubuğu, sayfa sekmeleri
   panels.py             tablo, yazı, kod, terminal, değişiklik listesi
   fixtures.py           ajanın gerçekten ürettiği örnek içerik
-ajan.py                 masaüstü uygulaması girişi
+yanmasa.py              masaüstü uygulaması girişi
 scripts/
   check_phase1.py       yakalama ve girdi elle doğrulama
   ajan.py               terminal arayüzü (ajan çekirdeği)

@@ -1,6 +1,6 @@
-"""Ajan — Windows masaüstü uygulaması.
+"""Yan Masa — Windows masaüstü uygulaması.
 
-    .venv/Scripts/pythonw.exe ajan.py
+    .venv/Scripts/pythonw.exe yanmasa.py
 
 Yerel bir Qt uygulaması: web katmanı, tarayıcı motoru ve HTTP köprüsü yok.
 Görsel dil Windows 11 Fluent; renkler ve tema sistemden okunuyor.
@@ -153,7 +153,7 @@ def main() -> int:
     set_dpi_awareness()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Ajan")
+    app.setApplicationName("Yan Masa")
     # Fusion, Windows stilinin yok saydığı QSS kurallarını uyguluyor.
     app.setStyle("Fusion")
     tokens = fluent.apply(app)
@@ -182,7 +182,7 @@ def main() -> int:
         window.activateWindow()
         bar.show()
         bar.raise_()
-        bar.set_status("Ajan zaten açık.")
+        bar.set_status("Yan Masa zaten açık.")
 
     guard.woken.connect(on_woken)
 

@@ -31,10 +31,10 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 #: Kullanıcıya özel: `Local\` öneki adı oturumla sınırlıyor, aynı makinede
 #: başka bir hesap kendi örneğini açabilsin.
-MUTEX = r"Local\ajan-tek-ornek"
+MUTEX = r"Local\yanmasa-tek-ornek"
 
 #: Var olan örneği öne getirmek için kullanılan yuva.
-SOCKET = "ajan-tek-ornek"
+SOCKET = "yanmasa-tek-ornek"
 
 #: Var olan örneğe "kendini göster" demek için gönderilen işaret.
 WAKE = b"uyan\n"
