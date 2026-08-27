@@ -73,7 +73,11 @@ STATE_FILE = (
     Path(os.environ.get("AJAN_STATE_DIR") or (Path.home() / ".ajan")) / "bar.json"
 )
 
-BAR_WIDTH = 440
+#: Çubuğun eni. 440'tı ve maskot sütunu 78 pikselde kalıyordu: o boyutta
+#: bir kol iki piksel, bir kalem bir piksel ediyor ve sahnenin ayrıntısı
+#: lapaya dönüyordu. Sütunu 440'ın içinde büyütmek cevabı 238 piksele
+#: düşürüp okunmaz yapardı, o yüzden çubuk genişledi.
+BAR_WIDTH = 520
 MARGIN = 24
 #: Adim anlatimlari arasindaki paragraf arasi.
 BREAK = "\n\n"

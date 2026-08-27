@@ -7,8 +7,10 @@ gerçekten çizdiği şeyi alıyor — yüz yuvasına oturmuş, gözler o işe g
 bakıyor, profil açık, hareketli parçalar bir an dondurulmuş hâlde. İkisi
 aynı şey değil: sahnenin yarısı SVG'de bile yok.
 
-Tasarım kararı verirken bakılacak kare bu. Sütun ekranda 78 piksel ve o
-boyutta hiçbir şey görülmüyor, o yüzden dört kat büyütülüyor.
+**İki kare yazılıyor.** Biri gerçek boyutta: ekranda görülecek olan o.
+Biri büyütülmüş: ayrıntıya bakmak için. Yalnızca büyütülmüş kareye
+bakarak tasarım yapmak, kimsenin görmeyeceği bir şeyi güzelleştirmek
+olurdu — bu hatayı bir kez yaptım, sahneler 4× güzeldi ve 1× lapaydı.
 """
 
 from __future__ import annotations
@@ -18,14 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-HEDEF = (Path(__file__).resolve().parent.parent / "varliklar" / "onizleme"
-         / "_sahneler.png")
+ONIZLEME = Path(__file__).resolve().parent.parent / "varliklar" / "onizleme"
 
-#: Büyütme. Sütun 78 piksel ve o boyutta kolun kalınlığı görülmüyor.
-KAT = 4
+#: (dosya soneki, büyütme).
+KATLAR = (("gercek", 1), ("buyuk", 3))
 
-#: Etiket şeridinin yüksekliği. Beş sahne birbirine benzemiyor ama
-#: hangisinin hangi araç olduğu isimsiz bir kareden çıkmıyor.
+#: Etiket şeridinin yüksekliği.
 ETIKET = 22
 
 #: Sahneleri temsil eden araçlar.
@@ -54,21 +54,15 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)  # noqa: F841
     t = fluent.tokens()
 
-    kart = QImage(GENISLIK * KAT * len(SAHNELER), YUKSEKLIK * KAT + ETIKET,
-                  QImage.Format.Format_ARGB32)
-    kart.fill(QColor(t.background))
-    p = QPainter(kart)
-    yazi = QFont()
-    yazi.setPointSizeF(9.0)
-    p.setFont(yazi)
-
-    for i, (ad, arac) in enumerate(SAHNELER):
+    # Sahneler bir kez çiziliyor, iki ölçekte yazılıyor: aynı anı
+    # göstersinler diye.
+    kareler = []
+    for _, arac in SAHNELER:
         halka = RunRing(t, 52)
         sahne = Sahne(t, halka)
         sahne.resize(GENISLIK, YUKSEKLIK)
         sahne._yerlestir()
         sahne.set_tool(arac)
-        # Halka yüzü sürüyor: göz türü ve animasyon oradan geliyor.
         halka.begin()
         halka.step(arac)
         for _ in range(KARE):
@@ -76,22 +70,37 @@ def main() -> int:
             adim = getattr(halka, "_tick", None)
             if adim is not None:
                 adim(1 / 60)
-
         im = QImage(GENISLIK, YUKSEKLIK, QImage.Format.Format_ARGB32)
         im.fill(QColor(0, 0, 0, 0))
         sahne.render(im)
-        p.drawImage(
-            QRectF(i * GENISLIK * KAT, 0, GENISLIK * KAT, YUKSEKLIK * KAT), im
-        )
-        p.setPen(QColor(t.text_tertiary))
-        p.drawText(
-            QRectF(i * GENISLIK * KAT, YUKSEKLIK * KAT, GENISLIK * KAT, ETIKET),
-            int(Qt.AlignmentFlag.AlignCenter), ad,
-        )
-    p.end()
-    HEDEF.parent.mkdir(parents=True, exist_ok=True)
-    kart.save(str(HEDEF))
-    print(f"{len(SAHNELER)} sahne -> {HEDEF} ({kart.width()}x{kart.height()})")
+        kareler.append(im)
+
+    ONIZLEME.mkdir(parents=True, exist_ok=True)
+    for sonek, kat in KATLAR:
+        kart = QImage(GENISLIK * kat * len(SAHNELER),
+                      YUKSEKLIK * kat + ETIKET,
+                      QImage.Format.Format_ARGB32)
+        kart.fill(QColor(t.background))
+        p = QPainter(kart)
+        yazi = QFont()
+        yazi.setPointSizeF(9.0)
+        p.setFont(yazi)
+        for i, ((ad, _), im) in enumerate(zip(SAHNELER, kareler)):
+            p.drawImage(
+                QRectF(i * GENISLIK * kat, 0, GENISLIK * kat, YUKSEKLIK * kat),
+                im,
+            )
+            p.setPen(QColor(t.text_tertiary))
+            p.drawText(
+                QRectF(i * GENISLIK * kat, YUKSEKLIK * kat,
+                       GENISLIK * kat, ETIKET),
+                int(Qt.AlignmentFlag.AlignCenter), ad,
+            )
+        p.end()
+        yol = ONIZLEME / f"_sahneler-{sonek}.png"
+        kart.save(str(yol))
+        print(f"  {yol.name}  {kart.width()}x{kart.height()}")
+    print(f"{len(SAHNELER)} sahne -> {ONIZLEME}")
     return 0
 
 

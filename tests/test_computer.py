@@ -3179,12 +3179,24 @@ class TestCubukBoyu:
         QApplication.processEvents()
         assert bar.height() <= 130, bar.height()
 
-    def test_sutun_bos_yer_kaplamiyor(self, qt_app):
-        # 88x170'in yarısı boştu.
+    def test_sutun_cevabin_yerini_yemiyor(self, qt_app):
+        # Sütun 78'den 160'a çıktı çünkü o boyutta sahnenin ayrıntısı
+        # yaşamıyordu — kol iki piksel, kalem bir piksel. Korunması
+        # gereken şey sütunun küçük kalması değil, **cevabın okunabilir
+        # kalması**: çubuk da genişledi ve döküm yerini korudu.
+        from app.commandbar import BAR_WIDTH
         from app.sahne import GENISLIK, YUKSEKLIK
         bar = self._dolu(qt_app)
-        assert bar.sahne.width() == GENISLIK <= 80
-        assert bar.sahne.height() == YUKSEKLIK <= 108
+        assert bar.sahne.width() == GENISLIK
+        assert bar.sahne.height() == YUKSEKLIK
+        dokum = BAR_WIDTH - 28 - 14 - GENISLIK
+        assert dokum >= 300, f"cevap alanı {dokum} piksele düştü"
+
+    def test_sutun_cevaptan_uzun_degil(self, qt_app):
+        # Sütun dökümden uzunsa altında boşluk kalıyor.
+        from app.commandbar import REPLY_MAX_HEIGHT
+        from app.sahne import YUKSEKLIK
+        assert YUKSEKLIK <= REPLY_MAX_HEIGHT
 
 
 class TestArayuzKusurlari:

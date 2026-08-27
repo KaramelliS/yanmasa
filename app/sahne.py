@@ -106,11 +106,13 @@ VB_EN, VB_BOY = 96.0, 62.0
 #: Sahne izin sağında kalıyor, üstünde değil.
 IZ_PAY = 8
 
-#: Sütunun eni. 88'de sağda boşluk kalıyordu.
-GENISLIK = 78
+#: Sütunun eni. 78'di ve sahne 70 piksele sığıyordu — orada hiçbir
+#: ayrıntı yaşamıyor. Ölçtüm: 78'de kol 2 piksel, kalem 1 piksel.
+GENISLIK = 160
 
 #: Sütunun boyu: sahnenin oranı 96x92 ve en 70 kalıyor.
-YUKSEKLIK = 48
+#: Sahnenin oranı 96x62; 152 piksel enle 98 ediyor.
+YUKSEKLIK = 104
 
 #: Nesne gelirken bu kadar yukarı çıkıyor. 12'ydi ve kolların gövdeye
 #: girdiği yer açılıyordu — ek yeri görünen bir kol, kol değil yapıştırma.
