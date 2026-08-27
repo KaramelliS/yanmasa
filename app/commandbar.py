@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 )
 
 from .buttons import ButtonStrip
+from .stream import AkanMetin, RunRing
 from .glyphs import PreviewFrame
 
 #: Onay kartındaki ayrıntı alanının tavanı. Onaylanan şey yüz satırlık bir
@@ -73,6 +74,9 @@ STATE_FILE = (
 
 BAR_WIDTH = 440
 MARGIN = 24
+#: Adim anlatimlari arasindaki paragraf arasi.
+BREAK = "\n\n"
+
 MIC_SIZE = 40
 
 
@@ -404,14 +408,10 @@ class CommandBar(QWidget):
         # Konuşma: ajanın son söylediği. Sohbet geçmişi değil, son cevap —
         # köşede yüzen bir çubuk uzun bir dökümü taşıyamaz ve taşımaya
         # kalkarsa ekranın yarısını kaplar.
-        self.reply = QLabel()
-        self.reply.setWordWrap(True)
-        self.reply.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        self.reply.setStyleSheet(
-            f"color: {t.text}; font-size: 13px; padding: 12px 14px 4px 14px;"
-        )
+        # Kendi düzenini kuran bir widget: imlecin son harfin yanında
+        # durabilmesi için satır kırılımlarının nerede olduğunu bilmek
+        # gerekiyor ve `QLabel` bunu söylemiyor.
+        self.reply = AkanMetin(t)
         self.reply.setVisible(True)
 
         # Cevap kaydırılabilir bir alanda ve tavanı var. Önceden düz bir
@@ -474,6 +474,13 @@ class CommandBar(QWidget):
         self.field.installEventFilter(self)
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
+
+        # Halka alanın sağında: gözün metni bıraktığı yer, "ne oluyor"
+        # sorusunun sorulduğu yer.
+        self.ring = RunRing(t, MIC_SIZE)
+        self.ring.setToolTip("Turun şekli: her dilim bir adım, kırmızı olan düştü")
+        self.ring.setVisible(False)
+        row_layout.addWidget(self.ring)
         card_layout.addWidget(row)
 
         # Düğmeler yazı alanının hemen altında: elin oradayken tıklanacak
@@ -571,7 +578,45 @@ class CommandBar(QWidget):
         self._grow()
 
     def say(self, text: str) -> None:
-        self.reply.setText(text)
+        """Cevabı bir kerede koyar — akış bitince ya da hata mesajında."""
+        self.reply.set_live(False)
+        self.reply.set_text(text)
+        self._fit_reply()
+
+    def clear_run(self) -> None:
+        """Yeni talimat: önceki turun şekli ve cevabı gidiyor."""
+        self.ring.setVisible(False)
+        self.say("")
+
+    def stream(self, parca: str) -> None:
+        """Modelden düşen parçayı cevaba ekler.
+
+        Model zaten parça parça yazıyordu; arayüz bunu çöpe atıp yalnızca
+        tur bitince tek seferde gösteriyordu. Uzun bir turda dakikalarca
+        boş bir kutuya bakıyordun.
+        """
+        if not self.reply.text():
+            self.reply.set_live(True)
+        self.reply.append(parca)
+        self._fit_reply()
+
+    def break_paragraph(self) -> None:
+        """Ajan araca geçerken anlatımına bir paragraf arası koyuyor.
+
+        Yoksa iki adımın anlatımı tek bir cümleymiş gibi birbirine
+        yapışıyordu.
+        """
+        metin = self.reply.text()
+        if metin.strip() and not metin.endswith(BREAK):
+            self.reply.append(BREAK)
+            self._fit_reply()
+
+    def end_stream(self) -> None:
+        """Akış bitti — imleç sönüyor, metin kalıyor."""
+        self.reply.set_live(False)
+
+    def _fit_reply(self) -> None:
+        text = self.reply.text()
         self._reply_scroll.setVisible(bool(text))
         # Kaydırma alanının yüksekliğini metne göre elle veriyoruz.
         # `QScrollArea` kendi boyut ipucunu içeriğinden almıyor; layout ona
@@ -593,6 +638,10 @@ class CommandBar(QWidget):
         self.approval.setVisible(False)
         self._grow()
 
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
     def set_busy(self, busy: bool) -> None:
         """Çalışırken yazı alanı **açık kalıyor**.
 
@@ -603,6 +652,15 @@ class CommandBar(QWidget):
         görüyor.
         """
         self._busy = busy
+        # Halka tur bitince **kalıyor**. Turun şekli — kaç adım sürdü,
+        # hangisi düştü — cevabı okurken hâlâ orada. Bitince silmek, tam
+        # da bakmak isteyeceğin anda veriyi çöpe atmak olurdu. Yeni bir
+        # talimat verildiğinde `clear_run` siliyor.
+        if busy:
+            self.ring.setVisible(True)
+            self.ring.begin()
+        else:
+            self.ring.finish()
         self.field.setPlaceholderText(
             "Araya yaz — ajan sıradaki adımda görür" if busy
             else "Yaz ya da konuş…"

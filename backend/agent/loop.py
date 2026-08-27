@@ -8,6 +8,7 @@ budanması.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -46,6 +47,10 @@ class Turn:
     on_result: Callable[[str, ToolOutcome], None] = lambda _n, _o: None
     #: Araya sıkıştırılan cümle ajana ulaştığında.
     on_interjection: Callable[[str], None] = lambda _t: None
+    #: Modelden herhangi bir parça düştü — metin ya da düşünce. Arayüzdeki
+    #: gösterge bununla ilerliyor: hareket, gerçekten bir şeyin geldiği
+    #: anlamına gelmeli. Sabit hızda dönen bir çark bunu söylemiyor.
+    on_pulse: Callable[[], None] = lambda: None
 
 
 #: Reddedilme mesajı. Computer-use çağrılarında Anthropic bir güvenlik
@@ -81,6 +86,10 @@ def _refusal_text(model_text: str) -> str:
 #:
 #: İkinci tekrarda modele "bu yol kapalı, başka bir şey dene" deniyor;
 #: üçüncüde tur durduruluyor.
+#: Nabız sinyalleri arasındaki en kısa süre, saniye. 20 Hz gözün ayırt
+#: edebildiği üst sınırın üstünde; daha sıkı göndermek boşa iş.
+PULSE_MIN_GAP = 0.05
+
 SAME_ERROR_HINT = 2
 SAME_ERROR_LIMIT = 3
 
@@ -260,9 +269,16 @@ class Agent:
             thinking={"type": "adaptive", "display": "summarized"},
             output_config={"effort": effort},
         ) as stream:
+            # Nabız kısılıyor: saniyede yüzlerce parça geliyor ve her
+            # birini arayüze taşımak, çizilenden çok sinyal göndermek olurdu.
+            son_nabiz = 0.0
             for event in stream:
                 if event.type == "content_block_delta":
                     delta = event.delta
+                    simdi = time.monotonic()
+                    if simdi - son_nabiz > PULSE_MIN_GAP:
+                        son_nabiz = simdi
+                        turn.on_pulse()
                     if delta.type == "text_delta":
                         turn.on_text(delta.text)
                     elif delta.type == "thinking_delta":

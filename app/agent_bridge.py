@@ -48,6 +48,7 @@ class AgentBridge(QObject):
     wrote = Signal(list)         # ajanın az önce yazdığı dosya yolları
     queued = Signal(str)         # araya sıkıştırılan cümle sıraya alındı
     landed = Signal(str)         # ajan o cümleyi gördü
+    pulse = Signal()             # modelden bir parça düştü
 
     def __init__(self) -> None:
         super().__init__()
@@ -241,6 +242,7 @@ class _Worker(QObject):
             on_action=lambda name, payload: self._bridge.acted.emit(name, dict(payload)),
             on_result=self._on_result,
             on_interjection=self._bridge.landed.emit,
+            on_pulse=self._bridge.pulse.emit,
         )
         try:
             text = self._agent.run(self._instruction, turn)

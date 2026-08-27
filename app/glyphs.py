@@ -373,6 +373,8 @@ TOOL_GLYPH = {
     "skill_list": "yetenek", "skill_write": "yetenek", "skill_remove": "yetenek",
     "remote_connect": "sunucu", "remote_list": "sunucu",
     "remote_read": "sunucu", "remote_write": "sunucu", "remote_run": "sunucu",
+    "write_files": "klasor", "list_apps": "pencere",
+    "button_write": "yetenek", "button_remove": "yetenek",
     "__sen__": "sen", "__onay__": "soru",
 }
 

@@ -2110,3 +2110,133 @@ time.sleep(60)
             assert ucuncu.stdout.readline().strip() == "EVET"
         finally:
             ucuncu.kill()
+
+
+class TestKosuHalkasi:
+    """Halka turun şeklini taşıyor; yanlış taşırsa yokluğundan kötü."""
+
+    def _ring(self, qt_app):
+        from app import fluent
+        from app.stream import RunRing
+        return RunRing(fluent.tokens())
+
+    def test_yay_dilim_sonuna_varmiyor(self, qt_app):
+        # Bir adımın bittiğini, bitmeden önce iddia edemez.
+        from app.stream import ARC_CEILING
+        r = self._ring(qt_app)
+        r.begin()
+        r.step("screenshot")
+        for _ in range(500):
+            r.pulse()
+        assert r._arc_target <= ARC_CEILING < 1.0
+
+    def test_biten_adim_kalici_dilim_birakiyor(self, qt_app):
+        r = self._ring(qt_app)
+        r.begin()
+        for arac, hata in (("screenshot", False), ("run_shell", True)):
+            r.step(arac)
+            r.settle(hata)
+        assert r._done == [False, True]
+
+    def test_yeni_tur_onceki_sekli_siliyor(self, qt_app):
+        r = self._ring(qt_app)
+        r.begin()
+        r.step("type")
+        r.settle(False)
+        r.begin()
+        assert r._done == []
+
+    def test_bitince_hareket_duruyor(self, qt_app):
+        # Boşta dönen bir zamanlayıcı, hiçbir şey olmazken işlemci yakar.
+        r = self._ring(qt_app)
+        r.begin()
+        assert r._timer.isActive()
+        r.finish()
+        assert not r._timer.isActive()
+
+    def test_dusen_adim_renkten_bagimsiz_ayirt_ediliyor(self):
+        # Bu temada accent #e7babd, critical #ff99a4 — 2.4 piksellik bir
+        # yayda ikisi aynı görünüyor. Ayrım biçimde olmak zorunda.
+        from app.stream import FAIL_INSET
+        assert FAIL_INSET > 0
+
+    def test_her_aracin_kendi_cizimi_var(self):
+        # "Yaptığı işe göre görsel" — jenerik kıvılcıma düşen araç kalmasın.
+        from backend.agent.tools import CUSTOM_TOOLS
+        from app.glyphs import TOOL_GLYPH
+        eksik = [t["name"] for t in CUSTOM_TOOLS if t["name"] not in TOOL_GLYPH]
+        assert eksik == [], eksik
+
+
+class TestAkanMetin:
+    def _m(self, qt_app, metin=""):
+        from app import fluent
+        from app.stream import AkanMetin
+        w = AkanMetin(fluent.tokens())
+        w.resize(320, 100)
+        if metin:
+            w.set_text(metin)
+        return w
+
+    def test_parcalar_birikiyor(self, qt_app):
+        w = self._m(qt_app)
+        for p in ("Mer", "haba ", "dünya"):
+            w.append(p)
+        assert w.text() == "Merhaba dünya"
+
+    def test_imlec_yalnizca_akarken(self, qt_app):
+        # İmleçsiz akan metin bitmiş cevap gibi okunuyordu; bitmiş cevapta
+        # yanıp sönen imleç de "hâlâ yazıyor" diye yalan söyler.
+        w = self._m(qt_app, "bir şey")
+        assert not w._blink.isActive()
+        w.set_live(True)
+        assert w._blink.isActive()
+        w.set_live(False)
+        assert not w._blink.isActive()
+
+    def test_uzun_metin_daha_yuksek(self, qt_app):
+        kisa = self._m(qt_app, "tek satır")
+        uzun = self._m(qt_app, "uzun bir cümle " * 30)
+        assert uzun.heightForWidth(320) > kisa.heightForWidth(320)
+
+    def test_bos_metin_yer_kaplamiyor(self, qt_app):
+        assert self._m(qt_app).heightForWidth(320) == 0
+
+    def test_secim_kopyalanabiliyor(self, qt_app):
+        # Kendi düzenini kuran bir widget, seçmeyi kendi eklemezse kaybeder.
+        from PySide6.QtGui import QGuiApplication
+        w = self._m(qt_app, "kopyalanacak metin")
+        w._sel = (0, 12)
+        w.keyPressEvent(_copy_event())
+        assert QGuiApplication.clipboard().text() == "kopyalanacak"
+
+
+def _copy_event():
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeyEvent
+    return QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_C,
+                     Qt.KeyboardModifier.ControlModifier, "c")
+
+
+class TestAkisBaglantisi:
+    """Akış çekirdekte vardı ama arayüz onu dinlemiyordu."""
+
+    def test_arayuz_akisi_dinliyor(self):
+        import inspect, ajan
+        kaynak = inspect.getsource(ajan.main)
+        assert "bridge.said.connect" in kaynak
+        assert "bridge.pulse.connect" in kaynak
+
+    def test_nabiz_kisiliyor(self):
+        # Saniyede yüzlerce parça geliyor; her birini arayüze taşımak
+        # çizilenden çok sinyal göndermek olurdu.
+        from backend.agent.loop import PULSE_MIN_GAP
+        assert 0.02 <= PULSE_MIN_GAP <= 0.2
+
+    def test_bitis_akan_metni_silmiyor(self):
+        # Tur bitince say() çağırmak, ilk adımların anlatımını siler.
+        import inspect, ajan
+        kaynak = inspect.getsource(ajan.main)
+        govde = kaynak[kaynak.index("def on_finished"):]
+        govde = govde[:govde.index("def on_failed")]
+        assert "end_stream" in govde

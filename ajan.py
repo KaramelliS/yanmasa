@@ -169,8 +169,11 @@ def main() -> int:
         # engellenmemeli.
         expanded = bridge.expand_command(text)
         window.activity.add_step("Sen", "", text, "__sen__")
-        bar.say("")
-        bar.show_operation(None)
+        # Araya cümle sıkıştırırken cevabı silme: süren turun anlatımı
+        # ekranda kalmalı, yeni bir tur başlıyorsa temizlenmeli.
+        if not bar.busy:
+            bar.clear_run()
+            bar.show_operation(None)
         bar.set_busy(True)
         bar.set_status("Çalışıyor…")
         window.run_instruction(text)
@@ -254,14 +257,26 @@ def main() -> int:
         window.open_panel(shot.name, title, _panel_for(shot, tokens))
         window.set_counters(steps["n"], sum(unsaved.values()), 0)
 
+    def on_said(parca: str) -> None:
+        """Model yazarken harfler düşüyor.
+
+        Akış zaten çekirdekte vardı ama arayüz onu hiç dinlemiyordu: cevap
+        yalnızca tur bitince, tek seferde beliriyordu.
+        """
+        bar.stream(parca)
+
     def on_action(tool: str, payload: dict) -> None:
         op = _describe(tool, payload)
+        bar.ring.step(tool)
+        bar.break_paragraph()
         bar.show_operation(op)
         window.activity.add_step(op.tool, op.target, op.detail, tool)
         steps["n"] += 1
         window.set_counters(steps["n"], 0, 0)
 
     def on_result(tool: str, text: str, is_error: bool, png: bytes) -> None:
+        # Adım bitti: halkada kalıcı bir dilim bırakıyor, hata kırmızı.
+        bar.ring.settle(is_error)
         # Ajan bir düğme kurduysa çubuk hemen göstersin; yeniden başlatmak
         # gerekmesin.
         if tool.startswith("button_") and not is_error:
@@ -286,7 +301,12 @@ def main() -> int:
         bar.set_busy(False)
         bar.show_operation(None)
         bar.set_status("")
-        bar.say(text or "Bitti.")
+        # Metin akarken zaten yazıldı; burada tekrar koymak turun ilk
+        # adımlarındaki anlatımı silerdi. Yalnızca hiç akmadıysa yazılıyor.
+        if bar.reply.text().strip():
+            bar.end_stream()
+        else:
+            bar.say(text or "Bitti.")
         window.set_phase("bitti")
         window.status.set_line(text[:120] if text else "Bitti.")
 
@@ -314,6 +334,8 @@ def main() -> int:
         bar.approval.answered.connect(answer)
 
     bridge.ready.connect(on_ready)
+    bridge.said.connect(on_said)
+    bridge.pulse.connect(bar.ring.pulse)
     bridge.acted.connect(on_action)
     bridge.result.connect(on_result)
     bridge.document.connect(on_document)
