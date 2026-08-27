@@ -36,6 +36,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bloub_kaynak import POZLAR as KAYNAK_POZLAR  # noqa: E402
+from bloub_kaynak import poz as poz_uret  # noqa: E402
+from bloub_kaynak import taban_noktalari  # noqa: E402
 from nesneler import NESNELER  # noqa: E402
 
 HEDEF = Path(__file__).resolve().parent.parent / "varliklar" / "svg"
@@ -54,44 +57,19 @@ NOKTA = 140
 RENK_GOVDE = "#E7BABD"
 RENK_OYUK = "#1C1C1C"
 
-#: Gözlerin merkeze uzaklığı ve yarık ölçüleri.
-GOZ_X, GOZ_Y = 11.5, -5.5
-YARIK_W, YARIK_H, YARIK_EGIM = 7.2, 24.0, 13.0
-
-#: Pozlar. `ustel` köşe sertliği, `en`/`boy` oran, `lob` kaç çıkıntı,
-#: `genlik` ne kadar taştıkları, `faz` nereden başladıkları.
+#: Göz ölçüleri kaynak SVG'den geliyor, uydurma değil.
 #:
-#: Her animasyon iki poz arasında gidip geliyor; ikisi arasındaki fark
-#: hareketin karakteri. Bekleme pozlarının farkı yalnızca faz — nefes
-#: alıyormuş gibi duruyor. İş pozlarının eni ve boyu ters yönde değişiyor
-#: — sıkışıp geniyor.
-POZLAR = {
-    "bosta":   dict(ustel=2.8, lob=4, genlik=0.05),
-    "bosta-b": dict(ustel=2.8, lob=4, genlik=0.05, faz=math.pi / 4),
-    "is":      dict(ustel=3.4, en=1.07, boy=0.93, lob=6, genlik=0.07),
-    "is-b":    dict(ustel=3.4, en=0.93, boy=1.07, lob=6, genlik=0.07,
-                    faz=math.pi / 6),
-    "ofis":    dict(ustel=5.0, en=0.84, boy=1.12),
-    "ofis-b":  dict(ustel=5.0, en=0.88, boy=1.08, lob=4, genlik=0.025),
-    "dusun":   dict(ustel=2.1, lob=6, genlik=0.12),
-    "dusun-b": dict(ustel=2.1, lob=6, genlik=0.12, faz=math.pi / 6),
-    "hata":    dict(ustel=3.0, en=1.12, boy=0.84, lob=8, genlik=0.055),
-    "bitti":   dict(ustel=2.0),
-}
+#: Kaynakta göz 30x15'lik yuvarlak uçlu bir kapsül — yani **yatay**,
+#: benim ilk yaptığım dikey yarık değil. Merkezleri ve eğimleri de
+#: oradan: (+11) ve (-14.6) derece. İkisi birbirinin tam aynası değil ve
+#: simetrikleştirmek karakteri öldürüyor; elle çizilmiş olmasının izi bu.
+GOZ_KONUM = ((39.18, 37.60, 11.0), (59.03, 37.53, -14.6))
+GOZ_W, GOZ_H = 12.2, 6.1
 
-
-def govde_noktalari(ustel: float = 2.8, en: float = 1.0, boy: float = 1.0,
-                    lob: int = 0, genlik: float = 0.0, faz: float = 0.0,
-                    adet: int = NOKTA) -> list[tuple[float, float]]:
-    noktalar = []
-    for i in range(adet):
-        th = 2 * math.pi * i / adet
-        c, s = math.cos(th), math.sin(th)
-        bx = math.copysign(abs(c) ** (2 / ustel), c) * en
-        by = math.copysign(abs(s) ** (2 / ustel), s) * boy
-        k = 1.0 + genlik * math.cos(lob * th + faz) if lob else 1.0
-        noktalar.append((MERKEZ + bx * YARICAP * k, MERKEZ + by * YARICAP * k))
-    return noktalar
+#: Pozlar artık kaynak siluetten türüyor. Kendi süperelipsimi denedim
+#: ve karakteri tutmadı — düğmeye benziyordu. `scripts/bloub_kaynak.py`
+#: asıl silueti okuyup esnetiyor, yani bütün pozlar aynı yaratık.
+POZLAR = KAYNAK_POZLAR
 
 
 def yol(noktalar) -> str:
@@ -100,36 +78,40 @@ def yol(noktalar) -> str:
     return f"M{bas[0]:.2f} {bas[1]:.2f} {kalan} Z"
 
 
-def yarik(taraf: int, uzunluk: float, egim: float) -> str:
-    x = MERKEZ + GOZ_X * taraf
-    y = MERKEZ + GOZ_Y
+def goz(i: int, boy_carpani: float = 1.0, ek_egim: float = 0.0) -> str:
+    """Tek bir göz: yuvarlak uçlu kapsül, kaynaktaki yerinde ve eğiminde."""
+    x, y, egim = GOZ_KONUM[i]
+    h = GOZ_H * boy_carpani
     return (
-        f'<rect x="{-YARIK_W / 2:.2f}" y="{-uzunluk / 2:.2f}" '
-        f'width="{YARIK_W:.2f}" height="{uzunluk:.2f}" '
-        f'rx="{YARIK_W / 2:.2f}" fill="{RENK_OYUK}" '
-        f'transform="translate({x:.2f} {y:.2f}) rotate({egim:.1f})"/>'
+        f'<rect x="{-GOZ_W / 2:.2f}" y="{-h / 2:.2f}" '
+        f'width="{GOZ_W:.2f}" height="{h:.2f}" rx="{min(GOZ_W, h) / 2:.2f}" '
+        f'fill="{RENK_OYUK}" '
+        f'transform="translate({x:.2f} {y:.2f}) rotate({egim + ek_egim:.1f})"/>'
     )
 
 
-def gulen(taraf: int) -> str:
-    x = MERKEZ + GOZ_X * taraf
-    y = MERKEZ + GOZ_Y + 2.0
-    g = 13.0
+def gulen(i: int) -> str:
+    """Gülen göz: yukarı kıvrılan yay."""
+    x, y, egim = GOZ_KONUM[i]
+    g = GOZ_W
     return (
-        f'<path d="M{x - g / 2:.2f} {y:.2f} Q{x:.2f} {y - 11:.2f} '
-        f'{x + g / 2:.2f} {y:.2f}" fill="none" stroke="{RENK_OYUK}" '
-        f'stroke-width="{YARIK_W:.2f}" stroke-linecap="round"/>'
+        f'<path d="M{-g / 2:.2f} 0 Q0 {-g * 0.52:.2f} {g / 2:.2f} 0" '
+        f'fill="none" stroke="{RENK_OYUK}" stroke-width="{GOZ_H * 0.9:.2f}" '
+        f'stroke-linecap="round" '
+        f'transform="translate({x:.2f} {y + 1.5:.2f}) rotate({egim:.1f})"/>'
     )
 
 
-#: `aynali` olanlarda iki göz ters yöne dönüyor. Kızgın yüz böyle
-#: oluyor: aynı yöne eğik iki yarık kızgın değil, sadece eğik duruyor.
+#: Göz türleri: boy çarpanı ve ek eğim.
+#:
+#: Kızgın olanda ek eğim aynalı — iki göz ters yöne dönüyor. Aynı yöne
+#: eğik iki göz kızgın değil, sadece eğik duruyor.
 GOZLER = {
-    "normal": (YARIK_H, YARIK_EGIM, False),
-    "genis": (YARIK_H * 1.25, YARIK_EGIM, False),
-    "kisik": (YARIK_H * 0.55, YARIK_EGIM, False),
-    "kapali": (YARIK_W * 1.05, YARIK_EGIM, False),
-    "kizgin": (YARIK_H * 0.92, 32.0, True),
+    "normal": (1.0, 0.0, False),
+    "genis": (1.75, 0.0, False),
+    "kisik": (0.52, 0.0, False),
+    "kapali": (0.26, 0.0, False),
+    "kizgin": (0.9, 26.0, True),
 }
 
 
@@ -142,19 +124,29 @@ def _svg(ic: str) -> str:
     )
 
 
+_TABAN = None
+
+
+def _taban():
+    global _TABAN
+    if _TABAN is None:
+        _TABAN = taban_noktalari()
+    return _TABAN
+
+
 def poz_svg(ad: str) -> str:
-    d = yol(govde_noktalari(**POZLAR[ad]))
+    d = yol(poz_uret(_taban(), **POZLAR[ad]))
     return _svg(f'<path id="govde" d="{d}" fill="{RENK_GOVDE}"/>')
 
 
 def gozler_svg() -> str:
     parcalar = []
-    for ad, (uzunluk, egim, aynali) in GOZLER.items():
-        for taraf, yon in ((-1, "sol"), (1, "sag")):
-            e = egim * taraf if aynali else egim
-            parcalar.append(f'<g id="goz-{ad}-{yon}">{yarik(taraf, uzunluk, e)}</g>')
-    for taraf, yon in ((-1, "sol"), (1, "sag")):
-        parcalar.append(f'<g id="goz-gulen-{yon}">{gulen(taraf)}</g>')
+    for ad, (boy, ek, aynali) in GOZLER.items():
+        for i, yon in ((0, "sol"), (1, "sag")):
+            e = ek * (1 if i else -1) if aynali else ek
+            parcalar.append(f'<g id="goz-{ad}-{yon}">{goz(i, boy, e)}</g>')
+    for i, yon in ((0, "sol"), (1, "sag")):
+        parcalar.append(f'<g id="goz-gulen-{yon}">{gulen(i)}</g>')
     return _svg("\n  ".join(parcalar))
 
 

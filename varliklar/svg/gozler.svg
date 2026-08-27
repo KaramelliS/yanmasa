@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!-- Üreten: scripts/svg_yap.py — elle düzenleme, betiği düzenle. -->
-  <g id="goz-normal-sol"><rect x="-3.60" y="-12.00" width="7.20" height="24.00" rx="3.60" fill="#1C1C1C" transform="translate(36.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-normal-sag"><rect x="-3.60" y="-12.00" width="7.20" height="24.00" rx="3.60" fill="#1C1C1C" transform="translate(59.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-genis-sol"><rect x="-3.60" y="-15.00" width="7.20" height="30.00" rx="3.60" fill="#1C1C1C" transform="translate(36.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-genis-sag"><rect x="-3.60" y="-15.00" width="7.20" height="30.00" rx="3.60" fill="#1C1C1C" transform="translate(59.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-kisik-sol"><rect x="-3.60" y="-6.60" width="7.20" height="13.20" rx="3.60" fill="#1C1C1C" transform="translate(36.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-kisik-sag"><rect x="-3.60" y="-6.60" width="7.20" height="13.20" rx="3.60" fill="#1C1C1C" transform="translate(59.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-kapali-sol"><rect x="-3.60" y="-3.78" width="7.20" height="7.56" rx="3.60" fill="#1C1C1C" transform="translate(36.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-kapali-sag"><rect x="-3.60" y="-3.78" width="7.20" height="7.56" rx="3.60" fill="#1C1C1C" transform="translate(59.50 42.50) rotate(13.0)"/></g>
-  <g id="goz-kizgin-sol"><rect x="-3.60" y="-11.04" width="7.20" height="22.08" rx="3.60" fill="#1C1C1C" transform="translate(36.50 42.50) rotate(-32.0)"/></g>
-  <g id="goz-kizgin-sag"><rect x="-3.60" y="-11.04" width="7.20" height="22.08" rx="3.60" fill="#1C1C1C" transform="translate(59.50 42.50) rotate(32.0)"/></g>
-  <g id="goz-gulen-sol"><path d="M30.00 44.50 Q36.50 33.50 43.00 44.50" fill="none" stroke="#1C1C1C" stroke-width="7.20" stroke-linecap="round"/></g>
-  <g id="goz-gulen-sag"><path d="M53.00 44.50 Q59.50 33.50 66.00 44.50" fill="none" stroke="#1C1C1C" stroke-width="7.20" stroke-linecap="round"/></g>
+  <g id="goz-normal-sol"><rect x="-6.10" y="-3.05" width="12.20" height="6.10" rx="3.05" fill="#1C1C1C" transform="translate(39.18 37.60) rotate(11.0)"/></g>
+  <g id="goz-normal-sag"><rect x="-6.10" y="-3.05" width="12.20" height="6.10" rx="3.05" fill="#1C1C1C" transform="translate(59.03 37.53) rotate(-14.6)"/></g>
+  <g id="goz-genis-sol"><rect x="-6.10" y="-5.34" width="12.20" height="10.67" rx="5.34" fill="#1C1C1C" transform="translate(39.18 37.60) rotate(11.0)"/></g>
+  <g id="goz-genis-sag"><rect x="-6.10" y="-5.34" width="12.20" height="10.67" rx="5.34" fill="#1C1C1C" transform="translate(59.03 37.53) rotate(-14.6)"/></g>
+  <g id="goz-kisik-sol"><rect x="-6.10" y="-1.59" width="12.20" height="3.17" rx="1.59" fill="#1C1C1C" transform="translate(39.18 37.60) rotate(11.0)"/></g>
+  <g id="goz-kisik-sag"><rect x="-6.10" y="-1.59" width="12.20" height="3.17" rx="1.59" fill="#1C1C1C" transform="translate(59.03 37.53) rotate(-14.6)"/></g>
+  <g id="goz-kapali-sol"><rect x="-6.10" y="-0.79" width="12.20" height="1.59" rx="0.79" fill="#1C1C1C" transform="translate(39.18 37.60) rotate(11.0)"/></g>
+  <g id="goz-kapali-sag"><rect x="-6.10" y="-0.79" width="12.20" height="1.59" rx="0.79" fill="#1C1C1C" transform="translate(59.03 37.53) rotate(-14.6)"/></g>
+  <g id="goz-kizgin-sol"><rect x="-6.10" y="-2.75" width="12.20" height="5.49" rx="2.75" fill="#1C1C1C" transform="translate(39.18 37.60) rotate(-15.0)"/></g>
+  <g id="goz-kizgin-sag"><rect x="-6.10" y="-2.75" width="12.20" height="5.49" rx="2.75" fill="#1C1C1C" transform="translate(59.03 37.53) rotate(11.4)"/></g>
+  <g id="goz-gulen-sol"><path d="M-6.10 0 Q0 -6.34 6.10 0" fill="none" stroke="#1C1C1C" stroke-width="5.49" stroke-linecap="round" transform="translate(39.18 39.10) rotate(11.0)"/></g>
+  <g id="goz-gulen-sag"><path d="M-6.10 0 Q0 -6.34 6.10 0" fill="none" stroke="#1C1C1C" stroke-width="5.49" stroke-linecap="round" transform="translate(59.03 39.03) rotate(-14.6)"/></g>
 </svg>

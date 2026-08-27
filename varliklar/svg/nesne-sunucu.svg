@@ -1,5 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <!-- Üreten: scripts/svg_yap.py -->
-  <g id="raf-ust"><rect x="12" y="13" width="40" height="17" rx="4.5" fill="#E7BABD"/><rect x="18" y="19.5" width="14" height="3.4" rx="1.7" fill="#1C1C1C"/><circle id="isik-ust" cx="45" cy="21.2" r="2.8" fill="#1C1C1C"/></g>
-  <g id="raf-alt"><rect x="12" y="34" width="40" height="17" rx="4.5" fill="#E7BABD"/><rect x="18" y="40.5" width="14" height="3.4" rx="1.7" fill="#1C1C1C"/><circle id="isik-alt" cx="45" cy="42.2" r="2.8" fill="#1C1C1C"/></g>
+  <rect id="raf-ust" x="12" y="13" width="40" height="17" rx="4.5" fill="#E7BABD"/>
+  <rect id="yuva-ust" x="18" y="19.5" width="14" height="3.4" rx="1.7" fill="#1C1C1C"/>
+  <circle id="isik-ust" cx="45" cy="21.2" r="2.8" fill="#1C1C1C"/>
+  <rect id="raf-alt" x="12" y="34" width="40" height="17" rx="4.5" fill="#E7BABD"/>
+  <rect id="yuva-alt" x="18" y="40.5" width="14" height="3.4" rx="1.7" fill="#1C1C1C"/>
+  <circle id="isik-alt" cx="45" cy="42.2" r="2.8" fill="#1C1C1C"/>
 </svg>

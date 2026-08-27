@@ -2885,3 +2885,73 @@ class TestSaatSizintisi:
         assert len(s._aboneler) == 1
         s.unsubscribe(o.tik)
         assert not s.running
+
+
+class TestBloubKaynagi:
+    """Siluet kaynak SVG'den geliyor, uydurulmuyor."""
+
+    def _k(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        import bloub_kaynak
+        if not bloub_kaynak.KAYNAK.is_file():
+            import pytest as _p
+            _p.skip("kaynak yok")
+        return bloub_kaynak
+
+    def test_kaynak_yolu_okunuyor(self):
+        k = self._k()
+        assert k._govde_yolu().startswith("M91.51")
+        assert k._govde_yolu().count("C") == 64
+
+    def test_noktalar_esit_aralikli(self, qt_app):
+        # Ham düğüm noktaları eşit aralık vermezdi ve pozlar arası
+        # geçişte şekil dalgalanırdı.
+        import statistics
+        k = self._k()
+        n = k.taban_noktalari(160)
+        assert len(n) == 160
+        araliklar = [
+            ((n[i][0] - n[i - 1][0]) ** 2 + (n[i][1] - n[i - 1][1]) ** 2) ** 0.5
+            for i in range(1, len(n))
+        ]
+        ort = statistics.mean(araliklar)
+        assert statistics.pstdev(araliklar) / ort < 0.25, "aralıklar eşit değil"
+
+    def test_poz_siluetin_disina_cikmiyor(self, qt_app):
+        # Bütün pozlar aynı yaratık olmalı: alan çok değişirse başka bir
+        # şeye dönüşmüş demektir.
+        k = self._k()
+        taban = k.taban_noktalari()
+
+        def alan(p):
+            return abs(sum(p[i][0] * p[i - 1][1] - p[i - 1][0] * p[i][1]
+                           for i in range(len(p)))) / 2
+
+        temel = alan(taban)
+        for ad, kw in k.POZLAR.items():
+            oran = alan(k.poz(taban, **kw)) / temel
+            assert 0.85 < oran < 1.2, f"{ad}: alan oranı {oran:.2f}"
+
+    def test_butun_pozlar_ayni_nokta_sayisinda(self, qt_app):
+        k = self._k()
+        taban = k.taban_noktalari()
+        assert {len(k.poz(taban, **kw)) for kw in k.POZLAR.values()} == {len(taban)}
+
+    def test_goz_olculeri_kaynaktan(self):
+        # Uydurma değil: kaynaktaki matrislerden çevrildi.
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        import svg_yap
+        from bloub_kaynak import KAYNAK
+        if not KAYNAK.is_file():
+            import pytest as _p
+            _p.skip("kaynak yok")
+        assert len(svg_yap.GOZ_KONUM) == 2
+        sol, sag = svg_yap.GOZ_KONUM
+        # Yatay kapsül: en boydan büyük.
+        assert svg_yap.GOZ_W > svg_yap.GOZ_H
+        # İkisi tam ayna değil — elle çizilmiş olmasının izi.
+        assert abs(sol[2]) != abs(sag[2])
