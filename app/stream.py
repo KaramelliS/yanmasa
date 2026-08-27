@@ -93,8 +93,11 @@ ARC_STEP = 0.035
 #: çember çizmek, turun bittiğini söylerdi.
 MIN_SLOTS = 6
 
-#: Dilimler arasındaki boşluk, derece.
-SLOT_GAP = 7.0
+#: İzin kalınlığı, sol kenardan uzaklığı ve uçlardaki pay.
+TRACK_W, TRACK_X, TRACK_PAD = 3.0, 5.0, 6.0
+
+#: Yüzün üstten uzaklığı.
+FACE_Y = 2.0
 
 #: Bu kadar süre hiçbir şey gelmezse yayın ucu soluyor.
 STALL_AFTER = 0.9
@@ -103,17 +106,27 @@ STALL_AFTER = 0.9
 #: dökümde 28 piksel fazladan yer kaplıyordu ve satırlar zaten 12 punto.
 ROW_H = 22
 
-#: Düşen adımın yayı bu kadar içeri kaçıyor.
+#: Düşen adımın işareti bu kadar kalınlaşıyor.
 #:
 #: Renk tek başına yetmiyor: bu temada `accent` #e7babd ve `critical`
-#: #ff99a4 — ikisi de soluk pembe ve 2.4 piksellik bir yayda aynı görünüyor.
-#: Ölçtüm. Biçim renge bağlı değil: düşen adım sıradan içeri kayıyor ve
-#: temayı değiştirsen de görünür kalıyor.
-FAIL_INSET = 3.5
+#: #ff99a4 — ikisi de soluk pembe ve ince bir işarette aynı görünüyor.
+#: Ölçtüm. Biçim renge bağlı değil: düşen adım kalınlaşıyor ve temayı
+#: değiştirsen de görünür kalıyor.
+FAIL_WIDTH = 2.0
 
 
 class RunRing(QWidget):
-    """Turun şeklini biriktiren halka, ortasında o anki işin çizimi."""
+    """Turun şeklini biriktiren iz, üstünde ajanın yüzü.
+
+    Önce bir daireydi ve yüz ortasındaydı. Maskotun eline nesne verince
+    çalışmaz oldu: nesne çemberi kesiyor, koşu kaydı okunmaz hâle
+    geliyordu. Daireyi büyütmek de olmazdı — figür küçülür, ifade
+    kaybolurdu.
+
+    Şimdi **dikey bir iz**, sütunun sol kenarında. Adımlar yukarıdan
+    aşağı diziliyor, yani dökümle aynı yönde okunuyor ve figürün üstünden
+    hiç geçmiyor. Çember hiç kırılmıyor çünkü çember yok.
+    """
 
     def __init__(self, t: Tokens, size: int = 52) -> None:
         super().__init__()
@@ -265,89 +278,78 @@ class RunRing(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        pay = 3.0
-        # Hata titremesi bütün halkayı sarsıyor: kırmızı bir dilim
-        # okunmayı bekler, kımıldayan bir şey gözü kendine çeker.
+        # Hata titremesi izi sarsıyor: kırmızı bir dilim okunmayı bekler,
+        # kımıldayan bir şey gözü kendine çeker.
         sars = self._shake.amount and self._shake.step(0.0) or 0.0
-        kutu = QRectF(pay + sars * 2.5, pay,
-                      self.width() - pay * 2, self.height() - pay * 2)
-        dilim = 360.0 / self._slots()
-
-        # Biten adımın dalgası: halkadan dışarı yayılıp sönüyor.
-        if self._ripple.alive:
-            hale = QColor(self.t.accent)
-            hale.setAlphaF(0.32 * self._ripple.alpha)
-            kalem_hale = QPen(hale, 1.6)
-            painter.setPen(kalem_hale)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            buyume = 1.0 + self._ripple.radius * 0.34
-            genis = kutu.width() * buyume
-            painter.drawEllipse(
-                QRectF(kutu.center().x() - genis / 2,
-                       kutu.center().y() - genis / 2, genis, genis)
-            )
-
-        # Ray: halkanın tamamı, sönük. Nereye kadar gidileceğini gösteriyor.
-        iz = QPen(QColor(t.divider), 1.0)
-        painter.setPen(iz)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(kutu)
-
-        kalem = QPen()
-        kalem.setWidthF(2.4)
-        kalem.setCapStyle(Qt.PenCapStyle.RoundCap)
-
-        # Biten adımlar. Düşen adım hem kırmızı hem de sıradan içeri kaçık.
-        ic = kutu.adjusted(FAIL_INSET, FAIL_INSET, -FAIL_INSET, -FAIL_INSET)
-        son = len(self._done) - 1
-        for i, hata in enumerate(self._done):
-            kalem.setColor(QColor(t.critical if hata else t.accent))
-            painter.setPen(kalem)
-            # En yeni dilim yerine **oturarak** geliyor; öncekiler duruyor.
-            # Hepsini her karede yeniden canlandırmak halkayı titretirdi.
-            oran = ease_out_back(min(1.0, max(0.0, self._land.value))) if i == son else 1.0
-            painter.drawArc(
-                ic if hata else kutu,
-                int((90 - i * dilim) * 16),
-                int(-(dilim - SLOT_GAP) * oran * 16),
-            )
-
-        # Süren adım: dilimin içinde büyüyen yay, sonuna varmıyor.
-        #
-        # Rengi bitmiş dilimlerden farklı olmak zorunda, yoksa nerede
-        # olduğunu göremiyorsun — ve bu temada `accent_text`, `accent`in
-        # ta kendisi. Beyaza yakın olan "şimdi", pembe olan "oldu".
-        if self._arc > 0.004:
-            durdu = self._live and (time.monotonic() - self._last) > STALL_AFTER
-            onculuk = QColor(t.text_tertiary if durdu else t.text_secondary)
-            kalem.setColor(onculuk)
-            painter.setPen(kalem)
-            uzunluk = (dilim - SLOT_GAP) * self._arc
-            basla = 90 - len(self._done) * dilim
-            painter.drawArc(kutu, int(basla * 16), int(-uzunluk * 16))
-            self._paint_head(painter, kutu, basla - uzunluk, onculuk)
-
+        self._izi_ciz(painter, sars)
         self._paint_glyph(painter)
         painter.end()
 
-    def _paint_head(self, painter: QPainter, kutu: QRectF,
-                    aci: float, renk: QColor) -> None:
-        """Yayın ucundaki nokta: "buradayız".
+    def _izi_ciz(self, painter: QPainter, sars: float) -> None:
+        t = self.t
+        x = TRACK_X + sars * 2.0
+        ust, alt = TRACK_PAD, self.height() - TRACK_PAD
+        boy = max(1.0, alt - ust)
 
-        Yay tek başına nerede bittiğini yeterince söylemiyor — bitmiş
+        # Ray: bütün iz, sönük. Nereye kadar gidileceğini gösteriyor.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(t.divider))
+        painter.drawRoundedRect(
+            QRectF(x - TRACK_W / 2, ust, TRACK_W, boy), TRACK_W / 2, TRACK_W / 2
+        )
+
+        yuva = max(MIN_SLOTS, len(self._done) + 1)
+        dilim = boy / yuva
+        bosluk = min(3.0, dilim * 0.22)
+
+        # Biten adımlar. Düşen adım hem kırmızı hem de sıradan dışarı
+        # taşıyor: bu temada iki renk küçük bir işarette ayırt edilmiyor.
+        son = len(self._done) - 1
+        for i, hata in enumerate(self._done):
+            oran = (ease_out_back(min(1.0, max(0.0, self._land.value)))
+                    if i == son else 1.0)
+            uzunluk = max(0.0, (dilim - bosluk) * oran)
+            en = TRACK_W * (FAIL_WIDTH if hata else 1.0)
+            painter.setBrush(QColor(t.critical if hata else t.accent))
+            painter.drawRoundedRect(
+                QRectF(x - en / 2, ust + i * dilim, en, uzunluk),
+                en / 2, en / 2,
+            )
+
+        # Süren adım: dilimin içinde büyüyen parça, sonuna varmıyor.
+        if self._arc > 0.004:
+            durdu = self._live and (time.monotonic() - self._last) > STALL_AFTER
+            renk = QColor(t.text_tertiary if durdu else t.text_secondary)
+            painter.setBrush(renk)
+            uzunluk = (dilim - bosluk) * self._arc
+            bas_y = ust + len(self._done) * dilim
+            painter.drawRoundedRect(
+                QRectF(x - TRACK_W / 2, bas_y, TRACK_W, max(0.0, uzunluk)),
+                TRACK_W / 2, TRACK_W / 2,
+            )
+            self._paint_head(painter, x, bas_y + uzunluk, renk)
+
+        # Biten adımın dalgası: izin ucundan dışarı yayılıp sönüyor.
+        if self._ripple.alive:
+            hale = QColor(t.accent)
+            hale.setAlphaF(0.30 * self._ripple.alpha)
+            painter.setPen(QPen(hale, 1.4))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            r = 4.0 + self._ripple.radius * 9.0
+            merkez_y = ust + min(len(self._done), yuva) * dilim
+            painter.drawEllipse(QPointF(x, merkez_y), r, r)
+            painter.setPen(Qt.PenStyle.NoPen)
+
+    def _paint_head(self, painter: QPainter, x: float, y: float,
+                    renk: QColor) -> None:
+        """İzin ucundaki nokta: "buradayız".
+
+        Çizgi tek başına nerede bittiğini yeterince söylemiyor — bitmiş
         dilimlerle aynı kalınlıkta ve durağan bir karede ikisi birbirine
         karışıyor.
         """
-        r = kutu.width() / 2
-        merkez = kutu.center()
-        radyan = math.radians(aci)
-        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(renk)
-        painter.drawEllipse(
-            QPointF(merkez.x() + r * math.cos(radyan),
-                    merkez.y() - r * math.sin(radyan)),
-            2.1, 2.1,
-        )
+        painter.drawEllipse(QPointF(x, y), 2.4, 2.4)
 
     def _paint_glyph(self, painter: QPainter) -> None:
         """Ortadaki yüz.
@@ -357,10 +359,12 @@ class RunRing(QWidget):
         kendisi: hangi araçta olduğunu satırdan okuyorsun, ne durumda
         olduğunu yüzden.
         """
-        # Oran yüzden geliyor: hazır kareler kendi kenar boşluğunu
-        # taşıyor ve çizilen yüzle aynı oranda küçük kalıyorlar.
-        boyut = self.width() * getattr(self.face, "fill", 0.56)
-        koken = QPointF((self.width() - boyut) / 2, (self.height() - boyut) / 2)
+        # Yüz izin sağında, üstte. Ortalamıyoruz: altta nesne var.
+        # 1.5 çarpanı vardı ve yüz nesnenin üstünü örtüyordu: elinde bir
+        # şey tutuyor ama göremiyorsun. Oran doğrudan yüzden geliyor.
+        alan = self.width() - TRACK_X - TRACK_W
+        boyut = alan * getattr(self.face, "fill", 0.56)
+        koken = QPointF(TRACK_X + TRACK_W + (alan - boyut) / 2, FACE_Y)
         self.face.paint(painter, boyut, koken)
 
 

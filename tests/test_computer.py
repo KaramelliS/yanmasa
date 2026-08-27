@@ -2160,10 +2160,11 @@ class TestKosuHalkasi:
         assert not r._abone
 
     def test_dusen_adim_renkten_bagimsiz_ayirt_ediliyor(self):
-        # Bu temada accent #e7babd, critical #ff99a4 — 2.4 piksellik bir
-        # yayda ikisi aynı görünüyor. Ayrım biçimde olmak zorunda.
-        from app.stream import FAIL_INSET
-        assert FAIL_INSET > 0
+        # Bu temada accent #e7babd, critical #ff99a4 — ince bir işarette
+        # ikisi aynı görünüyor. Ayrım biçimde olmak zorunda: düşen adımın
+        # işareti kalınlaşıyor.
+        from app.stream import FAIL_WIDTH
+        assert FAIL_WIDTH > 1.0
 
     def test_her_aracin_kendi_cizimi_var(self):
         # "Yaptığı işe göre görsel" — jenerik kıvılcıma düşen araç kalmasın.
@@ -3224,7 +3225,7 @@ class TestCubukBoyu:
         # 88x170'in yarısı boştu.
         from app.sahne import GENISLIK, YUKSEKLIK
         bar = self._dolu(qt_app)
-        assert bar.sahne.width() == GENISLIK <= 76
+        assert bar.sahne.width() == GENISLIK <= 80
         assert bar.sahne.height() == YUKSEKLIK <= 108
 
 
@@ -3319,3 +3320,73 @@ class TestArayuzKusurlari:
         assert panel_view.FlowLayout is FlowLayout
         assert buttons.FlowLayout is FlowLayout
         assert "class FlowLayout" not in inspect.getsource(panel_view)
+
+
+class TestAdimIzi:
+    """Koşu kaydı artık daire değil, dikey iz."""
+
+    def _r(self, qt_app):
+        from app import fluent
+        from app.stream import RunRing
+        from app.sahne import GENISLIK, YUKSEKLIK
+        r = RunRing(fluent.tokens(), GENISLIK)
+        r.resize(GENISLIK, YUKSEKLIK)
+        return r
+
+    def test_iz_solda_figurun_disinda(self, qt_app):
+        # Daire, elinde nesne olan bir figürle çalışmıyordu: nesne
+        # çemberi kesiyor ve koşu kaydı okunmaz oluyordu.
+        from app.stream import TRACK_W, TRACK_X
+        from app.sahne import IZ_PAY
+        assert TRACK_X + TRACK_W <= IZ_PAY, "iz, nesnenin alanına giriyor"
+
+    def test_yuz_izin_saginda(self, qt_app):
+        from app.stream import TRACK_W, TRACK_X
+        r = self._r(qt_app)
+        alan = r.width() - TRACK_X - TRACK_W
+        boyut = alan * getattr(r.face, "fill", 0.56)
+        sol = TRACK_X + TRACK_W + (alan - boyut) / 2
+        assert sol >= TRACK_X + TRACK_W
+
+    def test_yuz_nesnenin_ustunu_ortmuyor(self, qt_app):
+        # 1.5 çarpanı vardı ve yüz nesneyi örtüyordu: elinde bir şey
+        # tutuyor ama göremiyorsun.
+        from app.stream import TRACK_W, TRACK_X
+        from app.sahne import NESNE_Y
+        r = self._r(qt_app)
+        alan = r.width() - TRACK_X - TRACK_W
+        boyut = alan * getattr(r.face, "fill", 0.56)
+        assert boyut <= NESNE_Y + 6, f"yüz {boyut:.0f}, nesne {NESNE_Y}'de"
+
+    def test_adimlar_hala_birikiyor(self, qt_app):
+        r = self._r(qt_app)
+        r.begin()
+        for arac, hata in (("screenshot", False), ("run_shell", True)):
+            r.step(arac)
+            r.settle(hata)
+        assert r._done == [False, True]
+
+
+class TestOnizlemeKaresi:
+    def test_kare_yoksa_kutu_yok(self, qt_app):
+        # Kare yokken işin çizimini gösteriyordu ve o çizim dökümde
+        # zaten var: aynı satır iki kez, biri 72 piksellik kutuda.
+        from app import fluent
+        from app.commandbar import CommandBar, Operation
+        bar = CommandBar(fluent.tokens())
+        bar.show()
+        bar.show_operation(Operation(tool="Yakınlaştırıyor", target="", detail="",
+                                     thumbnail=None, key="zoom"))
+        assert not bar.preview.isVisibleTo(bar)
+
+    def test_kare_varsa_kutu_var(self, qt_app):
+        from PySide6.QtGui import QPixmap
+        from app import fluent
+        from app.commandbar import CommandBar, Operation
+        bar = CommandBar(fluent.tokens())
+        bar.show()
+        kare = QPixmap(40, 24)
+        kare.fill()
+        bar.show_operation(Operation(tool="Ekrana bakıyor", target="", detail="",
+                                     thumbnail=kare, key="screenshot"))
+        assert bar.preview.isVisibleTo(bar)

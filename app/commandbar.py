@@ -761,7 +761,14 @@ class CommandBar(QWidget):
         )
 
     def show_operation(self, op: Operation | None) -> None:
-        visible = op is not None
+        """Önizleme karesi **yalnızca gerçek bir kare varken**.
+
+        Kare yokken işin çizimini gösteriyordu ve o çizim dökümde zaten
+        var: aynı satır iki kez, biri 72 piksellik bir kutuda. Ekran
+        görüntüsü dökümün veremediği tek şey; onun dışında kutu yer
+        kaplamaktan başka bir iş görmüyor.
+        """
+        visible = op is not None and op.thumbnail is not None
         if op is not None:
             self.preview.show_operation(op)
         self.preview.setVisible(visible)

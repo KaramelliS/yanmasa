@@ -71,21 +71,23 @@ TUSLU = {"laptop", "terminal", "sayfa"}
 #: eller nesnenin üst kenarında.
 #: 88'de sütunun sağında boşluk kalıyordu; gövde 52, nesne 36 ve 72
 #: ikisini de sığdırıyor.
-GENISLIK = 72
+GENISLIK = 78
 #: Nesne gövdeden **dar** olmalı. 42'de gövdeden genişti ve maskot onu
 #: tutuyor değil, arkasında duruyor gibi okunuyordu — çizip baktım.
 NESNE = 36
 EL = 11
 
 #: Sütunun üstünden itibaren.
-GOVDE_Y = 4
-NESNE_Y = 42
+NESNE_Y = 46
 #: Eller nesnenin üst kenarının biraz altında: kenarına asılmış değil,
 #: üstünde duruyorlar.
 EL_Y = 50
 
 #: Ellerin merkezden uzaklığı. Nesnenin yarı eninden biraz içeride.
 EL_X = 14
+
+#: Nesne ve eller izin sağında kalıyor, üstünde değil.
+IZ_PAY = 8
 
 #: Sütunun boyu: gövde + nesne + biraz nefes.
 YUKSEKLIK = 100
@@ -203,9 +205,9 @@ class Sahne(QWidget):
         self.update()
 
     def _yerlestir(self) -> None:
-        """Gövde üstte, ortalanmış. Nesne altına bindiği için dikeyde
-        ortalamıyoruz — ortalasaydık nesne sütunun dışına taşardı."""
-        self.halka.move(int((self.width() - self.halka.width()) / 2), GOVDE_Y)
+        """İz artık bütün sütun boyunca: adımlar yukarıdan aşağı diziliyor
+        ve figürün üstünden geçmiyor."""
+        self.halka.setGeometry(0, 0, self.width(), self.height())
 
     # --- çizim ------------------------------------------------------------
 
@@ -227,7 +229,7 @@ class Sahne(QWidget):
             return
 
         boyut = NESNE * (0.78 + 0.22 * k)
-        x = (self.width() - boyut) / 2
+        x = IZ_PAY + (self.width() - IZ_PAY - boyut) / 2
         # Aşağıdan gelip ellerine oturuyor.
         y = NESNE_Y + (NESNE - boyut) / 2 + (1.0 - k) * 12.0
 
@@ -250,7 +252,7 @@ class Sahne(QWidget):
         yol = self._el_yolu()
         if yol is None:
             return
-        merkez = self.width() / 2
+        merkez = IZ_PAY + (self.width() - IZ_PAY) / 2
         tusa_basiyor = nesne in TUSLU
 
         painter.save()
