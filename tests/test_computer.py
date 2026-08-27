@@ -1992,3 +1992,18 @@ class TestIdeGorunumu:
         dar = Editor(fluent.tokens(), "a.py", "x\n" * 5)
         genis = Editor(fluent.tokens(), "a.py", "x\n" * 500)
         assert genis.gutter_width() > dar.gutter_width()
+
+    def test_ayni_dosya_yeniden_yazilinca_tazeleniyor(self, tmp_path, qt_app):
+        # Sekmeyi sadece öne getirmek, diskteki koddan farklı bir şey
+        # gösterirdi — kodu görmenin bütün amacı bu.
+        from app import fluent
+        from app.ide import IdeView
+
+        yol = tmp_path / "a.py"
+        yol.write_text("x = 1", encoding="utf-8")
+        ide = IdeView(fluent.tokens(), str(tmp_path))
+        ide.open_file(str(yol))
+        yol.write_text("x = 2", encoding="utf-8")
+        ide.open_file(str(yol))
+        assert ide.tabs.count() == 1
+        assert "x = 2" in ide.tabs.currentWidget().editor.toPlainText()

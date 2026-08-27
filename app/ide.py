@@ -523,13 +523,25 @@ class IdeView(QWidget):
     # --- sekmeler ---------------------------------------------------------
 
     def open_file(self, path: str) -> None:
-        if path in self._open:
-            self.tabs.setCurrentIndex(self._open[path])
-            return
         try:
             text = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             text = f"Okunamadı: {exc}"
+
+        acik = self._open.get(path)
+        if acik is not None:
+            # Ajan aynı dosyayı ikinci kez yazdığında sekme tazeleniyor.
+            # Sadece öne getirmek, diskteki koddan farklı bir şey
+            # gösterirdi — kodu görmenin bütün amacı bu değil.
+            eski_pane = self.tabs.widget(acik)
+            if eski_pane.editor.toPlainText() != text:
+                self.tabs.removeTab(acik)
+                self.tabs.insertTab(acik, CodePane(self.t, path, text),
+                                    Path(path).name)
+                self.tabs.setTabToolTip(acik, path)
+            self.tabs.setCurrentIndex(acik)
+            return
+
         index = self.tabs.addTab(CodePane(self.t, path, text), Path(path).name)
         self.tabs.setTabToolTip(index, path)
         self._open[path] = index
