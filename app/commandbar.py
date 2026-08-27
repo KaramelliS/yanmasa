@@ -442,17 +442,24 @@ class CommandBar(QWidget):
             f"QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}"
         )
         self._reply_scroll.setVisible(False)
-        # Sahne: maskot ve o an üstünde çalıştığı nesne. Halka da onun
-        # içinde — nesne 52 pikselin içine sığmıyordu, sahne 96 piksel.
-        # Yalnızca tur sürerken görünüyor, boşta yer kaplamıyor.
+        # Maskot solda dar bir sütunda, döküm sağında. Önce üstte bir
+        # şeritti ve yanlıştı: bir iş başlayınca cevabı aşağı itiyor,
+        # okuduğun yer kayıyordu. Sütunda hiçbir şey yer değiştirmiyor.
         self.ring = RunRing(t, RING_SIZE)
         self.sahne = Sahne(t, self.ring)
         self.sahne.setToolTip(
             "Ajan. Halkadaki her dilim bir adım, kırmızı olan düştü"
         )
         self.sahne.setVisible(False)
-        card_layout.addWidget(self.sahne)
-        card_layout.addWidget(self._reply_scroll)
+
+        self._govde = QWidget()
+        govde = self._govde
+        govde_yatay = QHBoxLayout(govde)
+        govde_yatay.setContentsMargins(0, 0, 0, 0)
+        govde_yatay.setSpacing(0)
+        govde_yatay.addWidget(self.sahne, 0, Qt.AlignmentFlag.AlignTop)
+        govde_yatay.addWidget(self._reply_scroll, 1)
+        card_layout.addWidget(govde)
 
         self.preview = PreviewCard(t)
         self.preview.setVisible(False)
@@ -639,9 +646,15 @@ class CommandBar(QWidget):
         # `QScrollArea` kendi boyut ipucunu içeriğinden almıyor; layout ona
         # küçük bir varsayılan veriyor ve kısa bir cevap bile üç satıra
         # sıkışıp kayıyordu — tavanın altında kalan cevap hiç kaymamalı.
-        width = BAR_WIDTH - 28 - 14
+        # Sütun genişliği düşülüyor: döküm artık bütün çubuğu değil,
+        # maskotun sağında kalanı kaplıyor.
+        width = BAR_WIDTH - 28 - 14 - self.sahne.width()
         needed = self.reply.heightForWidth(width) if dolu else 0
-        self._reply_scroll.setFixedHeight(min(REPLY_MAX_HEIGHT, max(0, needed) + 18))
+        yukseklik = min(REPLY_MAX_HEIGHT, max(0, needed) + 18)
+        self._reply_scroll.setFixedHeight(yukseklik)
+        # Sütun dökümle aynı boyda: maskot metnin yanında duruyor, altına
+        # ya da üstüne taşmıyor.
+        self.sahne.setFixedHeight(max(96, yukseklik))
         self._grow()
         bar = self._reply_scroll.verticalScrollBar()
         bar.setValue(bar.maximum())
@@ -710,6 +723,10 @@ class CommandBar(QWidget):
         # ipucuna bakıyordu ve çubuk bir tur geriden geliyordu: uzun cevap
         # geldiğinde eski yükseklikte kalıp metni kırpıyordu.
         self.layout().activate()
+        # Sarmalayıcının düzeni de etkinleşmeli. Etkinleşmeyince kart
+        # bayat bir boyut ipucuna bakıyor ve döküm kırpılıyordu —
+        # ölçtüm: kaydırma alanı 147 pikseldi, kart 110'da kalıyordu.
+        self._govde.layout().activate()
         self._card.layout().activate()
         self.adjustSize()
 

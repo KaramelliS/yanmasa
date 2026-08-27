@@ -1,23 +1,21 @@
-"""Sahne: maskot solda, üstünde çalıştığı nesne sağda.
+"""Maskot sütunu: gövde, elleri ve elindeki nesne.
 
-Ajan ofis belgesi düzenliyorsa yanında bir dizüstü beliriyor ve ekranında
-satırlar yazılıyor; kabuk komutu çalıştırıyorsa bir terminal ve imleci
-yanıp sönüyor; ekrana bakıyorsa bir mercek, parıltısı camda geziniyor;
-sunucudaysa bir sunucu ve ışıkları sırayla yanıyor; dosya yazıyorsa bir
-sayfa ve satırları sırayla beliriyor.
+Sahne önce çubuğun **üstünde** bir şeritti ve yanlıştı: bir iş
+başlayınca cevap alanını aşağı itiyor, okuduğun yer kayıyordu. Artık
+solda dar bir sütun — döküm sağında akıyor, hiçbir şey yer değiştirmiyor
+ve maskot her zaman orada, boşta da nefes alıyor.
 
-**Neden simge değil nesne.** Simge "bu bir dosya işi" der ve orada
-kalır. Nesne maskotun ona doğru eğilmesini, ona bakmasını, bir yerinin
-kıpırdamasını mümkün kılıyor. Aradaki fark, bir etiket izlemekle çalışan
-birini izlemek arasındaki fark.
+**Elleri var ve nesneyi tutuyor.** Nesne gövdenin önünde, iki el
+üstünde. Çalışırken eller sırayla iniyor: ofis belgesinde tuşlara
+basıyor, terminalde yazıyor, mercekte tutuyor. Nesneyi yanına koymakla
+eline vermek arasındaki fark, izlediğin şeyin bir etiket mi yoksa
+çalışan biri mi olduğu.
 
-**Nesne halkanın içine sığmıyordu.** 52 pikselde laptop okunmuyor;
-sahne 96 piksel yüksekliğinde ayrı bir şerit ve yalnızca bir tur
-sürerken görünüyor. Boşta yer kaplamıyor.
+Eller gövdenin küçültülmüş hâli — aynı siluet. Ayrı bir şekil çizmek
+maskotu birbirine yapıştırılmış parçalar gibi gösterirdi.
 
-Nesnenin gelişi ve gidişi yay: aşağıdan gelip yerine oturuyor, iş
-bitince küçülüp kayboluyor. Birden belirip birden kaybolan bir şey,
-gözün onu fark etmesine fırsat bırakmıyor.
+Nesnenin gelişi yay: aşağıdan gelip ellerine oturuyor. Birden belirip
+birden kaybolan bir şey, gözün onu fark etmesine fırsat bırakmıyor.
 """
 
 from __future__ import annotations
@@ -26,11 +24,11 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPainterPath
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QWidget
 
-from .fluent import RADIUS_CARD, Tokens
+from .fluent import Tokens
 from .motion import Spring, clock
 
 SVG_DIZIN = Path(__file__).resolve().parent.parent / "varliklar" / "svg"
@@ -65,13 +63,27 @@ ARAC_NESNE = {
     "edit_file": "sayfa", "list_dir": "sayfa", "skill_write": "sayfa",
 }
 
-#: Sahnenin yüksekliği ve içindekilerin ölçüleri.
-YUKSEKLIK = 96
-YUZ_BOYUT = 62
-NESNE_BOYUT = 60
+#: Tuşlara basılan işler. Mercek tutuluyor, tuşa basılmıyor.
+TUSLU = {"laptop", "terminal", "sayfa"}
 
-#: Maskot nesneye doğru bu kadar eğiliyor.
-EGILME = 0.55
+#: Sütunun eni ve içindekilerin ölçüleri. Hepsi sütunun üst kenarına
+#: göre, ortalanmış: gövde üstte, nesne onun alt üçte birine biniyor,
+#: eller nesnenin üst kenarında.
+GENISLIK = 88
+#: Nesne gövdeden **dar** olmalı. 42'de gövdeden genişti ve maskot onu
+#: tutuyor değil, arkasında duruyor gibi okunuyordu — çizip baktım.
+NESNE = 36
+EL = 11
+
+#: Sütunun üstünden itibaren.
+GOVDE_Y = 4
+NESNE_Y = 42
+#: Eller nesnenin üst kenarının biraz altında: kenarına asılmış değil,
+#: üstünde duruyorlar.
+EL_Y = 50
+
+#: Ellerin merkezden uzaklığı. Nesnenin yarı eninden biraz içeride.
+EL_X = 14
 
 
 def _renkli(ad: str, t: Tokens) -> QSvgRenderer | None:
@@ -88,18 +100,18 @@ def nesneler_var() -> bool:
 
 
 class Sahne(QWidget):
-    """Maskot ve o an üstünde çalıştığı nesne."""
+    """Maskot sütunu: halka, gövde, eller, elindeki nesne."""
 
     def __init__(self, t: Tokens, halka: QWidget) -> None:
         super().__init__()
         self.t = t
-        # Halka sahnenin **çocuğu**. Yüzü ilerleten tek yer halka; sahne
-        # de ilerletseydi yüz iki kat hızlı oynardı. Sahibi tek olsun.
+        # Halka sütunun çocuğu. Yüzü ilerleten tek yer halka; sahne de
+        # ilerletseydi yüz iki kat hızlı oynardı.
         self.halka = halka
         self.halka.setParent(self)
         self.yuz = getattr(halka, "face", halka)
-        self.setFixedHeight(YUKSEKLIK)
-        self._egim = Spring(0.0, stiffness=140.0, damping=16.0)
+        self.setFixedWidth(GENISLIK)
+
         self._ciziciler: dict[str, QSvgRenderer] = {}
         self._nesne: str | None = None
         self._giden: str | None = None
@@ -110,11 +122,11 @@ class Sahne(QWidget):
     # --- durum ------------------------------------------------------------
 
     def set_tool(self, tool: str) -> None:
-        """Araç değişti: nesne de değişiyor.
+        """Araç değişti: elindeki nesne de değişiyor.
 
         Aynı nesne devam ediyorsa sahne bozulmuyor — her adımda nesneyi
-        yeniden getirmek, dosya yazan bir turda sayfanın sürekli gidip
-        gelmesi olurdu.
+        yeniden getirmek, dosya yazan bir turda sayfanın sürekli elinden
+        düşüp geri gelmesi olurdu.
         """
         yeni = ARAC_NESNE.get(tool)
         if yeni == self._nesne:
@@ -127,14 +139,30 @@ class Sahne(QWidget):
             self._nesne = yeni
             self._gelis.jump(0.0)
             self._gelis.to(1.0)
-        self.bakisi_ayarla()
+        self.bakisi_tazele()
         self.update()
 
     def clear(self) -> None:
         self._nesne = None
         self._giden = None
         self._gelis.jump(0.0)
+        self.bakisi_tazele()
         self.update()
+
+    def bakisi_tazele(self) -> None:
+        """Nesne varken maskot ona bakıyor: nesne aşağıda, gözler aşağı.
+
+        Bakmıyorsa nesne elinde değil, önünde duran bir resim gibi
+        görünüyor.
+        """
+        if self._nesne:
+            bak = getattr(self.yuz, "look_at", None)
+            if bak is not None:
+                bak(0.0, 0.85)
+        else:
+            ileri = getattr(self.yuz, "look_forward", None)
+            if ileri is not None:
+                ileri()
 
     def _cizici(self, ad: str) -> QSvgRenderer | None:
         if ad not in self._ciziciler:
@@ -164,37 +192,20 @@ class Sahne(QWidget):
     def _tick(self, dt: float) -> None:
         self._gecen += dt
         self._gelis.step(dt)
-        self._egim.step(dt)
-        self._yerlestir()
         self.update()
+
+    def _yerlestir(self) -> None:
+        """Gövde üstte, ortalanmış. Nesne altına bindiği için dikeyde
+        ortalamıyoruz — ortalasaydık nesne sütunun dışına taşardı."""
+        self.halka.move(int((self.width() - self.halka.width()) / 2), GOVDE_Y)
 
     # --- çizim ------------------------------------------------------------
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(self.t.background))
-        painter.drawRoundedRect(
-            QRectF(0.5, 0.5, self.width() - 1, self.height() - 1),
-            RADIUS_CARD, RADIUS_CARD,
-        )
-
         self._nesneyi_ciz(painter)
         painter.end()
-
-    def _yerlestir(self) -> None:
-        """Halkayı yerine koyuyor; nesne varken ona doğru eğiliyor.
-
-        Yalnızca bakış yetmiyordu: nesne sağda, maskot yerinde duruyor ve
-        ikisi aynı sahnede değil, yan yana iki resim gibi görünüyordu.
-        Gövdenin de o yöne kayması ikisini bir arada tutuyor.
-        """
-        b = self.halka.width()
-        x = self.width() * 0.21 - b / 2 + self._egim.value * 7.0
-        self.halka.move(int(x), int((self.height() - b) / 2))
 
     def _nesneyi_ciz(self, painter: QPainter) -> None:
         ad = self._nesne or self._giden
@@ -203,14 +214,14 @@ class Sahne(QWidget):
         cizici = self._cizici(ad)
         if cizici is None:
             return
-
-        k = max(0.0, self._gelis.value)
+        k = max(0.0, min(1.2, self._gelis.value))
         if k < 0.01:
             return
-        boyut = NESNE_BOYUT * (0.7 + 0.3 * k)
-        x = self.width() * 0.62 - boyut / 2
-        # Aşağıdan gelip yerine oturuyor.
-        y = (self.height() - boyut) / 2 + (1.0 - k) * 14.0
+
+        boyut = NESNE * (0.78 + 0.22 * k)
+        x = (self.width() - boyut) / 2
+        # Aşağıdan gelip ellerine oturuyor.
+        y = NESNE_Y + (NESNE - boyut) / 2 + (1.0 - k) * 12.0
 
         painter.save()
         painter.setOpacity(min(1.0, k))
@@ -219,6 +230,54 @@ class Sahne(QWidget):
         for parca in PARCALAR.get(ad, []):
             self._parcayi_ciz(painter, cizici, ad, parca)
         painter.restore()
+
+        self._elleri_ciz(painter, ad, k)
+
+    def _elleri_ciz(self, painter: QPainter, nesne: str, k: float) -> None:
+        """İki el, nesnenin iki yanında.
+
+        Tuşlu işlerde sırayla iniyorlar — biri inerken öteki kalkıyor.
+        Aynı anda inselerdi yazmak değil, zıplamak olurdu.
+        """
+        yol = self._el_yolu()
+        if yol is None:
+            return
+        merkez = self.width() / 2
+        tusa_basiyor = nesne in TUSLU
+
+        painter.save()
+        painter.setOpacity(min(1.0, k))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self._el_rengi()))
+        for i, taraf in enumerate((-1, 1)):
+            vur = 0.0
+            if tusa_basiyor:
+                vur = max(0.0, math.sin(self._gecen * 7.0 + i * math.pi)) * 2.6
+            self._el_ciz(painter, yol,
+                         merkez + taraf * EL_X - EL / 2,
+                         EL_Y + (1.0 - k) * 12.0 + vur)
+        painter.restore()
+
+    def _el_ciz(self, painter: QPainter, yol: QPainterPath,
+                x: float, y: float) -> None:
+        painter.save()
+        painter.translate(x, y)
+        painter.scale(EL / 96.0, EL / 96.0)
+        painter.drawPath(yol)
+        painter.restore()
+
+    def _el_yolu(self) -> QPainterPath | None:
+        """El, gövdenin küçültülmüş hâli — aynı siluet.
+
+        Ayrı bir daire çizmek maskotu birbirine yapıştırılmış parçalar
+        gibi gösterirdi; el de aynı yaratıktan.
+        """
+        alici = getattr(self.yuz, "taban_yolu", None)
+        return alici() if alici is not None else None
+
+    def _el_rengi(self) -> str:
+        renk = getattr(self.yuz, "_govde_rengi", None)
+        return renk() if renk is not None else self.t.accent
 
     def _parcayi_ciz(self, painter: QPainter, cizici: QSvgRenderer,
                      nesne: str, parca: str) -> None:
@@ -239,7 +298,6 @@ class Sahne(QWidget):
         elif nesne == "terminal" and parca == "imlec":
             painter.setOpacity(opaklik if (self._gecen % 1.0) < 0.55 else 0.0)
         elif nesne == "mercek" and parca == "parilti":
-            # Parıltı camın içinde küçük bir daire çiziyor.
             a = self._gecen * 1.6
             kutu = kutu.translated(math.cos(a) * 3.4, math.sin(a) * 3.4)
         elif nesne == "sunucu" and parca.startswith("isik-"):
@@ -247,30 +305,9 @@ class Sahne(QWidget):
             acik = (self._gecen % 1.2) < 0.6
             painter.setOpacity(opaklik if acik == ust else opaklik * 0.28)
         elif nesne == "sayfa" and parca.startswith("satir-"):
-            # Satırlar sırayla beliriyor: yazılıyormuş gibi.
             i = int(parca[-1])
             gorunur = (self._gecen % 2.4) > i * 0.55
             painter.setOpacity(opaklik if gorunur else 0.0)
 
         cizici.render(painter, parca, kutu)
         painter.setOpacity(opaklik)
-
-    # --- yüzün nesneye bakması --------------------------------------------
-
-    def bakisi_ayarla(self) -> None:
-        """Maskot nesneye doğru bakıyor.
-
-        Nesne sağda duruyor ve maskot ona bakmıyorsa ikisi aynı sahnede
-        değil, yan yana iki resim oluyor.
-        """
-        bak = getattr(self.yuz, "look_at", None)
-        if bak is None:
-            return
-        if self._nesne:
-            bak(EGILME, 0.18)
-            self._egim.to(1.0)
-        else:
-            self._egim.to(0.0)
-            ileri = getattr(self.yuz, "look_forward", None)
-            if ileri is not None:
-                ileri()

@@ -2955,3 +2955,74 @@ class TestBloubKaynagi:
         assert svg_yap.GOZ_W > svg_yap.GOZ_H
         # İkisi tam ayna değil — elle çizilmiş olmasının izi.
         assert abs(sol[2]) != abs(sag[2])
+
+
+class TestMaskotSutunu:
+    """Maskot solda, elinde nesneyle."""
+
+    def _s(self, qt_app):
+        from app import fluent
+        from app.sahne import Sahne, nesneler_var
+        from app.stream import RunRing
+        if not nesneler_var():
+            import pytest as _p
+            _p.skip("nesneler yok")
+        t = fluent.tokens()
+        return Sahne(t, RunRing(t, 52))
+
+    def test_her_is_kendi_nesnesini_aliyor(self, qt_app):
+        s = self._s(qt_app)
+        nesneler = []
+        for arac in ("office_edit", "run_shell", "screenshot",
+                     "remote_list", "write_file"):
+            s.set_tool(arac)
+            nesneler.append(s._nesne)
+        assert len(set(nesneler)) == 5, nesneler
+
+    def test_karsiligi_olmayan_araca_nesne_uydurulmuyor(self, qt_app):
+        # Her işe bir nesne uydurmak, nesnelerin anlamını yok ederdi.
+        s = self._s(qt_app)
+        s.set_tool("left_click")
+        assert s._nesne is None
+
+    def test_ayni_nesne_elinden_dusmuyor(self, qt_app):
+        # Her adımda nesneyi yeniden getirmek, dosya yazan bir turda
+        # sayfanın sürekli elinden düşüp geri gelmesi olurdu.
+        s = self._s(qt_app)
+        s.set_tool("write_file")
+        s._gelis.jump(1.0)
+        s.set_tool("read_file")
+        assert s._gelis.value == 1.0
+
+    def test_nesne_varken_asagi_bakiyor(self, qt_app):
+        # Nesne elinde, gözler yukarıdaysa nesne elinde değil önünde
+        # duran bir resim gibi görünüyor.
+        s = self._s(qt_app)
+        s.set_tool("office_edit")
+        assert s.yuz._gaze_y.target > 0.5
+        s.set_tool("left_click")
+        assert s.yuz._gaze_y.target == 0.0
+
+    def test_el_govdenin_silueti(self, qt_app):
+        # Ayrı bir daire çizmek maskotu birbirine yapıştırılmış parçalar
+        # gibi gösterirdi.
+        s = self._s(qt_app)
+        yol = s._el_yolu()
+        assert yol is not None and yol.elementCount() > 50
+
+    def test_nesne_govdeden_dar(self, qt_app):
+        # 42'de gövdeden genişti ve maskot onu tutuyor değil, arkasında
+        # duruyor gibi okunuyordu.
+        from app.sahne import NESNE
+        s = self._s(qt_app)
+        assert NESNE < s.halka.width()
+
+    def test_sutun_dokumu_asagi_itmiyor(self):
+        # Sahne önce çubuğun üstünde bir şeritti: iş başlayınca cevabı
+        # aşağı itiyor, okuduğun yer kayıyordu.
+        import inspect
+        from app import commandbar
+        kaynak = inspect.getsource(commandbar.CommandBar.__init__)
+        assert "addWidget(self.sahne" in kaynak
+        yatay = kaynak[kaynak.index("self._govde"):]
+        assert "QHBoxLayout" in yatay, "sütun yan yana olmalı, alt alta değil"

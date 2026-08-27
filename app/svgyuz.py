@@ -304,6 +304,22 @@ class SvgYuz(QWidget):
             return self.t.critical
         return _blend(self.t.accent, 0.74, self.t.background)
 
+    def taban_yolu(self) -> QPainterPath:
+        """Nötr siluet — eller bunun küçültülmüş hâli.
+
+        El için ayrı bir daire çizmek maskotu birbirine yapıştırılmış
+        parçalar gibi gösterirdi; el de aynı yaratıktan.
+        """
+        return self._yoldan(self._pozlar.get("bosta") or [])
+
+    def _yoldan(self, noktalar) -> QPainterPath:
+        yol = QPainterPath()
+        for i, p in enumerate(noktalar):
+            yol.moveTo(p) if i == 0 else yol.lineTo(p)
+        if noktalar:
+            yol.closeSubpath()
+        return yol
+
     def _govde_yolu(self) -> QPainterPath:
         a, b, _ = ANIMASYON[self._anim]
         ilk, ikinci = self._pozlar.get(a), self._pozlar.get(b)
