@@ -74,13 +74,29 @@ def terminal() -> str:
 
 
 def mercek() -> str:
-    """Mercek: halka cam ve sap. Parıltı ayrı, cam üstünde geziniyor."""
+    """Mercek: halka cam ve sap. Parıltı ayrı, cam üstünde geziniyor.
+
+    **Cam kutunun ortasında.** Önce (27, 26)'daydı ve maskotun sağ eli
+    boşlukta kalıyordu: öteki dört nesne ellerin arasını dolduran birer
+    levha, mercek ise ince bir halka ve kütlesi sola kaçmıştı. Ekranda
+    nesne karakterden kopuk duruyordu — Berkay da bunu söyledi.
+
+    Cam merkeze alındı ve büyütüldü; eller de bu nesnede camın alt
+    yanaklarına iniyor (`EL_KONUM`), çünkü bir merceği köşelerinden değil
+    kenarından tutarsın. Halkayı levhaya çevirmek de olurdu ve o zaman
+    mercek olmaktan çıkardı.
+
+    Sap da yer değiştirdi. Klasik yeri sağ alt köşedeydi ve orada sağ
+    elin tam altına düşüyordu: çizip baktım, sap görünmüyordu ve nesne
+    merceğe değil çembere benziyordu. Şimdi camdan aşağı, iki elin
+    arasındaki boşluğa iniyor.
+    """
     return _svg(
-        f'<rect id="sap" x="37" y="37" width="20" height="7.5" rx="3.75" '
-        f'fill="{RENK_GOVDE}" transform="rotate(45 37 37)"/>',
-        f'<circle id="cam" cx="27" cy="26" r="18.5" fill="{RENK_GOVDE}"/>',
-        f'<circle id="cam-ic" cx="27" cy="26" r="12" fill="{RENK_OYUK}"/>',
-        f'<circle id="parilti" cx="22" cy="21" r="3.6" fill="{RENK_GOVDE}" '
+        f'<rect id="sap" x="28" y="44" width="8" height="16" rx="4" '
+        f'fill="{RENK_GOVDE}"/>',
+        f'<circle id="cam" cx="32" cy="28" r="20" fill="{RENK_GOVDE}"/>',
+        f'<circle id="cam-ic" cx="32" cy="28" r="12.5" fill="{RENK_OYUK}"/>',
+        f'<circle id="parilti" cx="26" cy="22" r="4" fill="{RENK_GOVDE}" '
         f'opacity="0.5"/>',
     )
 

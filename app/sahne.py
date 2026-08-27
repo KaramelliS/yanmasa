@@ -86,6 +86,16 @@ EL_Y = 50
 #: Ellerin merkezden uzaklığı. Nesnenin yarı eninden biraz içeride.
 EL_X = 14
 
+#: Nesneye özel el konumu — (merkezden uzaklık, sütun üstünden y).
+#:
+#: Varsayılan eller nesnenin iki üst köşesinde: dizüstü, terminal, sayfa
+#: ve sunucu birer levha ve köşelerinden tutuluyorlar. Mercek levha
+#: değil, halka; aynı köşelerde eller camın dışında kalıyor ve nesne
+#: karakterden kopuk okunuyor. Ölçtüm: camın yarıçapı sütun ölçeğinde
+#: 11.3 piksel, eller merkeze 19.8 piksel uzaktaydı — arada 8 piksel
+#: boşluk. Burada eller camın alt yanaklarına, çemberin üstüne iniyor.
+EL_KONUM = {"mercek": (8.0, 69.5)}
+
 #: Nesne ve eller izin sağında kalıyor, üstünde değil.
 IZ_PAY = 8
 
@@ -253,6 +263,7 @@ class Sahne(QWidget):
         if yol is None:
             return
         merkez = IZ_PAY + (self.width() - IZ_PAY) / 2
+        el_x, el_y = EL_KONUM.get(nesne, (EL_X, EL_Y))
         tusa_basiyor = nesne in TUSLU
 
         painter.save()
@@ -264,8 +275,8 @@ class Sahne(QWidget):
             if tusa_basiyor:
                 vur = max(0.0, math.sin(self._gecen * 7.0 + i * math.pi)) * 2.6
             self._el_ciz(painter, yol,
-                         merkez + taraf * EL_X - EL / 2,
-                         EL_Y + (1.0 - k) * 12.0 + vur)
+                         merkez + taraf * el_x - EL / 2,
+                         el_y + (1.0 - k) * 12.0 + vur)
         painter.restore()
 
     def _el_ciz(self, painter: QPainter, yol: QPainterPath,

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <!-- Üreten: scripts/svg_yap.py -->
-  <rect id="sap" x="37" y="37" width="20" height="7.5" rx="3.75" fill="#E7BABD" transform="rotate(45 37 37)"/>
-  <circle id="cam" cx="27" cy="26" r="18.5" fill="#E7BABD"/>
-  <circle id="cam-ic" cx="27" cy="26" r="12" fill="#1C1C1C"/>
-  <circle id="parilti" cx="22" cy="21" r="3.6" fill="#E7BABD" opacity="0.5"/>
+  <rect id="sap" x="28" y="44" width="8" height="16" rx="4" fill="#E7BABD"/>
+  <circle id="cam" cx="32" cy="28" r="20" fill="#E7BABD"/>
+  <circle id="cam-ic" cx="32" cy="28" r="12.5" fill="#1C1C1C"/>
+  <circle id="parilti" cx="26" cy="22" r="4" fill="#E7BABD" opacity="0.5"/>
 </svg>
