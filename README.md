@@ -586,6 +586,12 @@ ajan.py                 masaüstü uygulaması girişi
 scripts/
   check_phase1.py       yakalama ve girdi elle doğrulama
   ajan.py               terminal arayüzü (ajan çekirdeği)
+  svg_yap.py            maskotun pozlarını ve nesnelerini üretir
+  svg_onizleme.py       üretilen SVG'lerin PNG önizlemesi + tabaka
+varliklar/
+  kaynak/bloub.svg      maskotun asıl silueti; pozlar buradan türüyor
+  svg/                  üretilen varlıklar — elle düzenlenmez
+  onizleme/             PNG önizlemeler; `svg_onizleme.py` yazıyor
 tests/test_computer.py  saf mantık: koordinat, tuş, kapı, dosya, effort
 ```
 
