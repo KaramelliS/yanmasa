@@ -2240,3 +2240,82 @@ class TestAkisBaglantisi:
         govde = kaynak[kaynak.index("def on_finished"):]
         govde = govde[:govde.index("def on_failed")]
         assert "end_stream" in govde
+
+
+class TestAkisDokumu:
+    """Çubuktaki döküm: senin cümlen, adımlar, ajanın anlattıkları."""
+
+    def _akis(self, qt_app):
+        from app import fluent
+        from app.stream import Akis
+        a = Akis(fluent.tokens())
+        a.resize(398, 200)
+        return a
+
+    def test_her_adim_kendi_cizimini_aliyor(self, qt_app):
+        # "Olaya göre farklı görsel" — hepsine aynı simgeyi koymak, akışı
+        # ancak metni okuyarak anlaşılır bir liste yapardı.
+        from app.glyphs import glyph_for
+        a = self._akis(qt_app)
+        for arac in ("screenshot", "type", "run_shell", "write_file", "remote_run"):
+            a.add_step(arac, "iş", "hedef")
+        cizimler = [
+            a._kutu.itemAt(i).widget()._key for i in range(a._kutu.count())
+        ]
+        assert cizimler == [glyph_for(x) for x in
+                            ("screenshot", "type", "run_shell", "write_file", "remote_run")]
+        assert len(set(cizimler)) == 5, "beş farklı iş, beş farklı çizim"
+
+    def test_satirlar_yukseklik_bildiriyor(self, qt_app):
+        # `setFixedHeight` `sizeHint`i değiştirmiyor: düz bir QWidget
+        # geçersiz (-1) ipucu veriyor ve düzen satırı hiç saymıyordu —
+        # dört adım sıfır sayılıp son satır kırpılıyordu.
+        from app.stream import AdimSatiri, ROW_H
+        from app import fluent
+        satir = AdimSatiri(fluent.tokens(), "screenshot", "Bakıyor", "Ekran 2")
+        assert satir.sizeHint().height() == ROW_H
+
+    def test_yukseklik_butun_satirlari_topluyor(self, qt_app):
+        a = self._akis(qt_app)
+        bos = a.heightForWidth(398)
+        a.add_user("bir iş yap")
+        tek = a.heightForWidth(398)
+        for _ in range(4):
+            a.add_step("screenshot", "Bakıyor", "Ekran 1")
+        cok = a.heightForWidth(398)
+        assert bos == 0 < tek < cok
+        assert cok - tek >= 4 * 26
+
+    def test_dusen_adim_kirmiziya_donuyor(self, qt_app):
+        a = self._akis(qt_app)
+        a.add_step("run_shell", "Komut", "curl")
+        a.mark_last(True)
+        assert a._son_adim._tone == "hata"
+
+    def test_tek_imlec(self, qt_app):
+        # İki yerde birden yanıp sönen imleç, ikisinin de yazıldığını
+        # söylerdi.
+        from app.stream import AkanMetin
+        a = self._akis(qt_app)
+        a.stream("birinci")
+        a.add_step("screenshot", "Bakıyor", "")
+        a.stream("ikinci")
+        canli = [a._kutu.itemAt(i).widget() for i in range(a._kutu.count())]
+        canli = [w for w in canli if isinstance(w, AkanMetin) and w._live]
+        assert len(canli) == 1
+
+    def test_yeni_tur_dokumu_siliyor(self, qt_app):
+        a = self._akis(qt_app)
+        a.add_user("iş")
+        a.add_step("type", "Yazıyor", "")
+        a.clear()
+        assert a.is_empty() and a.heightForWidth(398) == 0
+
+    def test_cubuk_dokumu_gosteriyor(self, qt_app):
+        # Çubuk zaten gözünün olduğu yer; adımları görmek için ana
+        # pencereye bakmak gerekmemeli.
+        import inspect, ajan
+        kaynak = inspect.getsource(ajan.main)
+        assert "bar.add_step(" in kaynak
+        assert "bar.add_user(" in kaynak
+        assert "bar.settle_step(" in kaynak

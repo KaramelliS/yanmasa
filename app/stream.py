@@ -35,7 +35,8 @@ from PySide6.QtGui import (
     QTextLayout,
     QTextOption,
 )
-from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import QSize
+from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from .fluent import Tokens
 from .glyphs import glyph_for, paint_glyph
@@ -60,6 +61,9 @@ SLOT_GAP = 7.0
 
 #: Bu kadar süre hiçbir şey gelmezse yayın ucu soluyor.
 STALL_AFTER = 0.9
+
+#: Akıştaki bir adım satırının yüksekliği.
+ROW_H = 26
 
 #: Düşen adımın yayı bu kadar içeri kaçıyor.
 #:
@@ -241,8 +245,8 @@ class AkanMetin(QWidget):
     """
 
     PAD_X = 14
-    PAD_TOP = 12
-    PAD_BOTTOM = 4
+    PAD_TOP = 3
+    PAD_BOTTOM = 3
     #: Satır yüksekliği çarpanı. 13 piksel gövdede 1.0 sıkışık okunuyor.
     LEADING = 1.34
 
@@ -262,6 +266,14 @@ class AkanMetin(QWidget):
 
         self.setCursor(Qt.CursorShape.IBeamCursor)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        # Düzen yüksekliği `sizeHint`ten alıyor ve genişliğe bağlı
+        # yükseklik ancak politika söylerse dikkate alınıyor. Bu satır
+        # olmadan metin satırları 0 yükseklik alıp adımların üstüne
+        # biniyordu — ölçtüm, ekranda üst üste çıktılar.
+        politika = QSizePolicy(QSizePolicy.Policy.Preferred,
+                               QSizePolicy.Policy.Minimum)
+        politika.setHeightForWidth(True)
+        self.setSizePolicy(politika)
 
         # İmleç yanıp sönmesi Windows'un kendi hızında: sistemle uyumsuz
         # bir imleç, ekrandaki tek yanlış ritim olurdu.
@@ -341,9 +353,17 @@ class AkanMetin(QWidget):
     def hasHeightForWidth(self) -> bool:
         return True
 
+    def sizeHint(self) -> QSize:
+        genislik = self.width() or 320
+        return QSize(genislik, self.heightForWidth(genislik))
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
     def _resize_to_text(self) -> None:
         if self.width() > 0:
             self.setMinimumHeight(self.heightForWidth(self.width()))
+        self.updateGeometry()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -429,3 +449,167 @@ class AkanMetin(QWidget):
         painter.drawRoundedRect(
             QRectF(koken.x() + x + 1, koken.y() + ust, 2.0, yukseklik), 1.0, 1.0
         )
+
+
+class AdimSatiri(QWidget):
+    """Akıştaki tek bir adım: işin çizimi, ne yaptığı, nerede yaptığı.
+
+    Çizim araca göre değişiyor — bakmak, okumak, tıklamak, yazmak, kabuk,
+    dosya, sunucu, yetenek. Aynı simgeyi her adıma koymak, akışı okunmaz
+    bir liste yapardı: hangi adımın ne olduğunu ancak metni okuyarak
+    anlardın.
+    """
+
+    def __init__(self, t: Tokens, tool: str, baslik: str, detay: str) -> None:
+        super().__init__()
+        self.t = t
+        self._tone = "normal"
+        self._key = glyph_for(tool)
+        self._baslik = baslik
+        self._detay = detay
+        self.setFixedHeight(ROW_H)
+
+    def sizeHint(self) -> QSize:
+        # `setFixedHeight` en/boy sınırlarını koyuyor ama `sizeHint`i
+        # değiştirmiyor: düz bir `QWidget` geçersiz (-1) ipucu veriyor ve
+        # düzen satırı hiç saymıyordu. Ölçtüm — dört adım toplamda sıfır
+        # yükseklik sayılıyor, son satır kırpılıyordu.
+        return QSize(160, ROW_H)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
+    def set_tone(self, tone: str) -> None:
+        """`normal` ya da `hata`. Düşen adım kırmızıya dönüyor."""
+        self._tone = tone
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        t = self.t
+        hata = self._tone == "hata"
+        ana = t.critical if hata else t.accent
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        paint_glyph(painter, self._key, 16, ana,
+                    t.critical if hata else t.text_tertiary, QPointF(14, 5))
+
+        font = QFont(t.font_ui)
+        font.setPixelSize(12)
+        painter.setFont(font)
+        olcu = painter.fontMetrics()
+        x = 38
+        painter.setPen(QColor(t.critical if hata else t.text_secondary))
+        painter.drawText(x, 0, olcu.horizontalAdvance(self._baslik), self.height(),
+                         int(Qt.AlignmentFlag.AlignVCenter), self._baslik)
+
+        if self._detay:
+            x += olcu.horizontalAdvance(self._baslik) + 8
+            kalan = self.width() - x - 14
+            if kalan > 24:
+                painter.setPen(QColor(t.text_tertiary))
+                painter.drawText(
+                    x, 0, kalan, self.height(),
+                    int(Qt.AlignmentFlag.AlignVCenter),
+                    olcu.elidedText(self._detay, Qt.TextElideMode.ElideRight, kalan),
+                )
+        painter.end()
+
+
+class Akis(QWidget):
+    """Turun dökümü: senin cümlen, ajanın anlattıkları, attığı adımlar.
+
+    Önceden burada yalnızca son cevap duruyordu; ne yaptığını görmek için
+    ana pencereye bakman gerekiyordu. Oysa çubuk zaten gözünün olduğu yer.
+    Adımlar buraya, her biri kendi çizimiyle düşüyor.
+    """
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self._son_metin: AkanMetin | None = None
+        self._son_adim: AdimSatiri | None = None
+        self._kutu = QVBoxLayout(self)
+        self._kutu.setContentsMargins(0, 10, 0, 6)
+        self._kutu.setSpacing(2)
+
+    # --- içerik -----------------------------------------------------------
+
+    def clear(self) -> None:
+        while self._kutu.count():
+            oge = self._kutu.takeAt(0).widget()
+            if oge is not None:
+                oge.setParent(None)
+                oge.deleteLater()
+        self._son_metin = None
+        self._son_adim = None
+        self.updateGeometry()
+
+    def is_empty(self) -> bool:
+        return self._kutu.count() == 0
+
+    def add_user(self, metin: str) -> None:
+        # Önceki anlatımın imleci sönüyor: iki yerde birden yanıp
+        # sönen imleç, ikisinin de yazıldığını söylerdi.
+        self.end_stream()
+        self._son_metin = None
+        self._ekle(AdimSatiri(self.t, "__sen__", "Sen", metin))
+
+    def add_step(self, tool: str, baslik: str, detay: str) -> None:
+        # Önceki anlatımın imleci sönüyor: iki yerde birden yanıp
+        # sönen imleç, ikisinin de yazıldığını söylerdi.
+        self.end_stream()
+        self._son_metin = None
+        self._son_adim = AdimSatiri(self.t, tool, baslik, detay)
+        self._ekle(self._son_adim)
+
+    def mark_last(self, is_error: bool) -> None:
+        if self._son_adim is not None and is_error:
+            self._son_adim.set_tone("hata")
+
+    def stream(self, parca: str) -> None:
+        if self._son_metin is None:
+            self._son_metin = AkanMetin(self.t)
+            self._son_metin.set_live(True)
+            self._ekle(self._son_metin)
+        self._son_metin.append(parca)
+        self.updateGeometry()
+
+    def say(self, metin: str) -> None:
+        """Akış olmadan tek parça cevap — hata mesajları böyle geliyor."""
+        # Önceki anlatımın imleci sönüyor: iki yerde birden yanıp
+        # sönen imleç, ikisinin de yazıldığını söylerdi.
+        self.end_stream()
+        self._son_metin = None
+        w = AkanMetin(self.t)
+        w.set_text(metin)
+        self._ekle(w)
+
+    def end_stream(self) -> None:
+        if self._son_metin is not None:
+            self._son_metin.set_live(False)
+
+    def text(self) -> str:
+        return self._son_metin.text() if self._son_metin else ""
+
+    def _ekle(self, w: QWidget) -> None:
+        self._kutu.addWidget(w)
+        self.updateGeometry()
+
+    def heightForWidth(self, width: int) -> int:
+        if self.is_empty():
+            return 0
+        toplam = self._kutu.contentsMargins().top() + self._kutu.contentsMargins().bottom()
+        for i in range(self._kutu.count()):
+            w = self._kutu.itemAt(i).widget()
+            if w is None:
+                continue
+            h = (w.heightForWidth(width) if w.hasHeightForWidth()
+                 else w.sizeHint().height())
+            toplam += max(h, w.minimumHeight())
+            if i:
+                toplam += self._kutu.spacing()
+        return toplam
+
+    def hasHeightForWidth(self) -> bool:
+        return True

@@ -174,6 +174,7 @@ def main() -> int:
         if not bar.busy:
             bar.clear_run()
             bar.show_operation(None)
+        bar.add_user(text)
         bar.set_busy(True)
         bar.set_status("Çalışıyor…")
         window.run_instruction(text)
@@ -268,7 +269,7 @@ def main() -> int:
     def on_action(tool: str, payload: dict) -> None:
         op = _describe(tool, payload)
         bar.ring.step(tool)
-        bar.break_paragraph()
+        bar.add_step(tool, op.tool, op.target or op.detail)
         bar.show_operation(op)
         window.activity.add_step(op.tool, op.target, op.detail, tool)
         steps["n"] += 1
@@ -277,6 +278,7 @@ def main() -> int:
     def on_result(tool: str, text: str, is_error: bool, png: bytes) -> None:
         # Adım bitti: halkada kalıcı bir dilim bırakıyor, hata kırmızı.
         bar.ring.settle(is_error)
+        bar.settle_step(is_error)
         # Ajan bir düğme kurduysa çubuk hemen göstersin; yeniden başlatmak
         # gerekmesin.
         if tool.startswith("button_") and not is_error:
@@ -307,6 +309,7 @@ def main() -> int:
             bar.end_stream()
         else:
             bar.say(text or "Bitti.")
+        bar._fit_reply()
         window.set_phase("bitti")
         window.status.set_line(text[:120] if text else "Bitti.")
 

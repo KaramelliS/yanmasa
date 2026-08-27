@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
 )
 
 from .buttons import ButtonStrip
-from .stream import AkanMetin, RunRing
+from .stream import Akis, RunRing
 from .glyphs import PreviewFrame
 
 #: Onay kartındaki ayrıntı alanının tavanı. Onaylanan şey yüz satırlık bir
@@ -411,7 +411,7 @@ class CommandBar(QWidget):
         # Kendi düzenini kuran bir widget: imlecin son harfin yanında
         # durabilmesi için satır kırılımlarının nerede olduğunu bilmek
         # gerekiyor ve `QLabel` bunu söylemiyor.
-        self.reply = AkanMetin(t)
+        self.reply = Akis(t)
         self.reply.setVisible(True)
 
         # Cevap kaydırılabilir bir alanda ve tavanı var. Önceden düz bir
@@ -578,52 +578,54 @@ class CommandBar(QWidget):
         self._grow()
 
     def say(self, text: str) -> None:
-        """Cevabı bir kerede koyar — akış bitince ya da hata mesajında."""
-        self.reply.set_live(False)
-        self.reply.set_text(text)
+        """Akış olmadan tek parça cevap — hata mesajları böyle geliyor."""
+        self.reply.end_stream()
+        if text:
+            self.reply.say(text)
         self._fit_reply()
 
+    def add_user(self, text: str) -> None:
+        """Senin cümlen de aynı akışta duruyor: neye cevap verdiğini
+        görmeden cevabı okumak eksik kalıyordu."""
+        self.reply.add_user(text)
+        self._fit_reply()
+
+    def add_step(self, tool: str, baslik: str, detay: str) -> None:
+        self.reply.add_step(tool, baslik, detay)
+        self._fit_reply()
+
+    def settle_step(self, is_error: bool) -> None:
+        self.reply.mark_last(is_error)
+
     def clear_run(self) -> None:
-        """Yeni talimat: önceki turun şekli ve cevabı gidiyor."""
+        """Yeni talimat: önceki turun şekli ve dökümü gidiyor."""
         self.ring.setVisible(False)
-        self.say("")
+        self.reply.clear()
+        self._fit_reply()
 
     def stream(self, parca: str) -> None:
-        """Modelden düşen parçayı cevaba ekler.
+        """Modelden düşen parçayı akışa ekler.
 
         Model zaten parça parça yazıyordu; arayüz bunu çöpe atıp yalnızca
         tur bitince tek seferde gösteriyordu. Uzun bir turda dakikalarca
         boş bir kutuya bakıyordun.
         """
-        if not self.reply.text():
-            self.reply.set_live(True)
-        self.reply.append(parca)
+        self.reply.stream(parca)
         self._fit_reply()
-
-    def break_paragraph(self) -> None:
-        """Ajan araca geçerken anlatımına bir paragraf arası koyuyor.
-
-        Yoksa iki adımın anlatımı tek bir cümleymiş gibi birbirine
-        yapışıyordu.
-        """
-        metin = self.reply.text()
-        if metin.strip() and not metin.endswith(BREAK):
-            self.reply.append(BREAK)
-            self._fit_reply()
 
     def end_stream(self) -> None:
         """Akış bitti — imleç sönüyor, metin kalıyor."""
-        self.reply.set_live(False)
+        self.reply.end_stream()
 
     def _fit_reply(self) -> None:
-        text = self.reply.text()
-        self._reply_scroll.setVisible(bool(text))
+        dolu = not self.reply.is_empty()
+        self._reply_scroll.setVisible(dolu)
         # Kaydırma alanının yüksekliğini metne göre elle veriyoruz.
         # `QScrollArea` kendi boyut ipucunu içeriğinden almıyor; layout ona
         # küçük bir varsayılan veriyor ve kısa bir cevap bile üç satıra
         # sıkışıp kayıyordu — tavanın altında kalan cevap hiç kaymamalı.
         width = BAR_WIDTH - 28 - 14
-        needed = self.reply.heightForWidth(width) if text else 0
+        needed = self.reply.heightForWidth(width) if dolu else 0
         self._reply_scroll.setFixedHeight(min(REPLY_MAX_HEIGHT, max(0, needed) + 18))
         self._grow()
         bar = self._reply_scroll.verticalScrollBar()
