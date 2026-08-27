@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Üreten: scripts/svg_yap.py -->
+  <g id="kagit"><path d="M15 7 L39 7 L50 18 L50 55 Q50 57 48 57 L17 57 Q15 57 15 55 Z" fill="#E7BABD"/><path d="M39 7 L39 18 L50 18 Z" fill="#1C1C1C" opacity="0.42"/></g>
+  <g id="satirlar"><rect id="satir-1" x="22" y="27" width="21" height="3.2" rx="1.6" fill="#1C1C1C"/><rect id="satir-2" x="22" y="35" width="14" height="3.2" rx="1.6" fill="#1C1C1C"/><rect id="satir-3" x="22" y="43" width="18" height="3.2" rx="1.6" fill="#1C1C1C"/></g>
+</svg>

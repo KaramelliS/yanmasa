@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 )
 
 from .buttons import ButtonStrip
+from .sahne import Sahne
 from .stream import Akis, RunRing
 from .glyphs import PreviewFrame
 
@@ -441,6 +442,16 @@ class CommandBar(QWidget):
             f"QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}"
         )
         self._reply_scroll.setVisible(False)
+        # Sahne: maskot ve o an üstünde çalıştığı nesne. Halka da onun
+        # içinde — nesne 52 pikselin içine sığmıyordu, sahne 96 piksel.
+        # Yalnızca tur sürerken görünüyor, boşta yer kaplamıyor.
+        self.ring = RunRing(t, RING_SIZE)
+        self.sahne = Sahne(t, self.ring)
+        self.sahne.setToolTip(
+            "Ajan. Halkadaki her dilim bir adım, kırmızı olan düştü"
+        )
+        self.sahne.setVisible(False)
+        card_layout.addWidget(self.sahne)
         card_layout.addWidget(self._reply_scroll)
 
         self.preview = PreviewCard(t)
@@ -479,12 +490,7 @@ class CommandBar(QWidget):
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
 
-        # Halka alanın sağında: gözün metni bıraktığı yer, "ne oluyor"
-        # sorusunun sorulduğu yer.
-        self.ring = RunRing(t, RING_SIZE)
-        self.ring.setToolTip("Ajan. Halkadaki her dilim bir adım, kırmızı olan düştü")
-        self.ring.setVisible(False)
-        row_layout.addWidget(self.ring)
+
         card_layout.addWidget(row)
 
         # Düğmeler yazı alanının hemen altında: elin oradayken tıklanacak
@@ -601,9 +607,14 @@ class CommandBar(QWidget):
     def settle_step(self, is_error: bool) -> None:
         self.reply.mark_last(is_error)
 
+    def set_tool(self, tool: str) -> None:
+        """Sahnedeki nesne o anki işe göre değişiyor."""
+        self.sahne.set_tool(tool)
+
     def clear_run(self) -> None:
         """Yeni talimat: önceki turun şekli ve dökümü gidiyor."""
-        self.ring.setVisible(False)
+        self.sahne.setVisible(False)
+        self.sahne.clear()
         self.reply.clear()
         self._fit_reply()
 
@@ -663,7 +674,7 @@ class CommandBar(QWidget):
         # da bakmak isteyeceğin anda veriyi çöpe atmak olurdu. Yeni bir
         # talimat verildiğinde `clear_run` siliyor.
         if busy:
-            self.ring.setVisible(True)
+            self.sahne.setVisible(True)
             self.ring.begin()
         else:
             self.ring.finish()

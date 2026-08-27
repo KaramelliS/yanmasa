@@ -2825,3 +2825,63 @@ class TestSatirGirisi:
         for _ in range(400):
             s._tick(1 / 120)
         assert s._shake.resting
+
+
+class TestSaatSizintisi:
+    """Saat aboneyi hayatta tutmamalı ve ölmüş aboneyi çağırmamalı."""
+
+    def test_abone_serbest_birakiliyor(self, qt_app):
+        # Güçlü referans widget'ı kapandıktan sonra da yaşatıyordu; Qt
+        # nesnesi C++ tarafında silinince geriye sarkan çağrı kalıp
+        # süreci çökertiyordu — ölçüldü, segfault.
+        import gc, weakref
+        from app.motion import Clock
+
+        class Sahte:
+            def tik(self, dt):
+                pass
+
+        s = Clock()
+        o = Sahte()
+        z = weakref.ref(o)
+        s.subscribe(o.tik)
+        assert s.running
+        del o
+        gc.collect()
+        assert z() is None, "saat aboneyi hayatta tutuyor"
+
+    def test_olen_abone_cagrilmiyor_ve_saat_duruyor(self, qt_app):
+        import gc
+        from app.motion import Clock
+
+        class Sahte:
+            def __init__(self):
+                self.n = 0
+
+            def tik(self, dt):
+                self.n += 1
+
+        s = Clock()
+        yasayan, olecek = Sahte(), Sahte()
+        s.subscribe(yasayan.tik)
+        s.subscribe(olecek.tik)
+        del olecek
+        gc.collect()
+        s._tick()
+        assert yasayan.n == 1
+        assert len(s._aboneler) == 1
+
+    def test_ayni_abone_iki_kez_eklenmiyor(self, qt_app):
+        from app.motion import Clock
+
+        class Sahte:
+            def tik(self, dt):
+                pass
+
+        s = Clock()
+        o = Sahte()
+        s.subscribe(o.tik)
+        s.subscribe(o.tik)
+        assert len(s._aboneler) == 1
+        s.unsubscribe(o.tik)
+        assert not s.running

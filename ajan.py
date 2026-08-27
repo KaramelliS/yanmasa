@@ -273,7 +273,10 @@ def main() -> int:
                 return
             bar.ring.face.look_at(x / 960.0 - 1.0, y / 540.0 - 1.0)
         else:
-            bar.ring.face.look_forward()
+            # Koordinat yoksa bakış sahneye kalıyor: nesne varsa ona
+            # dönük duruyor. Burada körü körüne öne çevirmek, laptopla
+            # çalışırken maskotun ondan yüzünü çevirmesi olurdu.
+            bar.sahne.bakisi_ayarla()
 
     def on_said(parca: str) -> None:
         """Model yazarken harfler düşüyor.
@@ -286,6 +289,7 @@ def main() -> int:
     def on_action(tool: str, payload: dict) -> None:
         op = _describe(tool, payload)
         bar.ring.step(tool)
+        bar.set_tool(tool)
         _bakis(payload)
         bar.add_step(tool, op.tool, op.target or op.detail)
         bar.show_operation(op)

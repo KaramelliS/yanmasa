@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 import time
+import weakref
 from collections.abc import Callable
 
 from PySide6.QtCore import QObject, QTimer
@@ -86,22 +87,32 @@ class Clock(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._aboneler: list[Callable[[float], None]] = []
+        # Zayıf referans. Güçlü tutmak iki şeyi bozuyordu: widget'lar
+        # kapandıktan sonra da yaşıyordu, ve Qt nesnesi C++ tarafında
+        # silinince geriye sarkan çağrı kalıp süreci çökertiyordu —
+        # ölçtüm, segfault. Zayıf referans ölen aboneyi kendiliğinden
+        # düşürüyor.
+        self._aboneler: list[weakref.ref] = []
         self._son = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
+    def _ref(self, geri: Callable[[float], None]) -> weakref.ref:
+        if hasattr(geri, "__self__"):
+            return weakref.WeakMethod(geri)
+        return weakref.ref(geri)
+
     def subscribe(self, geri: Callable[[float], None]) -> None:
-        if geri in self._aboneler:
+        if any(r() == geri for r in self._aboneler):
             return
-        self._aboneler.append(geri)
+        self._aboneler.append(self._ref(geri))
         if not self._timer.isActive():
             self._son = time.perf_counter()
             self._timer.start(TICK_MS)
 
     def unsubscribe(self, geri: Callable[[float], None]) -> None:
-        if geri in self._aboneler:
-            self._aboneler.remove(geri)
+        self._aboneler = [r for r in self._aboneler
+                          if r() is not None and r() != geri]
         if not self._aboneler:
             self._timer.stop()
 
@@ -113,8 +124,17 @@ class Clock(QObject):
         simdi = time.perf_counter()
         dt = min(simdi - self._son, MAX_DT)
         self._son = simdi
-        for geri in list(self._aboneler):
+        olu = False
+        for ref in list(self._aboneler):
+            geri = ref()
+            if geri is None:
+                olu = True
+                continue
             geri(dt)
+        if olu:
+            self._aboneler = [r for r in self._aboneler if r() is not None]
+            if not self._aboneler:
+                self._timer.stop()
 
 
 _saat: Clock | None = None

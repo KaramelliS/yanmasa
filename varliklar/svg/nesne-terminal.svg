@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Üreten: scripts/svg_yap.py -->
+  <g id="pencere"><rect x="6" y="12" width="52" height="40" rx="5" fill="#E7BABD"/><rect x="11" y="16" width="4" height="4" rx="2" fill="#1C1C1C" opacity="0.5"/><rect x="18" y="16" width="4" height="4" rx="2" fill="#1C1C1C" opacity="0.5"/></g>
+  <g id="istem"><path d="M14 31 L19 35 L14 39" fill="none" stroke="#1C1C1C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <g id="imlec"><rect x="24" y="33.4" width="13" height="3.2" rx="1.6" fill="#1C1C1C"/></g>
+</svg>

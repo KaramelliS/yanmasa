@@ -32,7 +32,11 @@ Renkler yer tutucu; yükleme anında temadan gelenlerle değişiyor.
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from nesneler import NESNELER  # noqa: E402
 
 HEDEF = Path(__file__).resolve().parent.parent / "varliklar" / "svg"
 
@@ -159,8 +163,11 @@ def main() -> int:
     for ad in POZLAR:
         (HEDEF / f"poz-{ad}.svg").write_text(poz_svg(ad), encoding="utf-8")
     (HEDEF / "gozler.svg").write_text(gozler_svg(), encoding="utf-8")
-    print(f"{len(POZLAR)} poz + gözler -> {HEDEF}")
-    print("  " + ", ".join(POZLAR))
+    for ad, yap in NESNELER.items():
+        (HEDEF / f"nesne-{ad}.svg").write_text(yap(), encoding="utf-8")
+    print(f"{len(POZLAR)} poz + gözler + {len(NESNELER)} nesne -> {HEDEF}")
+    print("  poz:   " + ", ".join(POZLAR))
+    print("  nesne: " + ", ".join(NESNELER))
     return 0
 
 

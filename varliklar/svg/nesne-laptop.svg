@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Üreten: scripts/svg_yap.py -->
+  <g id="taban"><path d="M9 45 L55 45 L59 52 Q59 54 57 54 L7 54 Q5 54 5 52 Z" fill="#E7BABD"/><rect id="tus" x="24" y="48" width="16" height="2.6" rx="1.3" fill="#1C1C1C"/></g>
+  <g id="ekran"><rect x="12" y="9" width="40" height="34" rx="4" fill="#E7BABD"/><rect id="satir-1" x="17" y="15" width="24" height="3.4" rx="1.7" fill="#1C1C1C"/><rect id="satir-2" x="17" y="22" width="17" height="3.4" rx="1.7" fill="#1C1C1C"/><rect id="satir-3" x="17" y="29" width="21" height="3.4" rx="1.7" fill="#1C1C1C"/></g>
+</svg>

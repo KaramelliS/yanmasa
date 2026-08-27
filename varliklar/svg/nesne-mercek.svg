@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Üreten: scripts/svg_yap.py -->
+  <g id="sap"><rect x="37" y="37" width="20" height="7.5" rx="3.75" fill="#E7BABD" transform="rotate(45 37 37)"/></g>
+  <g id="cam"><circle cx="27" cy="26" r="18.5" fill="#E7BABD"/><circle cx="27" cy="26" r="12" fill="#1C1C1C"/><circle id="parilti" cx="22" cy="21" r="3.6" fill="#E7BABD" opacity="0.5"/></g>
+</svg>
