@@ -33,11 +33,22 @@ from PySide6.QtWidgets import (
 )
 
 from .fluent import RADIUS_CONTROL, Tokens
+from .flow import FlowLayout
 from .glyphs import GLYPHS, glyph_icon, paint_glyph
 
 #: Çubuk 440 piksel; bundan fazla düğme sığmıyor ve sığdırmaya çalışmak
 #: etiketleri okunmaz hâle getiriyor.
 MAX_VISIBLE = 8
+
+#: Bir düğmenin en fazla eni. Uzun etiketli bir düğme satırın dışına
+#: taşıp kırpılıyordu: "Butce ozetini goster y" diye kesiliyor ve ne
+#: yaptığı okunmuyordu. Kırpmak yerine kısaltıyoruz — üç nokta hiç
+#: olmazsa kesildiğini söylüyor.
+CHIP_MAX = 168
+
+#: Çizim, kenar boşlukları ve iç dolgu. Etiketin kullanabileceği yer
+#: `CHIP_MAX - CHIP_PAD`.
+CHIP_PAD = 46
 
 
 class ShortcutChip(QPushButton):
@@ -48,9 +59,13 @@ class ShortcutChip(QPushButton):
 
     def __init__(self, t: Tokens, name: str, label: str, glyph: str,
                  editable: bool = True) -> None:
-        super().__init__(label)
+        super().__init__()
         self.t = t
         self.name = name
+        self._label = label
+        # Tam etiket ipucunda kalıyor: kısaltılan bir şeyi okumanın yolu
+        # olmalı.
+        self.setToolTip(label)
         self._glyph = glyph if glyph in GLYPHS else "yetenek"
         self._editable = editable
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -65,12 +80,24 @@ class ShortcutChip(QPushButton):
             f"QPushButton:hover {{ background: {t.control_hover}; }}"
             f"QPushButton:pressed {{ background: {t.control_pressed}; }}"
         )
+        # Etiket **bir kez** kısaltılıyor, kurulurken.
+        #
+        # Önce `resizeEvent`te yapıyordum ve kararsızdı: metni
+        # değiştirmek `sizeHint`i değiştiriyor, o da yeniden boyutlanmayı
+        # tetikliyor. Sonuç, üç noktası olmayan kırpılmış bir yazıydı —
+        # "Bütçe özetini göster v" diye kesiliyordu ve kesildiği belli
+        # olmuyordu.
+        self.setText(
+            self.fontMetrics().elidedText(
+                label, Qt.TextElideMode.ElideRight, CHIP_MAX - CHIP_PAD
+            )
+        )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._menu)
 
     def sizeHint(self) -> QSize:
-        base = super().sizeHint()
-        return QSize(base.width() + 10, 30)
+        genislik = self.fontMetrics().horizontalAdvance(self.text()) + CHIP_PAD
+        return QSize(min(genislik, CHIP_MAX), 30)
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
@@ -239,9 +266,11 @@ class ButtonStrip(QWidget):
         self.t = t
         self._store = None
         self._extra = []
-        self._rows = QVBoxLayout(self)
-        self._rows.setContentsMargins(0, 0, 0, 0)
-        self._rows.setSpacing(6)
+        # Akan düzen: sarmayı yerleşim anında, gerçek genişlikte yapıyor.
+        # Elle sarıyordum ve sınırı içerik kurulurken hesaplıyordum —
+        # widget o an ölçülmemiş oluyor ve satır taşıyordu.
+        self._rows = FlowLayout(6, 6)
+        self.setLayout(self._rows)
 
     def attach(self, store, extra_source=None) -> None:
         """`store` düzenlenebilir düğmeler, `extra_source` yeteneklerden
@@ -253,10 +282,10 @@ class ButtonStrip(QWidget):
     def reload(self) -> None:
         while self._rows.count():
             item = self._rows.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                _drain(item.layout())
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
 
         items = []
         if self._store is not None:
@@ -268,8 +297,6 @@ class ButtonStrip(QWidget):
             except Exception:
                 pass
 
-        row = _new_row()
-        used = 0
         for shortcut, editable in items[:MAX_VISIBLE]:
             chip = ShortcutChip(
                 self.t, shortcut.name, shortcut.label, shortcut.glyph, editable
@@ -279,14 +306,7 @@ class ButtonStrip(QWidget):
             )
             chip.edit_requested.connect(self._edit)
             chip.remove_requested.connect(self._remove)
-            width = chip.sizeHint().width()
-            # 440 piksellik çubukta kart kenar boşlukları düşülünce ~400.
-            if used and used + width > 400:
-                row.addStretch(1)
-                self._rows.addLayout(row)
-                row, used = _new_row(), 0
-            row.addWidget(chip)
-            used += width + 6
+            self._rows.addWidget(chip)
 
         plus = QPushButton("+")
         plus.setFixedSize(30, 30)
@@ -301,14 +321,8 @@ class ButtonStrip(QWidget):
             f" color: {self.t.text}; }}"
         )
         plus.clicked.connect(self._add)
-        if used and used + 36 > 400:
-            row.addStretch(1)
-            self._rows.addLayout(row)
-            row = _new_row()
-        row.addWidget(plus)
-        row.addStretch(1)
-        self._rows.addLayout(row)
-        self.adjustSize()
+        self._rows.addWidget(plus)
+        self.updateGeometry()
 
     # --- düzenleme --------------------------------------------------------
 
@@ -352,20 +366,6 @@ class ButtonStrip(QWidget):
 
 def t_stroke(t: Tokens) -> str:
     return t.control_stroke
-
-
-def _new_row() -> QHBoxLayout:
-    row = QHBoxLayout()
-    row.setContentsMargins(0, 0, 0, 0)
-    row.setSpacing(6)
-    return row
-
-
-def _drain(layout) -> None:
-    while layout.count():
-        item = layout.takeAt(0)
-        if item.widget():
-            item.widget().deleteLater()
 
 
 def _from_command(name: str, description: str):

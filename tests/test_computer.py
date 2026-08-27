@@ -3226,3 +3226,96 @@ class TestCubukBoyu:
         bar = self._dolu(qt_app)
         assert bar.sahne.width() == GENISLIK <= 76
         assert bar.sahne.height() == YUKSEKLIK <= 108
+
+
+class TestArayuzKusurlari:
+    """Ekran görüntüsünde görülen kusurlar. Hepsi ölçülerek bulundu."""
+
+    def test_her_aracin_turkce_adi_var(self):
+        # "wait wait" diye görünüyordu: 25 aracın etiketi yoktu ve ham
+        # İngilizce adı iki kez yazılıyordu.
+        import ajan
+        from backend.agent.tools import CUSTOM_TOOLS
+        computer = [
+            "screenshot", "zoom", "cursor_position", "left_click",
+            "right_click", "middle_click", "double_click", "triple_click",
+            "mouse_move", "left_mouse_down", "left_mouse_up",
+            "left_click_drag", "type", "key", "hold_key", "scroll", "wait",
+        ]
+        hepsi = computer + [t["name"] for t in CUSTOM_TOOLS]
+        eksik = [a for a in hepsi if a not in ajan.TOOL_LABEL]
+        assert eksik == [], eksik
+
+    def test_detay_arac_adini_tekrar_etmiyor(self):
+        import ajan
+        op = ajan._describe("wait", {"duration": 2})
+        assert op.tool == "Bekliyor"
+        assert op.detail == ""
+
+    def test_dokum_kaydirma_alanina_sigiyor(self, qt_app):
+        # Ölçüldü: viewport 340, içerik 640 — metin sağdan kırpılıyordu.
+        # Sebep, metin widget'ının en küçük boyut ipucunun genişliğe alt
+        # sınır koyması.
+        from PySide6.QtWidgets import QApplication
+        from app import fluent
+        from app.commandbar import CommandBar
+        bar = CommandBar(fluent.tokens())
+        bar.set_voice_available(False)
+        bar.show()
+        bar.clear_run()
+        bar.set_busy(True)
+        bar.stream("Çok uzun bir cümle " * 12)
+        QApplication.processEvents()
+        assert bar.reply.width() <= bar._reply_scroll.viewport().width()
+
+    def test_metin_genislige_alt_sinir_koymuyor(self, qt_app):
+        from app import fluent
+        from app.stream import AkanMetin
+        w = AkanMetin(fluent.tokens())
+        w.resize(320, 40)
+        w.set_text("uzun bir metin " * 20)
+        assert w.minimumSizeHint().width() == 0
+
+    def test_dugme_satiri_tasmiyor(self, qt_app):
+        # "Butce ozetini goster y" diye kesiliyordu.
+        from PySide6.QtWidgets import QApplication
+        from app import fluent
+        from app.buttons import ButtonStrip
+
+        def komutlar():
+            return [
+                ("goster", "Bütçe özetini göster ve raporu maile ekle"),
+                ("discord", "Discord'u aç ve ekrana getir"),
+                ("genislet", "Sayfayı farklı genişliklerde test et"),
+            ]
+
+        strip = ButtonStrip(fluent.tokens())
+        strip.setFixedWidth(412)
+        strip.attach(None, komutlar)
+        strip.show()
+        QApplication.processEvents()
+        for i in range(strip._rows.count()):
+            w = strip._rows.itemAt(i).widget()
+            if w is not None:
+                assert w.x() + w.width() <= strip.width(), w.toolTip()
+
+    def test_uzun_etiket_uc_noktayla_bitiyor(self, qt_app):
+        # Kırpılmış bir yazı kesildiğini söylemiyor.
+        from app import fluent
+        from app.buttons import CHIP_MAX, ShortcutChip
+        chip = ShortcutChip(
+            fluent.tokens(), "x",
+            "Bütçe özetini göster ve raporu maile ekle", "yetenek",
+        )
+        assert chip.text().endswith("…")
+        assert chip.sizeHint().width() <= CHIP_MAX
+        assert chip.toolTip().endswith("ekle"), "tam etiket ipucunda kalmalı"
+
+    def test_akan_duzen_tek_yerde(self):
+        # İki kopya, iki ayrı davranış demekti.
+        import inspect
+        from app import buttons, panel_view
+        from app.flow import FlowLayout
+        assert panel_view.FlowLayout is FlowLayout
+        assert buttons.FlowLayout is FlowLayout
+        assert "class FlowLayout" not in inspect.getsource(panel_view)

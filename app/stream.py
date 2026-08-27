@@ -489,7 +489,14 @@ class AkanMetin(QWidget):
         return QSize(genislik, self.heightForWidth(genislik))
 
     def minimumSizeHint(self) -> QSize:
-        return self.sizeHint()
+        """Genişlikte alt sınır **yok**.
+
+        `sizeHint`i olduğu gibi döndürüyordum ve o genişliği en küçük
+        genişlik sayılıyordu: kaydırma alanı içeriği viewport'a
+        sığdıramıyor, döküm 640 piksele şişip metin sağdan kırpılıyordu.
+        Ölçtüm — viewport 340, içerik 640.
+        """
+        return QSize(0, self.heightForWidth(self.width() or 320))
 
     def _resize_to_text(self) -> None:
         if self.width() > 0:

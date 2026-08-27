@@ -50,6 +50,31 @@ TOOL_LABEL = {
     "office_edit": "Belgeyi düzenliyor",
     "office_save": "Belgeyi kaydediyor",
     "office_history": "Değişikliklere bakıyor",
+    "office_close": "Belgeyi kapatıyor",
+    "cursor_position": "İmleci arıyor",
+    "right_click": "Sağ tıklıyor",
+    "middle_click": "Orta tuşla tıklıyor",
+    "triple_click": "Üç kez tıklıyor",
+    "mouse_move": "İmleci taşıyor",
+    "left_mouse_down": "Basılı tutuyor",
+    "left_mouse_up": "Bırakıyor",
+    "left_click_drag": "Sürüklüyor",
+    "hold_key": "Tuşu basılı tutuyor",
+    "wait": "Bekliyor",
+    "switch_display": "Ekran değiştiriyor",
+    "list_apps": "Uygulamalara bakıyor",
+    "write_files": "Dosyalar yazıyor",
+    "terminal_close": "Terminali kapatıyor",
+    "skill_list": "Yeteneklere bakıyor",
+    "skill_write": "Yetenek yazıyor",
+    "skill_remove": "Yetenek siliyor",
+    "button_write": "Düğme kuruyor",
+    "button_remove": "Düğme siliyor",
+    "remote_connect": "Sunucuya bağlanıyor",
+    "remote_list": "Sunucuya bakıyor",
+    "remote_read": "Sunucudan okuyor",
+    "remote_write": "Sunucuya yazıyor",
+    "remote_run": "Sunucuda çalıştırıyor",
 }
 
 
@@ -69,10 +94,13 @@ def _describe(tool: str, payload: dict) -> Operation:
     if len(detail) > 140:
         detail = detail[:137] + "…"
 
+    # Detay boşsa boş kalıyor. Eskiden araç adına düşüyordu ve satır
+    # "Bekliyor  wait" gibi kendini tekrar ediyordu; çizim zaten hangi
+    # iş olduğunu söylüyor.
     return Operation(
         tool=TOOL_LABEL.get(tool, tool),
         target=target,
-        detail=detail or tool,
+        detail=detail,
         key=tool,
     )
 
