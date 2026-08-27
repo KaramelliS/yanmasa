@@ -19,6 +19,8 @@ from .. import config
 from ..computer.capture import ScreenCapture
 from ..computer.displays import DisplayMap
 from ..safety.killswitch import Aborted, KillSwitch
+from . import rapor as rapor_mod
+from .kayit import Kayit, oneri_notu, tekrar_bul
 from .dispatch import Dispatcher, ToolError, ToolOutcome
 from .prompts import build_system
 from .tools import CUSTOM_TOOLS
@@ -37,6 +39,17 @@ PRUNE_AT = 12
 PRUNED_PLACEHOLDER = "[eski ekran görüntüsü bağlamdan çıkarıldı]"
 
 
+def _ozet(icerik) -> str:
+    """Araç sonucunun kayda giren kısa hâli.
+
+    Görsel bloklar metne çevrilmiyor: base64 bir kareyi denetim kaydına
+    yazmak dosyayı megabaytlara çıkarır ve hiçbir şey anlatmaz.
+    """
+    if isinstance(icerik, list):
+        return "[görsel]"
+    return str(icerik)
+
+
 @dataclass
 class Turn:
     """Bir tur boyunca dışarıya bildirilenler — arayüz buraya bağlanacak."""
@@ -51,6 +64,10 @@ class Turn:
     #: gösterge bununla ilerliyor: hareket, gerçekten bir şeyin geldiği
     #: anlamına gelmeli. Sabit hızda dönen bir çark bunu söylemiyor.
     on_pulse: Callable[[], None] = lambda: None
+    #: Ajanın cevabında kayıtta karşılığı olmayan iddia varsa, o satır.
+    #: Boş dizeyle çağrılmıyor — arayüz yalnızca söyleyecek bir şey
+    #: olduğunda haber alıyor.
+    on_rapor: Callable[[str], None] = lambda _t: None
 
 
 #: Reddedilme mesajı. Computer-use çağrılarında Anthropic bir güvenlik
@@ -123,6 +140,13 @@ class Agent:
     #: thread'inden yazılıp ajan thread'inden okunuyor.
     _pending: list[str] = field(default_factory=list, repr=False)
     _pending_lock: Any = field(default_factory=_new_lock, repr=False)
+    #: Denetim kaydı. Ajanın ne yaptığının diskteki karşılığı; hem
+    #: doğrulanmış rapor hem de tekrar tespiti buna dayanıyor.
+    kayit: Kayit = field(default_factory=Kayit)
+    #: Oturum boyunca başarıyla çalışmış araçlar. Bir iddia bu turda
+    #: desteklenmiyorsa buraya bakılıyor: "az önce yazdığım dosya" meşru
+    #: bir cümle ve her turda sıfırlansaydı yanlış alarm verirdi.
+    _oturum_araclari: set[str] = field(default_factory=set, repr=False)
 
     def __post_init__(self) -> None:
         self.dispatcher = Dispatcher(
@@ -179,9 +203,36 @@ class Agent:
             bekleyen, self._pending = self._pending, []
         return bekleyen
 
-    def run(self, instruction: str, turn: Turn | None = None, max_steps: int = 60) -> str:
-        """Bir talimatı ajan bitene kadar sürer. Son metni döndürür."""
+    def run(self, instruction: str, turn: Turn | None = None,
+            max_steps: int = 60) -> str:
+        """Bir talimatı ajan bitene kadar sürer. Son metni döndürür.
+
+        Asıl döngü `_sur`; buradaki sarmalayıcının tek işi turu her
+        çıkışta kayda kapatmak. `_sur`'ün beş ayrı çıkışı var (reddedilme,
+        araçsız cevap, tıkanma, adım sınırı, iptal) ve her birine ayrı ayrı
+        kapanış yazmak, birini unutmanın kesin yolu olurdu.
+        """
         turn = turn or Turn()
+        metin = ""
+        try:
+            metin = self._sur(instruction, turn, max_steps)
+            return metin
+        finally:
+            eksik = self._raporu_kapat(metin)
+            if eksik:
+                turn.on_rapor(rapor_mod.not_metni(eksik))
+
+    def _raporu_kapat(self, metin: str) -> list[str]:
+        """Turu kayda kapatır ve desteksiz iddiaları döndürür."""
+        bu_tur = self.kayit.tur_araclari()
+        self._oturum_araclari |= bu_tur
+        eksik = rapor_mod.desteksiz(
+            metin, bu_tur, self._oturum_araclari - bu_tur
+        )
+        self.kayit.tur_bitti(metin, eksik)
+        return eksik
+
+    def _sur(self, instruction: str, turn: Turn, max_steps: int) -> str:
         self.kill.reset()
         # Yarım kalmış araç çağrıları kapatılıyor. Bir tur durdurulunca
         # (Esc, durdur düğmesi, çökme) `tool_use` içeren asistan mesajı
@@ -191,7 +242,13 @@ class Agent:
         # yeniden başlatmadan bir daha konuşamıyorsun.
         self._close_open_tools("Durduruldu.")
 
-        self.messages.append({"role": "user", "content": instruction})
+        self.kayit.tur_basladi(instruction)
+        # Tekrarlanan iş varsa talimatın sonuna not düşüyor. Bunu sistem
+        # promptuna yazmak eskiden denendi ve çalışmadı: model otuz
+        # adımlık bir turun sonunda "bunu üçüncü kez yapıyorum" demiyor.
+        # Sayan taraf artık kod.
+        istek = instruction + oneri_notu(tekrar_bul(self.kayit.satirlar()))
+        self.messages.append({"role": "user", "content": istek})
 
         final_text = ""
         stuck = False
@@ -414,6 +471,10 @@ class Agent:
                         is_error=True,
                     )
 
+            self.kayit.eylem(
+                block.name, dict(payload), outcome.is_error,
+                _ozet(outcome.content),
+            )
             turn.on_result(block.name, outcome)
             results.append(self._result_block(block, outcome))
 

@@ -914,6 +914,10 @@ class TestRefusal:
         # ve kullanıcı "hiçbir şey çalışmıyor" diye kalıyor.
         from backend.agent.loop import Agent
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
         agent.messages = [
             {"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "data": "AAA"}},
@@ -1127,6 +1131,10 @@ class TestTekrarlayanHata:
         from backend.agent.dispatch import ToolError
 
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
 
         class SahteDispatcher:
             def run(self, name, payload):
@@ -1535,6 +1543,10 @@ class TestHiz:
         from backend.agent.tools import CUSTOM_TOOLS
 
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
 
         class SahteKayit:
             def tools(self):
@@ -1561,6 +1573,10 @@ class TestHiz:
         from backend.agent.loop import Agent
 
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
 
         class SahteKayit:
             def __init__(self):
@@ -1590,6 +1606,10 @@ class TestHiz:
         from backend.computer.displays import Display, DisplayMap
 
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
         agent.displays = DisplayMap([Display(0, 0, 0, 1920, 1080, True)])
 
         class SahteDispatcher:
@@ -1790,6 +1810,20 @@ def f(): pass
         assert MAX_HIGHLIGHT < 1_000_000
 
 
+def _bos_kayit():
+    """Diske yazmayan denetim kaydı.
+
+    Testler `Agent.__new__` ile yarım nesne kuruyor ve o nesnelerin de
+    artık bir kaydı olmalı. Geçici dizin yerine yazmayan bir kayıt:
+    testin ilgilendiği şey kaydın içeriği değil, varlığı.
+    """
+    import pathlib
+    import tempfile
+    from backend.agent.kayit import Kayit
+
+    return Kayit(pathlib.Path(tempfile.mkdtemp()))
+
+
 class TestArayaGirme:
     """Ajan çalışırken araya bir cümle sıkıştırmak.
 
@@ -1801,6 +1835,10 @@ class TestArayaGirme:
         from backend.agent.loop import Agent, _new_lock
 
         agent = Agent.__new__(Agent)
+        # `__new__` __init__'i atlıyor; bu metotların artık
+        # denetim kaydına ihtiyacı var.
+        agent.kayit = _bos_kayit()
+        agent._oturum_araclari = set()
         agent._pending = []
         agent._pending_lock = _new_lock()
         agent.messages = []
@@ -3034,9 +3072,9 @@ class TestYarimKalanArac:
         # Durdurmadan sonra yazılan ilk mesaj geçmişi bozmamalı.
         import inspect
         from backend.agent.loop import Agent
-        kaynak = inspect.getsource(Agent.run)
+        kaynak = inspect.getsource(Agent._sur)
         onarim = kaynak.index("_close_open_tools")
-        ekleme = kaynak.index('"role": "user", "content": instruction')
+        ekleme = kaynak.index('"role": "user", "content": istek')
         assert onarim < ekleme, "onarım, yeni mesajı eklemeden önce olmalı"
 
     def test_durdurmada_hemen_kapatiliyor(self):
@@ -3044,7 +3082,7 @@ class TestYarimKalanArac:
         # mesajı da bozardı.
         import inspect
         from backend.agent.loop import Agent
-        kaynak = inspect.getsource(Agent.run)
+        kaynak = inspect.getsource(Agent._sur)
         assert "except Aborted:" in kaynak
         blok = kaynak[kaynak.index("except Aborted:"):]
         assert "_close_open_tools" in blok[:400]

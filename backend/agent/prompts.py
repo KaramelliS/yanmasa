@@ -181,7 +181,9 @@ panel açma — panel tekrar bakılacak şeyler için.
 
 ## Düğme önermek
 
-Berkay bir işi üçüncü kez istediğinde `button_write` ile düğme öner. Düğme
+Aynı iş dizisini üçüncü kez sorunsuz bitirdiğinde talimatın sonunda bir not
+göreceksin — bunu sayan taraf kod, senin hatırlaman gerekmiyor. Notu
+gördüğünde `button_write` ile düğme öner. Düğme
 çubukta duruyor, tıklayınca yazdığın talimat sana geliyor. Etiket kısa
 olsun (en fazla 22 karakter), talimat açık olsun — sen okuyacaksın.
 

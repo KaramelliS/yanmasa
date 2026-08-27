@@ -368,6 +368,15 @@ def main() -> int:
         window.set_phase("bitti")
         window.status.set_line(text[:120] if text else "Bitti.")
 
+    def on_rapor(satir: str) -> None:
+        """Ajan bir iş yaptığını söyledi ama denetim kaydında yok.
+
+        Durum satırına yazılıyor, cevabın içine değil: cevap ajanın
+        sözü, bu ise ona dair bir gözlem. İkisini aynı baloncuğa koymak,
+        ajanı kendi hakkında konuşuyor gibi gösterirdi.
+        """
+        window.status.set_line(satir)
+
     def on_failed(why: str) -> None:
         bar.set_busy(False)
         bar.show_operation(None)
@@ -399,6 +408,7 @@ def main() -> int:
     bridge.document.connect(on_document)
     bridge.panel.connect(on_panel)
     bridge.wrote.connect(on_wrote)
+    bridge.rapor.connect(on_rapor)
     bridge.finished.connect(on_finished)
     bridge.failed.connect(on_failed)
     bridge.approval.connect(on_approval)

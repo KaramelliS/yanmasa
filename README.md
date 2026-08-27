@@ -446,6 +446,49 @@ Ayrıca sistem promptuna hız bölümü eklendi: birbirini izleyen eylemleri tek
 turda gönder, metin sonucu yeten yerde ekran görüntüsü alma, bitirirken tek
 cümle yaz.
 
+## Ajanın kendi kaydı
+
+Topluluk ve literatür agentic araçlarda üç kusuru tekrar tekrar ölçüyor, ve
+üçünün ortak kökü şu: ajanın ne yaptığına dair diskte hiçbir şey yok.
+
+- Computer-use ajanlarının eylemlerinin **%56.7'si yanlış elemanı**
+  hedefliyor; hatanın %10'u hiçbir şeye denk gelmeyen tıklama.
+- IDE ajanlarında en sık üç kusur keşfetmeden düzenlemeye başlamak (%63),
+  ileri geri savrulma (%28.2) ve bağlam kaybı (%27.6).
+- 20.574 gerçek oturumluk analizde görünür çözümlerin **%91.49'u**
+  kullanıcının elle düzeltmesini gerektiriyor, ve oransal olarak **artan**
+  kusurlardan biri ajanın **yapmadığı işi yaptım demesi**.
+
+`backend/agent/kayit.py` her turu ve her eylemi `runs/<gün>.jsonl` dosyasına
+yazıyor. Üstüne iki şey kuruldu.
+
+**Doğrulanmış rapor.** Ajan "dosyayı yazdım" dediğinde o turda gerçekten bir
+yazma aracı çalışmış mı diye bakılıyor. Çalışmamışsa durum satırına "bu
+oturumda dosya yazma kaydı yok" düşüyor. Cevabın içine değil: cevap ajanın
+sözü, bu ona dair bir gözlem.
+
+Tek gerçek risk yanlış alarm — her cevabın altında haksız bir uyarı çıkarsa
+insan uyarıyı okumayı bırakır ve o noktada gerçek olanı da kaçırır. Dört
+kademe var: iddia kalıpla aranıyor ("kaydettim" iddia, "kaydedebilirim"
+değil), soru ve olumsuz cümleler eleniyor, bu turda destek yoksa oturumun
+tamamına bakılıyor, ve kalıplar kelimeden üretiliyor — elle yazarken
+`çalıştırdım`ı yazıp `calistirdim`i kaçırmıştım.
+
+**Tekrar eden işi otomatikleştirme.** Aynı araç dizisi üç kez **hatasız**
+tamamlandığında talimatın sonuna bir not düşüyor ve ajan `button_write` ile
+düğme öneriyor. Bu daha önce sistem promptunda bir cümleydi — modelin
+hatırlamasına bırakılmıştı, ve otuz adımlık bir turun sonunda model "bunu
+üçüncü kez yapıyorum" demiyor. Artık sayan taraf kod.
+
+İmza turun araç dizisi, talimat metni değil: aynı işi iki kez birebir aynı
+cümleyle istemiyorsun. Ardışık tekrarlar sadeleşiyor, yani dört dosya yazmak
+ile beş dosya yazmak aynı iş. Tökezleyerek biten turlar sayılmıyor — üç kez
+tökezleyen bir işi otomatikleştirmek, tökezlemeyi otomatikleştirmek olurdu.
+
+Kayda dosya gövdeleri ve yetenek kodu **girmiyor**; anahtar deseni taşıyan
+alanlar `[gizlendi]` yazılıyor. Bir denetim kaydının kendisi sızıntı kaynağı
+olmamalı.
+
 ## Güvenlik
 
 Üç katman, üçü de bağımsız:
@@ -483,6 +526,11 @@ Bir README'de en işe yarayan bölüm bu.
   Berkay'ın verdiği bir çizim ve lisansı belirsiz; pozların hepsi ondan
   türüyor. Kendi siluetimizi çizmeyi denedim, karakteri tutmadı.
   Yeniden kullanacak biri için bu bir engel.
+- **Denetim kaydı hiç budanmıyor.** `runs/` sonsuza kadar büyüyor ve
+  kimse silmiyor. Tekrar tespiti son 14 güne bakıyor ama dosyalar
+  duruyor.
+- **Doğrulanmış rapor yalnızca Türkçe kalıplara bakıyor.** Ajan
+  İngilizce cevap verirse hiçbir iddiayı yakalamaz.
 - **Yan alanın canlı görüntüsü yok.** Kare her `side_act` sonrası
   tazeleniyor ama ajan bir şey yapmadığı sürece donuk kalıyor; sürekli
   akan bir görüntü değil. Yan alanı tıklanabilir yapmak — Berkay'ın
