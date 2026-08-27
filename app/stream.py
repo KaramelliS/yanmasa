@@ -40,18 +40,43 @@ from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from .fluent import Tokens
 from .glyphs import glyph_for, paint_glyph
+from .motion import (
+    Ripple, Shake, Spring, Tween, clock, ease_out_back, ease_out_expo,
+)
 from .kafa import AjanKafasi
 
 
 def _yuz(t: Tokens, size: int):
+    """Halkanın içindeki yüz.
+
+    Sıra: kendi SVG'miz, sonra hazır kare dizisi, sonra kodla çizilen
+    yüz. Üçü de aynı arayüzü sunuyor. Bu sıra bilinçli — SVG bizim,
+    temaya uyuyor ve gerçek veriye sürekli tepki verebiliyor; hazır
+    kareler tema bilmiyor ve gözbebeğini oynatamıyor.
+    """
+    for kur in (_svg_yuz, _bloub_yuz):
+        yuz = kur(t, size)
+        if yuz is not None:
+            return yuz
+    return AjanKafasi(t, size)
+
+
+def _svg_yuz(t: Tokens, size: int):
+    try:
+        from .svgyuz import SvgYuz, varlik_var
+
+        return SvgYuz(t, size) if varlik_var() else None
+    except Exception:
+        return None
+
+
+def _bloub_yuz(t: Tokens, size: int):
     try:
         from .bloub import Bloub, depo_var
 
-        if depo_var(koyu=t.dark):
-            return Bloub(t, size, koyu=t.dark)
+        return Bloub(t, size, koyu=t.dark) if depo_var(koyu=t.dark) else None
     except Exception:
-        pass       # varlık bozuksa çizilen yüz devreye giriyor
-    return AjanKafasi(t, size)
+        return None
 
 #: Kare aralığı. 30 fps: 44 pikselik bir çizimde 60 fps'in farkı
 #: görünmüyor, işlemci farkı görünüyor.
@@ -108,24 +133,32 @@ class RunRing(QWidget):
         self._prev_glyph = ""
         self._fade = 1.0
         self._arc_target = 0.0
-        self._arc = 0.0
+        # Yay: yolun ortasında hedef değişirse hız korunuyor. Süreli bir
+        # geçiş orada sıfırlanıp zıplardı ve akış sırasında hedef saniyede
+        # yirmi kez değişiyor.
+        self._arc_spring = Spring(0.0, stiffness=150.0)
+        # İniş: yeni biten dilim yerine oturarak geliyor, birden
+        # belirmiyor. Turun tek yazılı anı bu.
+        self._land = Spring(1.0, stiffness=210.0, damping=17.0)
+        self._ripple = Ripple(0.5)
+        self._shake = Shake()
         self._live = False
         self._last = 0.0
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
+        self._abone = False
 
     # --- olaylar ----------------------------------------------------------
 
     def begin(self) -> None:
         """Yeni tur. Önceki turun şekli siliniyor."""
         self._done.clear()
-        self._arc = self._arc_target = 0.0
+        self._arc_target = 0.0
+        self._arc_spring.jump(0.0)
+        self._land.jump(1.0)
         self._live = True
         self.face.set_live(True)
         self.face.set_state("dusunuyor")
         self._mark()
-        if not self._timer.isActive():
-            self._timer.start(FRAME_MS)
+        self._dinle(True)
         self.update()
 
     def step(self, tool: str) -> None:
@@ -137,18 +170,28 @@ class RunRing(QWidget):
             self._prev_glyph = self._glyph
             self._glyph = yeni
             self._fade = 0.0
-        self._arc = 0.0
+        self._arc_spring.jump(0.0)
         self._arc_target = 0.08
         self._mark()
+        self._dinle(True)
 
     def settle(self, is_error: bool) -> None:
         """Adım bitti — halkada kalıcı bir dilim bırakıyor."""
         self._done.append(bool(is_error))
         self.face.bump()
+        # İniş: dilim sıfırdan tam boyuna yayla açılıyor ve halkadan bir
+        # dalga çıkıyor. Adımın **bittiği** an, adımın sürdüğü andan
+        # başka görünmeli.
+        self._land.jump(0.0)
+        self._land.to(1.0)
+        self._ripple.hit()
         if is_error:
             self.face.set_state("hata")
-        self._arc = self._arc_target = 0.0
+            self._shake.hit(1.0)
+        self._arc_target = 0.0
+        self._arc_spring.jump(0.0)
         self._mark()
+        self._dinle(True)
 
     def pulse(self) -> None:
         """Modelden bir parça düştü."""
@@ -163,21 +206,44 @@ class RunRing(QWidget):
         self.face.look_forward()
         self.face.set_live(False)
         self._arc_target = 0.0
-        self._timer.stop()
+        self._arc_spring.to(0.0)
         self.update()
 
     def _mark(self) -> None:
         self._last = time.monotonic()
 
+    def _dinle(self, ac: bool) -> None:
+        if ac and not self._abone:
+            clock().subscribe(self._tick)
+            self._abone = True
+        elif not ac and self._abone:
+            clock().unsubscribe(self._tick)
+            self._abone = False
+
+    def hideEvent(self, event) -> None:
+        # Görünmeyen bir şeyi canlandırmak boşa iş.
+        self._dinle(False)
+        super().hideEvent(event)
+
     # --- kare -------------------------------------------------------------
 
-    def _tick(self) -> None:
-        # Üstel yaklaşma: hızlı başlayıp yumuşak duruyor. Sabit adım
-        # olsaydı her kare aynı mesafeyi katedip mekanik görünürdü.
-        self._arc += (self._arc_target - self._arc) * 0.18
+    def _tick(self, dt: float) -> None:
+        self._arc_spring.to(self._arc_target)
+        self._arc_spring.step(dt)
+        self._land.step(dt)
+        self._ripple.step(dt)
+        self._shake.step(dt)
         if self._fade < 1.0:
-            self._fade = min(1.0, self._fade + FRAME_MS / 220)
+            self._fade = min(1.0, self._fade + dt / 0.22)
         self.update()
+        # Her şey durduysa saatten in.
+        if (not self._live and self._arc_spring.resting and self._land.resting
+                and not self._ripple.alive and self._shake.resting):
+            self._dinle(False)
+
+    @property
+    def _arc(self) -> float:
+        return max(0.0, self._arc_spring.value)
 
     # --- çizim ------------------------------------------------------------
 
@@ -190,8 +256,26 @@ class RunRing(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         pay = 3.0
-        kutu = QRectF(pay, pay, self.width() - pay * 2, self.height() - pay * 2)
+        # Hata titremesi bütün halkayı sarsıyor: kırmızı bir dilim
+        # okunmayı bekler, kımıldayan bir şey gözü kendine çeker.
+        sars = self._shake.amount and self._shake.step(0.0) or 0.0
+        kutu = QRectF(pay + sars * 2.5, pay,
+                      self.width() - pay * 2, self.height() - pay * 2)
         dilim = 360.0 / self._slots()
+
+        # Biten adımın dalgası: halkadan dışarı yayılıp sönüyor.
+        if self._ripple.alive:
+            hale = QColor(self.t.accent)
+            hale.setAlphaF(0.32 * self._ripple.alpha)
+            kalem_hale = QPen(hale, 1.6)
+            painter.setPen(kalem_hale)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            buyume = 1.0 + self._ripple.radius * 0.34
+            genis = kutu.width() * buyume
+            painter.drawEllipse(
+                QRectF(kutu.center().x() - genis / 2,
+                       kutu.center().y() - genis / 2, genis, genis)
+            )
 
         # Ray: halkanın tamamı, sönük. Nereye kadar gidileceğini gösteriyor.
         iz = QPen(QColor(t.divider), 1.0)
@@ -205,13 +289,17 @@ class RunRing(QWidget):
 
         # Biten adımlar. Düşen adım hem kırmızı hem de sıradan içeri kaçık.
         ic = kutu.adjusted(FAIL_INSET, FAIL_INSET, -FAIL_INSET, -FAIL_INSET)
+        son = len(self._done) - 1
         for i, hata in enumerate(self._done):
             kalem.setColor(QColor(t.critical if hata else t.accent))
             painter.setPen(kalem)
+            # En yeni dilim yerine **oturarak** geliyor; öncekiler duruyor.
+            # Hepsini her karede yeniden canlandırmak halkayı titretirdi.
+            oran = ease_out_back(min(1.0, max(0.0, self._land.value))) if i == son else 1.0
             painter.drawArc(
                 ic if hata else kutu,
                 int((90 - i * dilim) * 16),
-                int(-(dilim - SLOT_GAP) * 16),
+                int(-(dilim - SLOT_GAP) * oran * 16),
             )
 
         # Süren adım: dilimin içinde büyüyen yay, sonuna varmıyor.
@@ -500,6 +588,8 @@ class AdimSatiri(QWidget):
         self._key = glyph_for(tool)
         self._baslik = baslik
         self._detay = detay
+        self._giris: Giris | None = None
+        self._shake = Shake()
         self.setFixedHeight(ROW_H)
 
     def sizeHint(self) -> QSize:
@@ -513,9 +603,34 @@ class AdimSatiri(QWidget):
         return self.sizeHint()
 
     def set_tone(self, tone: str) -> None:
-        """`normal` ya da `hata`. Düşen adım kırmızıya dönüyor."""
+        """`normal` ya da `hata`. Düşen adım kırmızıya dönüyor ve bir kez
+        titriyor: kırmızı bir yazı okunmayı bekler, kımıldayan bir şey
+        gözü kendine çeker."""
         self._tone = tone
+        if tone == "hata":
+            self._shake.hit(1.0)
+            clock().subscribe(self._tick)
         self.update()
+
+    def anime_et(self) -> None:
+        """Satır aşağıdan kayarak geliyor. Birden beliren bir satır,
+        akış hâlindeki bir dökümde gözün yerini kaybettiriyor."""
+        self._giris = Giris()
+        clock().subscribe(self._tick)
+
+    def _tick(self, dt: float) -> None:
+        if self._giris is not None:
+            self._giris.step(dt)
+            if self._giris.done:
+                self._giris = None
+        self._shake.step(dt)
+        self.update()
+        if self._giris is None and self._shake.resting:
+            clock().unsubscribe(self._tick)
+
+    def hideEvent(self, event) -> None:
+        clock().unsubscribe(self._tick)
+        super().hideEvent(event)
 
     def paintEvent(self, _event) -> None:
         t = self.t
@@ -523,6 +638,12 @@ class AdimSatiri(QWidget):
         ana = t.critical if hata else t.accent
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if self._giris is not None:
+            painter.setOpacity(self._giris.opacity)
+            painter.translate(0, self._giris.offset)
+        sars = self._shake.amount
+        if sars:
+            painter.translate(self._shake.step(0.0) * 3.0, 0)
 
         paint_glyph(painter, self._key, 16, ana,
                     t.critical if hata else t.text_tertiary, QPointF(14, 5))
@@ -547,6 +668,41 @@ class AdimSatiri(QWidget):
                     olcu.elidedText(self._detay, Qt.TextElideMode.ElideRight, kalan),
                 )
         painter.end()
+
+
+class Giris:
+    """Bir satırın geliş animasyonu.
+
+    Satır aşağıdan hafifçe kayıp beliriyor. Amaç süs değil: dökümde
+    satırlar akış hâlinde ekleniyor ve birden beliren bir satır, gözün
+    yerini kaybetmesine yol açıyor. Kayarak gelen satır nereden geldiğini
+    söylüyor.
+
+    Gecikme yok: satırlar teker teker geliyor, kademelendirilecek bir
+    grup yok. Olmayan bir gruba gecikme uydurmak, her satırı boşuna
+    bekletmek olurdu.
+    """
+
+    SURE = 0.28
+    KAYMA = 9.0
+
+    def __init__(self) -> None:
+        self._t = Tween(self.SURE, ease_out_expo)
+
+    def step(self, dt: float) -> None:
+        self._t.step(dt)
+
+    @property
+    def done(self) -> bool:
+        return self._t.done
+
+    @property
+    def opacity(self) -> float:
+        return self._t.value
+
+    @property
+    def offset(self) -> float:
+        return (1.0 - self._t.value) * self.KAYMA
 
 
 class Akis(QWidget):
@@ -626,6 +782,8 @@ class Akis(QWidget):
         return self._son_metin.text() if self._son_metin else ""
 
     def _ekle(self, w: QWidget) -> None:
+        if hasattr(w, "anime_et"):
+            w.anime_et()
         self._kutu.addWidget(w)
         self.updateGeometry()
 

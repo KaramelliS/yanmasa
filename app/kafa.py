@@ -31,11 +31,12 @@ from __future__ import annotations
 
 import random
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from .fluent import Tokens
+from .motion import clock
 
 #: Çizim 24 birimlik ızgarada, glyph'lerle aynı.
 GRID = 24.0
@@ -129,8 +130,7 @@ class AjanKafasi(QWidget):
         #: Yüz değiştiğinde çağrılıyor. Kafa `RunRing`in içine boyandığında
         #: kendi widget'ı görünmez oluyor; yeniden çizmesi gereken halka.
         self.on_change = self.update
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
+        self._abone = False
 
     # --- durum ------------------------------------------------------------
 
@@ -141,9 +141,11 @@ class AjanKafasi(QWidget):
             return
         self._live = live
         if live:
-            self._timer.start(FRAME_MS)
-        else:
-            self._timer.stop()
+            clock().subscribe(self._tick)
+            self._abone = True
+        elif self._abone:
+            clock().unsubscribe(self._tick)
+            self._abone = False
             self._blink = 0
         self.on_change()
 
@@ -166,8 +168,10 @@ class AjanKafasi(QWidget):
 
     # --- kare -------------------------------------------------------------
 
-    def _tick(self) -> None:
-        self._frame += 1
+    def _tick(self, dt: float = FRAME_MS / 1000) -> None:
+        # Kare sayısı yerine geçen zaman: kare düşerse animasyon
+        # yavaşlamamalı. `motion` bunun testini taşıyor.
+        self._frame += dt / (FRAME_MS / 1000)
         # Bakış hedefe yumuşak kayıyor: göz ışınlanmıyor.
         self._gaze += (self._gaze_hedef - self._gaze) * 0.22
 

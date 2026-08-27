@@ -2148,11 +2148,15 @@ class TestKosuHalkasi:
 
     def test_bitince_hareket_duruyor(self, qt_app):
         # Boşta dönen bir zamanlayıcı, hiçbir şey olmazken işlemci yakar.
+        # Halka artık ortak saate abone; her şey dinlenince aboneliği
+        # bırakıyor ve saatin de abonesi kalmıyor.
         r = self._ring(qt_app)
         r.begin()
-        assert r._timer.isActive()
+        assert r._abone
         r.finish()
-        assert not r._timer.isActive()
+        for _ in range(400):
+            r._tick(1 / 120)
+        assert not r._abone
 
     def test_dusen_adim_renkten_bagimsiz_ayirt_ediliyor(self):
         # Bu temada accent #e7babd, critical #ff99a4 — 2.4 piksellik bir
@@ -2357,11 +2361,11 @@ class TestAjanKafasi:
     def test_bostayken_hareket_yok(self, qt_app):
         # Boşta kırpan bir yüz, bir şey oluyormuş gibi görünürdü.
         k = self._k(qt_app)
-        assert not k._timer.isActive()
+        assert not k._abone
         k.set_live(True)
-        assert k._timer.isActive()
+        assert k._abone
         k.set_live(False)
-        assert not k._timer.isActive()
+        assert not k._abone
 
     def test_hata_hem_renk_hem_bicim(self, qt_app):
         # Bu temada kırmızı ile vurgu rengi birbirine yakın; hatayı renk
@@ -2407,7 +2411,6 @@ class TestAjanKafasi:
         assert r.face._state == "hata"
         r.finish()
         assert r.face._state == "bitti"
-        assert not r.face._timer.isActive()
 
 
 class TestMaskot:
@@ -2457,10 +2460,22 @@ class TestMaskot:
         assert son > bas
 
     def test_varlik_yoksa_cizilen_yuze_dusuyor(self, qt_app, monkeypatch):
-        from app import fluent, bloub, stream
+        # Üç kademeli yedek: SVG, hazır kareler, kodla çizilen yüz.
+        from app import fluent, bloub, stream, svgyuz
         from app.kafa import AjanKafasi
+        monkeypatch.setattr(svgyuz, "varlik_var", lambda: False)
         monkeypatch.setattr(bloub, "depo_var", lambda koyu=True: False)
         assert isinstance(stream._yuz(fluent.tokens(), 52), AjanKafasi)
+
+    def test_once_svg_seciliyor(self, qt_app):
+        # SVG bizim: temaya uyuyor ve gerçek veriye sürekli tepki
+        # verebiliyor. Hazır kareler ikisini de yapamıyor.
+        from app import fluent, stream
+        from app.svgyuz import SvgYuz, varlik_var
+        if not varlik_var():
+            import pytest as _p
+            _p.skip("svg yok")
+        assert isinstance(stream._yuz(fluent.tokens(), 52), SvgYuz)
 
     def test_iki_yuz_ayni_arayuzu_sunuyor(self, qt_app):
         # Halka hangisini kullandığını bilmemeli.
@@ -2521,3 +2536,221 @@ class TestGifBolucu:
             assert p["bas"] == beklenen
             beklenen = p["son"] + 1
         assert beklenen == k["kare"]
+
+
+class TestHareketMotoru:
+    """Hareket zamana bağlı olmalı, kare sayısına değil."""
+
+    def test_yay_kare_hizindan_bagimsiz(self):
+        # Eski kod `x += (hedef-x)*0.18` yapıyordu: 30 fps'te ve 120 fps'te
+        # aynı hedefe **farklı sürelerde** varıyordu. Yani animasyonun
+        # süresi donanıma bağlıydı.
+        from app.motion import Spring
+
+        def surede_nerede(fps, saniye):
+            y = Spring(0.0, stiffness=180.0)
+            y.to(1.0)
+            dt = 1.0 / fps
+            for _ in range(int(saniye * fps)):
+                y.step(dt)
+            return y.value
+
+        a = surede_nerede(30, 0.5)
+        b = surede_nerede(120, 0.5)
+        c = surede_nerede(240, 0.5)
+        assert abs(a - b) < 0.02, f"30 fps {a:.4f} vs 120 fps {b:.4f}"
+        assert abs(b - c) < 0.01
+
+    def test_eski_yontem_gercekten_bagimliydi(self):
+        # Karşılaştırma: düzeltilen hatanın var olduğunu gösteriyor.
+        def kare_basina(fps, saniye, k=0.18):
+            x = 0.0
+            for _ in range(int(saniye * fps)):
+                x += (1.0 - x) * k
+            return x
+        assert kare_basina(30, 0.5) < 0.95 < kare_basina(120, 0.5)
+
+    def test_kritik_sonum_hedefi_asmiyor(self):
+        from app.motion import Spring
+        y = Spring(0.0, stiffness=200.0)   # varsayılan sönüm kritik
+        y.to(1.0)
+        for _ in range(400):
+            y.step(1 / 240)
+        assert y.value <= 1.0005, y.value
+
+    def test_yay_dinlenmeye_geciyor(self):
+        from app.motion import Spring
+        y = Spring(0.0, stiffness=180.0)
+        y.to(1.0)
+        assert not y.resting
+        for _ in range(600):
+            y.step(1 / 120)
+        assert y.resting and abs(y.value - 1.0) < 0.002
+
+    def test_buyuk_duraksama_firlatmiyor(self):
+        # Pencere sürüklenirken ya da ağır bir araç çalışırken `dt` yarım
+        # saniye geliyor; sınırsız bırakılsa yay tek karede fırlıyordu.
+        from app.motion import MAX_DT, Spring
+        y = Spring(0.0, stiffness=400.0)
+        y.to(1.0)
+        for _ in range(30):
+            y.step(MAX_DT)
+        assert -0.5 < y.value < 1.5
+
+    def test_saat_abonesiz_duruyor(self, qt_app):
+        # Boşta dönen zamanlayıcı dizüstünde pil yer.
+        from app.motion import Clock
+        s = Clock()
+        assert not s.running
+        f = lambda dt: None
+        s.subscribe(f)
+        assert s.running
+        s.unsubscribe(f)
+        assert not s.running
+
+    def test_saat_ayni_aboneyi_iki_kez_almiyor(self, qt_app):
+        from app.motion import Clock
+        s = Clock()
+        f = lambda dt: None
+        s.subscribe(f); s.subscribe(f)
+        assert len(s._aboneler) == 1
+
+    def test_gecis_suresi_tutuyor(self):
+        from app.motion import Tween
+        g = Tween(0.3)
+        for _ in range(int(0.3 * 240)):
+            g.step(1 / 240)
+        assert g.done and g.value > 0.99
+
+    def test_titreme_soniyor(self):
+        from app.motion import Shake
+        s = Shake()
+        s.hit()
+        ilk = max(abs(s.step(1 / 120)) for _ in range(10))
+        for _ in range(240):
+            s.step(1 / 120)
+        assert s.resting and ilk > 0.1
+
+    def test_dalga_bir_kez(self):
+        from app.motion import Ripple
+        d = Ripple(0.4)
+        assert not d.alive
+        d.hit()
+        assert d.alive and d.alpha > 0.9
+        for _ in range(int(0.4 * 240) + 2):
+            d.step(1 / 240)
+        assert not d.alive and d.alpha == 0.0
+
+    def test_ease_out_back_asip_donuyor(self):
+        from app.motion import ease_out_back
+        assert max(ease_out_back(i / 100) for i in range(101)) > 1.0
+        assert abs(ease_out_back(1.0) - 1.0) < 1e-6
+        assert abs(ease_out_back(0.0)) < 1e-6
+
+
+class TestSvgYuz:
+    """Kendi SVG'mizden çizilen, yaylarla oynayan yüz."""
+
+    def _y(self, qt_app):
+        from app import fluent
+        from app.svgyuz import SvgYuz, varlik_var
+        if not varlik_var():
+            import pytest as _p
+            _p.skip("svg yok")
+        return SvgYuz(fluent.tokens(), 64)
+
+    def test_svg_gecerli_ve_parcali(self):
+        # Tek parça bir SVG gövdeyi ezerken gözleri kaydıramazdı.
+        from PySide6.QtCore import QByteArray
+        from PySide6.QtSvg import QSvgRenderer
+        from app.svgyuz import VARLIK
+        if not VARLIK.is_file():
+            import pytest as _p
+            _p.skip("svg yok")
+        r = QSvgRenderer(QByteArray(VARLIK.read_bytes()))
+        assert r.isValid()
+        for ad in ("govde", "goz-normal-sol", "goz-genis-sag",
+                   "goz-kapali-sol", "goz-kizgin-sag", "goz-gulen-sol"):
+            assert r.elementExists(ad), ad
+
+    def test_renk_temadan_geliyor(self, qt_app):
+        # SVG'ye sabit renk gömülü olsaydı tema değiştiğinde maskot
+        # yabancı kalırdı.
+        from app import fluent
+        from app.svgyuz import YER_GOVDE, YER_OYUK, _renkli
+        metin = bytes(_renkli(fluent.tokens())).decode("utf-8")
+        assert YER_GOVDE not in metin and YER_OYUK not in metin
+
+    def test_govde_halkanin_rengiyle_ayni_degil(self, qt_app):
+        # İkisi de vurgu rengi olsaydı yüz, koşu kaydının önünü kapatırdı.
+        from app import fluent
+        from app.svgyuz import _renkli
+        t = fluent.tokens()
+        metin = bytes(_renkli(t)).decode("utf-8")
+        assert t.accent.lower() not in metin.lower()
+
+    def test_durum_goz_turunu_degistiriyor(self, qt_app):
+        y = self._y(qt_app)
+        turler = set()
+        for d in ("bosta", "bakiyor", "yaziyor", "hata", "bitti"):
+            y.set_state(d)
+            turler.add(y._goz)
+        assert len(turler) >= 4
+
+    def test_bakis_sinirli_ve_yayli(self, qt_app):
+        y = self._y(qt_app)
+        y.look_at(5.0, -5.0)
+        assert y._gaze_x.target == 1.0 and y._gaze_y.target == -1.0
+        # Yay: hedefe anında atlamıyor.
+        assert y._gaze_x.value < 1.0
+
+    def test_ezilme_sinirli(self, qt_app):
+        from app.svgyuz import SQUASH_MAX
+        y = self._y(qt_app)
+        y.set_live(True)
+        for _ in range(300):
+            y.bump()
+            y._tick(1 / 120)
+        assert abs(y._squash.value) <= SQUASH_MAX + 1e-9
+
+    def test_bostayken_saatten_iniyor(self, qt_app):
+        y = self._y(qt_app)
+        y.set_live(True)
+        assert y._abone
+        y.set_live(False)
+        for _ in range(400):
+            y._tick(1 / 120)
+        assert not y._abone
+
+    def test_uretici_ayni_ciktiyi_veriyor(self, tmp_path):
+        # Varlık elle düzenlenmiş olmamalı: betik neyse dosya o.
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        import svg_yap
+        from app.svgyuz import VARLIK
+        if not VARLIK.is_file():
+            import pytest as _p
+            _p.skip("svg yok")
+        assert VARLIK.read_text("utf-8") == svg_yap.yuz_svg()
+
+
+class TestSatirGirisi:
+    def test_giris_bitiyor(self):
+        from app.stream import Giris
+        g = Giris()
+        assert g.opacity < 0.5 and g.offset > 1
+        for _ in range(int(Giris.SURE * 240) + 4):
+            g.step(1 / 240)
+        assert g.done and g.opacity > 0.99 and g.offset < 0.05
+
+    def test_hata_satiri_titriyor(self, qt_app):
+        from app import fluent
+        from app.stream import AdimSatiri
+        s = AdimSatiri(fluent.tokens(), "run_shell", "Komut", "curl")
+        assert s._shake.resting
+        s.set_tone("hata")
+        assert not s._shake.resting
+        for _ in range(400):
+            s._tick(1 / 120)
+        assert s._shake.resting
