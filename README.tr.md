@@ -137,9 +137,10 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 376 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 389 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
+.venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
 .venv/Scripts/python.exe scripts/ajan.py                   # ajan, etkileşimli
 .venv/Scripts/python.exe scripts/ajan.py "Not Defteri'ni aç"
 ```
@@ -412,6 +413,37 @@ parçacığında basılı görünmüyor, ve sürükle-bırak yok.
 
 `python scripts/ikinci_imlec_dogrula.py` bunu uçtan uca ölçüyor.
 
+### Ajanın masası
+
+Yan alan görünmezdi: `side_capture` yalnızca ajan bir eylem yaptığında kare
+veriyordu, arada ekran donuyordu ve "şu anda ne oluyor" sorusunun cevabı
+yoktu.
+
+`app/masa.py` o cevap. Gizli masaüstündeki bütün pencereleri saniyede sekiz
+kez yakalayıp gerçekten durdukları yere koyuyor, üstünde ajanın imleci
+geziyor. Ölçüldü: 1100x760 bir Chrome penceresi kare başına 54 ms, yani
+tavan ~18 fps. Sekizde kalmak bilinçli — bu döngü ajanın kendi işiyle aynı
+makinede dönüyor ve öncelik onun. Yakalama kendi thread'inde ve pencere
+gizlenince duruyor.
+
+**Linux Mint gibi görünüyor ve sebebi var.** Baktığın şey senin masaüstün
+değil. Windows gibi görünseydi her göz atışında hangi ekrana baktığını
+çözmen gerekirdi; başka bir işletim sisteminin kabuğu tek bakışta "burası
+başka bir yer" diyor. Renkler, panel, başlık çubukları ve duvar kâğıdı
+burada sıfırdan çiziliyor — Mint'in duvar kâğıtları, logosu ve simgeleri
+onların ve bu depoda yok.
+
+Başlık çubuklarında kapat/küçült düğmesi yok. Salt okunur bir görüntüde
+çalışmayan bir düğme yalan; yerine başlık ajanın hangi pencerede olduğunu
+söylüyor, ki insanın gerçekten merak ettiği bu. Paneldeki tek gerçek
+düğme duraklatma ve gerçek bir iş yapıyor: yakalama kare başına 54 ms ve
+sen bakmıyorken o payı ajana bırakmak doğru.
+
+`python scripts/masa_dogrula.py` gizli masaüstünde gerçek uygulamalar açıp
+kareyi `varliklar/onizleme/masa.png` dosyasına yazıyor.
+
+![Ajanın masası](varliklar/onizleme/masa.png)
+
 ## Uygulama çeşitliliği
 
 `launch_app` yalnızca PATH'e bakıyordu. Ölçüldü: on yedi yaygın uygulamadan
@@ -589,10 +621,8 @@ Bir README'de en işe yarayan bölüm bu.
   duruyor.
 - **Doğrulanmış rapor yalnızca Türkçe kalıplara bakıyor.** Ajan
   İngilizce cevap verirse hiçbir iddiayı yakalamaz.
-- **Yan alanın canlı görüntüsü yok.** Kare her `side_act` sonrası
-  tazeleniyor ama ajan bir şey yapmadığı sürece donuk kalıyor; sürekli
-  akan bir görüntü değil. Yan alanı tıklanabilir yapmak — Berkay'ın
-  oraya elle müdahale etmesi — hiç yazılmadı.
+- **Ajanın masası salt okunur.** Canlı izleyebiliyorsun ama içine
+  tıklayıp yazamıyorsun; yan alana elle müdahale hiç yazılmadı.
 - **Sistem tepsisi ve global kısayol yok.** Uygulama açılışta başlamıyor.
 - **Workflow yok.** Kayıt/oynatma Faz 6. Yetenekler bunun bir kısmını
   karşılıyor ama tekrar eden bir GUI dizisini otomatik kaydetmiyorlar;
@@ -691,11 +721,13 @@ backend/
   safety/
     gate.py             risk sınıflandırıcı
     killswitch.py       Esc x3 acil durdurma
+  computer/canli.py   masanın canlı karesi
 app/
   fluent.py             Fluent token'ları; tema ve vurgu sistemden okunuyor
   window.py             ana pencere, dock panelleri, durum şeridi
   commandbar.py         yüzen komut çubuğu: mikrofon, yazı alanı, önizleme
   baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
+  masa.py               ajanın masası: gizli masaüstünün canlı görüntüsü
   sheet_view.py         Excel benzeri tablo: formül çubuğu, sayfa sekmeleri
   panels.py             tablo, yazı, kod, terminal, değişiklik listesi
 yanmasa.py              masaüstü uygulaması girişi
@@ -704,6 +736,7 @@ scripts/
   ajan.py               terminal arayüzü (ajan çekirdeği)
   svg_yap.py            maskotun pozlarını üretir
   svg_onizleme.py       üretilen SVG'lerin PNG önizlemesi + tabaka
+  masa_dogrula.py       ajanın masasını gerçek pencerelerle ölçer
   tanitim.py            README'nin tanıtım karesi — ekran değil, widget
 varliklar/
   kaynak/bloub.svg      maskotun asıl silueti; pozlar buradan türüyor

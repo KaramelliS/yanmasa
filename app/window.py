@@ -132,6 +132,14 @@ class StatusBar(QWidget):
         for counter in (self.steps, self.unsaved, self.terminals):
             layout.addWidget(counter)
 
+        self.open_desk = QPushButton("Desk")
+        self.open_desk.setToolTip(
+            "Watch the agent's own desktop — live, read-only"
+        )
+        self.open_desk.setFixedHeight(32)
+        self.open_desk.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout.addWidget(self.open_desk)
+
         self.connect_remote = QPushButton("Server")
         self.connect_remote.setToolTip("Connect to a server over SSH")
         self.connect_remote.setFixedHeight(32)

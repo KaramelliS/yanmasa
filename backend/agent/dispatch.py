@@ -108,6 +108,9 @@ class Dispatcher:
         #: ucuz değil ve ajanların çoğu oturumu ona hiç dokunmadan bitiyor.
         self.side: Calisma | None = None
         self.side_input = Girdi()
+        #: Ajanın en son dokunduğu yan pencere. Canlı görüntü bunu
+        #: işaretliyor: bakan kişinin ilk sorusu "şu an nerede".
+        self.last_side_hwnd = 0
         #: Yan alanın son karesi, arayüz için. Modele gitmiyor — her
         #: eylemde kare göndermek tur başına ~1500 görsel token ve
         #: model zaten nereye tıkladığını biliyor. Berkay bilmiyor.
@@ -384,8 +387,9 @@ class Dispatcher:
         if hwnd not in {p.hwnd for p in self._side().pencereler()}:
             raise ToolError(
                 f"{hwnd} is not in the side workspace. Get a fresh list "
-                "listeyi al."
+                "with side_windows."
             )
+        self.last_side_hwnd = hwnd
         return pencere_bilgisi(hwnd)
 
     def _do_side_launch(self, payload: dict[str, Any]) -> ToolOutcome:
@@ -469,7 +473,7 @@ class Dispatcher:
             # Eylem başarısız olsa da kare çekiliyor: hata anındaki
             # ekran, hatanın kendisinden daha çok şey anlatıyor.
             self._side_kare_yenile(pencere.hwnd)
-        raise ToolError(f"Bilinmeyen eylem: {action!r}")
+        raise ToolError(f"Unknown action: {action!r}")
 
     def _side_kare_yenile(self, hwnd: int) -> None:
         """Arayüzün göreceği kareyi tazeler. Hata yutuluyor.

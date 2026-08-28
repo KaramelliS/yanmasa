@@ -16,6 +16,7 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from app import fluent
@@ -223,7 +224,7 @@ def main() -> int:
 
         view = RemoteView(tokens, session)
         view.show_path(session.cwd)
-        window.open_panel("__uzak__", f"{session.host.label} · sunucu", view)
+        window.open_panel("__uzak__", f"{session.host.label} · server", view)
 
     def connect_remote() -> None:
         """Berkay 'Sunucu' düğmesine bastı."""
@@ -249,6 +250,29 @@ def main() -> int:
         window.status.set_line(f"Connected: {banner}")
 
     window.status.connect_remote.clicked.connect(connect_remote)
+
+    masa: dict = {"pencere": None}
+
+    def show_desk() -> None:
+        """Ajanın masasını açar ya da öne getirir.
+
+        Pencere gecikmeli kuruluyor: yakalama thread'i ancak gösterildiğinde
+        başlıyor ve yan alanı hiç kullanmayan bir oturumda hiç başlamıyor.
+        """
+        from app.masa import MasaPenceresi, masa_kaynagi
+
+        w = masa["pencere"]
+        if w is None:
+            w = MasaPenceresi(masa_kaynagi(bridge.dispatcher()))
+            # Ana pencere kapanınca uygulama kapansın: açık kalan bir
+            # masa penceresi uygulamayı görünmez şekilde ayakta tutardı.
+            w.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
+            masa["pencere"] = w
+        w.show()
+        w.raise_()
+        w.activateWindow()
+
+    window.status.open_desk.clicked.connect(show_desk)
 
     def on_panel(skill: str, panel: dict) -> None:
         """Bir yetenek panel üretti — arayüzde yeni bir özellik."""
@@ -320,6 +344,13 @@ def main() -> int:
         bar.stream(parca)
 
     def on_action(tool: str, payload: dict) -> None:
+        # Ajan yan masaüstüne dokundu: orada olan bitenin görünmesi bu
+        # aracın bütün gerekçesi. Pencereyi elle açmayı beklemek, ilk
+        # koşuda kimsenin bakmadığı bir çalışma alanı demek.
+        if tool.startswith("side_"):
+            show_desk()
+            if tool == "side_launch":
+                masa["pencere"].masa_acildi()
         op = _describe(tool, payload)
         bar.ring.step(tool)
         bar.set_tool(op.tool, op.target or op.detail)
@@ -336,6 +367,8 @@ def main() -> int:
         bar.settle_step(is_error)
         # Ajan bir düğme kurduysa çubuk hemen göstersin; yeniden başlatmak
         # gerekmesin.
+        if tool == "side_close" and not is_error and masa["pencere"]:
+            masa["pencere"].masa_kapandi()
         if tool.startswith("button_") and not is_error:
             bar.buttons.reload()
             bar._grow()

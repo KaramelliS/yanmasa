@@ -94,6 +94,16 @@ class AgentBridge(QObject):
         except Exception:
             return None
 
+    def dispatcher(self):
+        """Ajanın araç çalıştırıcısı — yan masaüstü onun elinde.
+
+        Canlı görüntü buradan okuyor. Ajan kurulamamışsa `None` dönüyor ve
+        masa penceresi boş masayı gösteriyor; kurulum hatası yüzünden
+        pencerenin hiç açılmaması, hatanın kendisinden daha kafa
+        karıştırıcı olurdu.
+        """
+        return None if self._agent is None else self._agent.dispatcher
+
     def remote_session(self):
         """Ajanın bağlı olduğu sunucu — yoksa None."""
         if self._agent is None:

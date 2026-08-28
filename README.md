@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-376%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-389%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -42,6 +42,40 @@ Three limits, and the agent is told about all three in the `side_launch`
 description: Store apps open no window there (including Windows 11's
 Notepad), modifier combinations like `Ctrl+S` do not work because the
 modifier is not held down on that thread, and there is no drag-and-drop.
+
+### The agent's desk
+
+The side workspace was invisible: `side_capture` only produced a frame when
+the agent acted, so between actions the screen was frozen and "what is
+happening right now" had no answer.
+
+`app/masa.py` is that answer — a window that captures every window on the
+hidden desktop eight times a second and lays them out where they really
+are, with the agent's cursor moving over them. Measured: a 1100x760 Chrome
+window costs 54 ms per frame, so ~18 fps is the ceiling; eight is chosen
+deliberately, because this loop runs on the same machine as the agent's own
+work and the agent has priority. Capture runs on its own thread and stops
+whenever the window is hidden.
+
+**It looks like a Linux Mint desktop, and that is the point.** What you are
+looking at is not your desktop. If it looked like Windows you would have to
+work out which screen you were on every time you glanced at it; another
+operating system's shell says "this is somewhere else" in one look. The
+colours, the panel, the titlebars and the wallpaper are drawn from scratch
+here — Mint's own wallpapers, logo and icons belong to Mint and are not in
+this repo.
+
+The titlebars have no close or minimise buttons. In a read-only view a
+button that does nothing is a lie; instead the titlebar says which window
+the agent is working in, which is what you actually want to know. The one
+real control in the panel is pause, and it does a real job: capture costs
+54 ms a frame and giving that back to the agent while you are not looking
+is the right trade.
+
+`python scripts/masa_dogrula.py` opens real apps on the hidden desktop and
+writes the frame to `varliklar/onizleme/masa.png`.
+
+![The agent's desk: two real windows on the hidden desktop, the agent's cursor and its trail, a Mint-like panel](varliklar/onizleme/masa.png)
 
 ## What it is
 
@@ -130,10 +164,11 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 376 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 389 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
+.venv/Scripts/python.exe scripts/masa_dogrula.py            # the desk
 .venv/Scripts/python.exe scripts/ajan.py "open Notepad"     # no UI
 ```
 
@@ -164,9 +199,8 @@ The most useful section in any README.
   skill API's keys (`ARAC`, `girdi`, `calistir`, `bolumler`) are Turkish
   too, and they have to stay that way: they are the runtime contract, so
   renaming them would break every skill the agent already wrote.
-- **No live view of the side workspace.** The frame refreshes after every
-  `side_act`, so it is frozen whenever the agent is not acting. Making the
-  side workspace clickable — you reaching into it by hand — was never
+- **The agent's desk is read-only.** You can watch it live, but you cannot
+  click or type in it — reaching into the side workspace by hand was never
   written.
 - **No dry-run mode, no workflow record/replay, no tray icon, no global
   hotkey.** The app does not start with Windows.
@@ -216,13 +250,15 @@ The most useful section in any README.
 backend/
   computer/     capture, input, displays, UIA, terminal, files, windows
   computer/masaustu.py, mesaj.py   the second desktop and its input
+  computer/canli.py                the desk's live frame
   agent/        loop, dispatch, tools, prompts, audit log, claim check
   office/       .xlsx and .docx without Office
   skills/       the agent's own tools
   safety/       risk classifier, Esc x3 kill switch
 app/            Qt interface: window, panels, floating command bar, mascot
+app/masa.py     the agent's desk, drawn as a Mint-like shell
 scripts/        manual verification, asset and hero generation
-tests/          376 tests of the pure logic
+tests/          389 tests of the pure logic
 ```
 
 ## Contributing

@@ -195,6 +195,33 @@ def pencere_bilgisi(hwnd: int) -> Pencere:
     )
 
 
+def istemci_kutusu(hwnd: int) -> tuple[int, int, int, int]:
+    """İstemci alanının pencere karesindeki yeri: (dx, dy, en, boy).
+
+    Canlı görüntü için gerekiyor. `PrintWindow` pencerenin tamamını —
+    Windows'un kendi başlık çubuğu ve kenarlığı dahil — veriyor. O kareyi
+    Mint görünümlü bir çerçevenin içine koyunca iki başlık çubuğu üst üste
+    geliyor: biri Windows'un, biri bizim. İstemci alanı kırpılınca yalnızca
+    uygulamanın kendi içeriği kalıyor ve çerçeve bizim oluyor.
+
+    Chrome gibi kendi başlığını istemci alanına çizen uygulamalarda sekme
+    şeridi içeride kalıyor; doğru olan bu, o şerit uygulamanın kendi
+    arayüzü.
+    """
+    istemci = wintypes.RECT()
+    _u32.GetClientRect(hwnd, ctypes.byref(istemci))
+    kose = wintypes.POINT(0, 0)
+    _u32.ClientToScreen(hwnd, ctypes.byref(kose))
+    pencere = wintypes.RECT()
+    _u32.GetWindowRect(hwnd, ctypes.byref(pencere))
+    return (
+        kose.x - pencere.left,
+        kose.y - pencere.top,
+        istemci.right - istemci.left,
+        istemci.bottom - istemci.top,
+    )
+
+
 def imlec_ciz(gorsel: Image.Image, x: int, y: int,
               iz: Sequence[tuple[int, int]] = (), tik: bool = False) -> None:
     """Ajanın imlecini karenin üstüne çizer. Görseli yerinde değiştirir.
