@@ -60,15 +60,15 @@ class TestTuslar:
     def test_kombinasyon_reddediliyor(self):
         # Sessizce yanlış iş yapmaktansa hata: değiştirici tuş ileti
         # taklidinde basılı görünmüyor.
-        with pytest.raises(DesteklenmiyorHatasi, match="değiştirici"):
+        with pytest.raises(DesteklenmiyorHatasi, match="modifier"):
             Girdi().tus("ctrl+s")
 
     def test_bilinmeyen_tus_reddediliyor(self):
-        with pytest.raises(DesteklenmiyorHatasi, match="bilinmeyen"):
+        with pytest.raises(DesteklenmiyorHatasi, match="unknown key"):
             Girdi().tus("hyperspace")
 
     def test_odak_yokken_yazma_reddediliyor(self):
-        with pytest.raises(DesteklenmiyorHatasi, match="odak"):
+        with pytest.raises(DesteklenmiyorHatasi, match="focus"):
             Girdi().yaz("merhaba")
 
     def test_islev_tuslari_dogru_kodda(self):

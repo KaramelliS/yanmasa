@@ -154,7 +154,7 @@ class SkillRegistry:
             if skill.name in self.skills:
                 owner = self.skills[skill.name].path.name
                 self.broken.append(
-                    Broken(path, f"{skill.name!r} adı zaten {owner} içinde")
+                    Broken(path, f"the name {skill.name!r} is already used in {owner}")
                 )
                 continue
             self.skills[skill.name] = skill
@@ -177,12 +177,12 @@ class SkillRegistry:
         try:
             source = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
-            raise SkillError(f"dosya okunamadı: {exc}") from None
+            raise SkillError(f"could not read the file: {exc}") from None
         try:
             code = compile(source, str(path), "exec")
         except SyntaxError as exc:
             raise SkillError(
-                f"sözdizimi hatası, satır {exc.lineno}: {exc.msg}"
+                f"syntax error on line {exc.lineno}: {exc.msg}"
             ) from None
 
         module_name = f"ajan_yetenek_{path.stem}_{self._serial}"
@@ -203,33 +203,33 @@ class SkillRegistry:
     def _build(self, path: Path, module: Any) -> Skill:
         spec = getattr(module, "ARAC", None)
         if not isinstance(spec, dict):
-            raise SkillError("ARAC sözlüğü yok")
+            raise SkillError("there is no ARAC dict")
         missing = [k for k in REQUIRED_KEYS if k not in spec]
         if missing:
-            raise SkillError(f"ARAC içinde eksik alan: {', '.join(missing)}")
+            raise SkillError(f"missing field in ARAC: {', '.join(missing)}")
 
         name = str(spec["ad"])
         if not NAME_RULE.match(name):
             raise SkillError(
-                f"{name!r} geçersiz ad — küçük harf, rakam ve alt çizgi, 3-41 karakter"
+                f"{name!r} is not a valid name — lower case, digits and underscore, 3-41 characters"
             )
         if name in self.reserved:
-            raise SkillError(f"{name!r} yerleşik bir aracın adı, üstüne yazılamaz")
+            raise SkillError(f"{name!r} is a built-in tool name and cannot be overwritten")
 
         run = getattr(module, "calistir", None)
         if not callable(run):
-            raise SkillError("calistir(girdi, ortam) fonksiyonu yok")
+            raise SkillError("there is no calistir(girdi, ortam) function")
 
         properties = spec["girdi"]
         if not isinstance(properties, dict):
-            raise SkillError("ARAC['girdi'] bir sözlük olmalı")
+            raise SkillError("ARAC['girdi'] must be a dict")
         required = spec.get("zorunlu", list(properties))
         if not isinstance(required, list):
-            raise SkillError("ARAC['zorunlu'] bir liste olmalı")
+            raise SkillError("ARAC['zorunlu'] must be a list")
         unknown = [r for r in required if r not in properties]
         if unknown:
             raise SkillError(
-                f"zorunlu alan girdide tanımlı değil: {', '.join(map(str, unknown))}"
+                f"a required field is not defined in girdi: {', '.join(map(str, unknown))}"
             )
 
         return Skill(
@@ -252,15 +252,15 @@ class SkillRegistry:
         if spec is None:
             return None
         if not isinstance(spec, dict):
-            raise SkillError("KOMUT bir sözlük olmalı")
+            raise SkillError("KOMUT must be a dict")
         missing = [k for k in ("ad", "aciklama", "talimat") if k not in spec]
         if missing:
-            raise SkillError(f"KOMUT içinde eksik alan: {', '.join(missing)}")
+            raise SkillError(f"missing field in KOMUT: {', '.join(missing)}")
         name = str(spec["ad"]).lstrip("/")
         if not COMMAND_RULE.match(name):
             raise SkillError(
-                f"{name!r} geçersiz komut adı — küçük harfle başlamalı, "
-                f"küçük harf/rakam/alt çizgi"
+                f"{name!r} is not a valid command name — it must start with a lower "
+                f"case letter, then lower case/digits/underscore"
             )
         return Command(
             name=name,
@@ -297,13 +297,13 @@ class SkillRegistry:
         """
         if not NAME_RULE.match(name):
             raise SkillError(
-                f"{name!r} geçersiz dosya adı — küçük harf, rakam ve alt çizgi"
+                f"{name!r} is not a valid file name — lower case, digits and underscore"
             )
         try:
             compile(code, f"<{name}>", "exec")
         except SyntaxError as exc:
             raise SkillError(
-                f"sözdizimi hatası, satır {exc.lineno}: {exc.msg}"
+                f"syntax error on line {exc.lineno}: {exc.msg}"
             ) from None
 
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -325,13 +325,13 @@ class SkillRegistry:
     def read(self, name: str) -> str:
         path = self.directory / f"{name}.py"
         if not path.exists():
-            raise SkillError(f"{name} diye bir yetenek yok")
+            raise SkillError(f"there is no skill called {name}")
         return path.read_text(encoding="utf-8")
 
     def remove(self, name: str) -> Path:
         path = self.directory / f"{name}.py"
         if not path.exists():
-            raise SkillError(f"{name} diye bir yetenek yok")
+            raise SkillError(f"there is no skill called {name}")
         path.unlink()
         self.refresh(force=True)
         return path
@@ -355,10 +355,10 @@ class SkillRegistry:
                 onay = " [onay ister]" if skill.needs_approval else ""
                 lines.append(f"  {skill.name}{onay} — {skill.description}")
         else:
-            lines.append("Henüz yetenek yok.")
+            lines.append("No skills yet.")
         if self.commands:
             lines.append("")
-            lines.append(f"{len(self.commands)} komut (Berkay /ad yazarak çağırıyor):")
+            lines.append(f"{len(self.commands)} commands (the user calls them by typing /name):")
             for command in self.commands.values():
                 lines.append(f"  /{command.name} — {command.description}")
         if self.broken:
@@ -366,5 +366,5 @@ class SkillRegistry:
             lines.append(f"{len(self.broken)} bozuk dosya:")
             for item in self.broken:
                 lines.append(f"  {item.path.name}: {item.error}")
-            lines.append("Bunları düzelt ya da sil; yüklenmedikleri için çağrılamıyorlar.")
+            lines.append("Fix or delete these; they did not load, so they cannot be called.")
         return "\n".join(lines)

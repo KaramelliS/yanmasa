@@ -63,7 +63,7 @@ class KillSwitch:
 
     def start(self) -> KillSwitch:
         if self._thread is not None:
-            raise RuntimeError("KillSwitch zaten çalışıyor")
+            raise RuntimeError("the KillSwitch is already running")
         self._thread = threading.Thread(target=self._watch, daemon=True, name="killswitch")
         self._thread.start()
         return self

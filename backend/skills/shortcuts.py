@@ -96,14 +96,14 @@ class ShortcutStore:
         """Ekler ya da aynı adlıyı değiştirir."""
         if not NAME_RULE.match(shortcut.name):
             raise ShortcutError(
-                f"{shortcut.name!r} geçersiz ad — küçük harf, rakam ve alt çizgi"
+                f"{shortcut.name!r} is not a valid name — lower case, digits and underscore"
             )
         if not shortcut.label.strip():
-            raise ShortcutError("Etiket boş olamaz")
+            raise ShortcutError("The label cannot be empty")
         if len(shortcut.label) > MAX_LABEL:
             raise ShortcutError(f"Etiket en fazla {MAX_LABEL} karakter")
         if not shortcut.instruction.strip():
-            raise ShortcutError("Talimat boş olamaz — düğme tıklanınca ne gitsin?")
+            raise ShortcutError("The instruction cannot be empty — what should the click send?")
 
         items = [s for s in self.all() if s.name != shortcut.name]
         items.append(shortcut)
@@ -114,7 +114,7 @@ class ShortcutStore:
         items = self.all()
         kalan = [s for s in items if s.name != name]
         if len(kalan) == len(items):
-            raise ShortcutError(f"{name} diye bir düğme yok")
+            raise ShortcutError(f"there is no button called {name}")
         self._write(kalan)
 
     def reorder(self, names: list[str]) -> None:

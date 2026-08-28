@@ -44,17 +44,17 @@ def check_capture(out_dir: Path) -> None:
                 f"{len(png) / 1024:.0f} KB, {elapsed:.0f} ms -> {path}"
             )
             if display.needs_downscale:
-                print("    UYARI: uzun kenar 2576 px sınırını aşıyor, küçültme gerekir")
+                print("    WARNING: the long edge exceeds the 2576 px limit; downscaling is needed")
 
         # zoom yolu: kırpma kaynak kareden geliyor, yeniden yakalamadan.
         frame = capture.grab(0)
         region = (frame.width // 4, frame.height // 4, frame.width // 2, frame.height // 2)
         crop = frame.crop(region)
-        print(f"  zoom kırpması {region} -> {crop.width}x{crop.height}")
+        print(f"  zoom crop {region} -> {crop.width}x{crop.height}")
 
 
 def check_input() -> None:
-    print("\nNotepad açılıyor — klavyeye dokunma.")
+    print("\nOpening Notepad — do not touch the keyboard.")
     subprocess.Popen(["notepad.exe"])
 
     # Odak kilidi: Notepad öne gelmezse hiçbir tuş gönderilmez. Bu kontrol
@@ -62,9 +62,9 @@ def check_input() -> None:
     # bu oldu ve yazı bir tarayıcı sekmesine düştü.
     if not win.wait_for_foreground(process="notepad.exe", timeout=8.0):
         print(
-            f"  BAŞARISIZ: Notepad öne gelmedi. Odakta "
+            f"  FAILED: Notepad did not come forward. In the foreground: "
             f"{win.foreground_process()} / {win.foreground_title()!r} var. "
-            f"Hiçbir tuş gönderilmedi."
+            f"No key was sent."
         )
         return
     time.sleep(0.4)
@@ -74,18 +74,18 @@ def check_input() -> None:
     time.sleep(0.3)
     win.assert_foreground(process="notepad.exe")
     kb.press("Return")
-    kb.type_text("İkinci satır. Bu metni Notepad'de okuyabiliyorsan girdi katmanı çalışıyor.")
+    kb.type_text("Second line. If you can read this in Notepad, the input layer works.")
 
     x, y = kb.cursor_position()
-    print(f"  imleç konumu: ({x}, {y})")
-    print(f"  yazılan metin:\n    {TURKCE}")
-    print("\n  Notepad'deki metin yukarıdakiyle birebir aynıysa Faz 1 geçti.")
-    print("  Türkçe karakterler bozuksa KEYEVENTF_UNICODE yolu kırık demektir.")
+    print(f"  cursor position: ({x}, {y})")
+    print(f"  the text typed:\n    {TURKCE}")
+    print("\n  If the text in Notepad matches the above exactly, phase 1 passed.")
+    print("  If the Turkish characters are mangled, the KEYEVENTF_UNICODE path is broken.")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", action="store_true", help="klavye testini de çalıştır")
+    parser.add_argument("--input", action="store_true", help="also run the keyboard test")
     parser.add_argument("--out", type=Path, default=Path("runs/phase1"))
     args = parser.parse_args()
 
@@ -94,7 +94,7 @@ def main() -> int:
     if args.input:
         check_input()
     else:
-        print("\nKlavye/fare testi atlandı. Çalıştırmak için: --input")
+        print("\nKeyboard/mouse test skipped. To run it: --input")
     return 0
 
 

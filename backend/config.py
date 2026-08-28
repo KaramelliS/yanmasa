@@ -44,8 +44,8 @@ class Config:
         key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY yok. `.env.example`'ı `.env` olarak kopyalayıp "
-                "doldur ya da ortam değişkeni olarak ver."
+                "ANTHROPIC_API_KEY is missing. Copy `.env.example` to `.env` and "
+                "fill it in, or set it as an environment variable."
             )
 
         raw_keys = os.environ.get("ELEVENLABS_KEYS", "")

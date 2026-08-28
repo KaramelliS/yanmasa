@@ -91,11 +91,11 @@ def assert_foreground(
 ) -> None:
     """Beklenen pencere odakta değilse hata fırlatır — klavye eylemi öncesi kilit."""
     if not matches_foreground(process, title_contains):
-        expected = process or f"başlığında {title_contains!r} geçen pencere"
+        expected = process or f"a window with {title_contains!r} in its title"
         raise FocusError(
-            f"{expected} bekleniyordu ama odakta "
-            f"{foreground_process() or '<yok>'} / {foreground_title()!r} var. "
-            f"Girdi gönderilmedi."
+            f"{expected} was expected, but the foreground is "
+            f"{foreground_process() or '<none>'} / {foreground_title()!r}. "
+            f"No input was sent."
         )
 
 

@@ -36,7 +36,7 @@ KEEP_IMAGES = 4
 #: birikmesini bekleyip toplu budamak çok daha ucuz.
 PRUNE_AT = 12
 
-PRUNED_PLACEHOLDER = "[eski ekran görüntüsü bağlamdan çıkarıldı]"
+PRUNED_PLACEHOLDER = "[an old screenshot was pruned from the context]"
 
 
 def _ozet(icerik) -> str:
@@ -46,7 +46,7 @@ def _ozet(icerik) -> str:
     yazmak dosyayı megabaytlara çıkarır ve hiçbir şey anlatmaz.
     """
     if isinstance(icerik, list):
-        return "[görsel]"
+        return "[image]"
     return str(icerik)
 
 
@@ -80,10 +80,10 @@ class Turn:
 #: neden reddedildiğini ve ne yapılacağını söylemiyor, üstelik modelin kendi
 #: açıklamasını da çöpe atıyordu.
 REFUSAL_HINT = (
-    "İstek reddedildi. Bu genellikle senin yazdığın şeyle değil, o anda "
-    "ekranda olanla ilgili: doğrulama kodu, bankacılık ekranı ya da şifre "
-    "alanı görünen bir kare güvenlik denetimini tetikliyor.\n\n"
-    "O pencereyi kapatıp ya da başka bir ekrana geçip tekrar dene."
+    "The request was refused. This is usually not about what you wrote "
+    "but about what was on screen: a frame showing a verification code, "
+    "a banking screen or a password field trips a safety check.\n\n"
+    "Close that window or switch to another display and try again."
 )
 
 
@@ -286,8 +286,8 @@ class Agent:
                 self.messages.append({"role": "user", "content": results})
                 worst = max(seen_errors, key=lambda k: seen_errors[k])
                 return (
-                    f"{worst.split('|')[0]} aynı hatayla {tekrar} kez düştü, "
-                    f"durdum — denemeye devam etmek boşuna masraf.\n\n"
+                    f"{worst.split('|')[0]} failed {tekrar} times with the same error, "
+                    f"so I stopped — carrying on would just cost money.\n\n"
                     f"{final_text}".strip()
                 )
             # Araya sıkıştırılan cümleler araç sonuçlarıyla aynı mesaja
@@ -296,7 +296,7 @@ class Agent:
             araya = self.take_pending()
             if araya:
                 results = results + [
-                    {"type": "text", "text": f"[Berkay araya yazdı] {metin}"}
+                    {"type": "text", "text": f"[the user cut in] {metin}"}
                     for metin in araya
                 ]
                 for metin in araya:
@@ -304,7 +304,7 @@ class Agent:
             self.messages.append({"role": "user", "content": results})
             self._prune_images()
 
-        return final_text or f"{max_steps} adımda bitmedi, durdum."
+        return final_text or f"It did not finish in {max_steps} steps, so I stopped."
 
     def _close_open_tools(self, reason: str) -> str | None:
         """Sonucu yazılmamış araç çağrılarını kapatır.
@@ -351,7 +351,7 @@ class Agent:
                     block.clear()
                     block.update({
                         "type": "text",
-                        "text": "(ekran görüntüsü kaldırıldı)",
+                        "text": "(the screenshot was removed)",
                     })
 
     # --- model çağrısı ----------------------------------------------------
@@ -464,9 +464,9 @@ class Agent:
                     outcome = ToolOutcome(
                         content=(
                             f"{outcome.content}\n\n"
-                            f"[Bu çağrı {seen_errors[key]} kez aynı hatayı "
-                            f"verdi. Tekrar deneme — ya başka bir yol seç ya "
-                            f"da Berkay'a neyin çalışmadığını söyle.]"
+                            f"[This call returned the same error {seen_errors[key]} times. "
+                            f"Do not retry it — either pick another route or tell the user "
+                            f"what is not working.]"
                         ),
                         is_error=True,
                     )

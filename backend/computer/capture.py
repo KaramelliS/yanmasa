@@ -68,7 +68,7 @@ class Frame:
         x0, y0, x1, y1 = region
         if not (0 <= x0 < x1 <= self.width and 0 <= y0 < y1 <= self.height):
             raise ValueError(
-                f"{region} bölgesi {self.width}x{self.height} karesinin dışında"
+                f"The region {region} is outside the {self.width}x{self.height} frame"
             )
         return self.image.crop(region)
 

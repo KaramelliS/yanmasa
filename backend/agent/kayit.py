@@ -144,7 +144,7 @@ class Kayit:
                 f.write(json.dumps(satir, ensure_ascii=False) + "\n")
         except OSError as hata:
             if self.son_hata is None:
-                self.son_hata = f"denetim kaydı yazılamadı: {hata}"
+                self.son_hata = f"could not write the audit log: {hata}"
 
     def tur_basladi(self, talimat: str) -> None:
         self._tur = Tur(talimat=talimat, baslangic=time.time())

@@ -43,12 +43,12 @@ class WriteInfo:
 def resolve(path: str) -> Path:
     """Kullanıcı yolunu mutlak yola çevirir. `~` ve ortam değişkenleri açılır."""
     if not path or not path.strip():
-        raise FileError("Yol boş olamaz")
+        raise FileError("The path cannot be empty")
     expanded = os.path.expandvars(os.path.expanduser(path.strip()))
     try:
         return Path(expanded).resolve()
     except (OSError, ValueError) as exc:
-        raise FileError(f"Geçersiz yol {path!r}: {exc}") from None
+        raise FileError(f"Invalid path {path!r}: {exc}") from None
 
 
 def is_sensitive(path: Path) -> bool:
@@ -74,28 +74,28 @@ def write(path: str, content: str, append: bool = False) -> str:
         with open(resolved, mode, encoding="utf-8", newline="") as handle:
             handle.write(content)
     except OSError as exc:
-        raise FileError(f"{resolved} yazılamadı: {exc}") from None
+        raise FileError(f"Could not write {resolved}: {exc}") from None
 
-    verb = "eklendi" if append else "yazıldı"
-    return f"{resolved} ({len(content)} karakter {verb})"
+    verb = "appended" if append else "written"
+    return f"{resolved} ({len(content)} characters {verb})"
 
 
 def read(path: str, max_chars: int = MAX_READ_CHARS) -> str:
     resolved = resolve(path)
     if not resolved.exists():
-        raise FileError(f"{resolved} yok")
+        raise FileError(f"{resolved} does not exist")
     if resolved.is_dir():
-        raise FileError(f"{resolved} bir klasör; list_dir kullan")
+        raise FileError(f"{resolved} is a folder; use list_dir")
 
     try:
         text = resolved.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        raise FileError(f"{resolved} okunamadı: {exc}") from None
+        raise FileError(f"Could not read {resolved}: {exc}") from None
 
     if len(text) > max_chars:
         return (
             text[:max_chars]
-            + f"\n\n[... {len(text)} karakterin ilk {max_chars} tanesi gösterildi]"
+            + f"\n\n[... showing the first {max_chars} of {len(text)} characters]"
         )
     return text
 
@@ -104,38 +104,38 @@ def edit(path: str, old: str, new: str) -> str:
     """Birebir metin değişimi. Eşsiz eşleşme yoksa hiçbir şey yazılmaz."""
     resolved = resolve(path)
     if not resolved.exists():
-        raise FileError(f"{resolved} yok")
+        raise FileError(f"{resolved} does not exist")
     if not old:
-        raise FileError("Aranan metin boş olamaz; yeni dosya için write_file kullan")
+        raise FileError("The search text cannot be empty; use write_file for a new file")
 
     text = resolved.read_text(encoding="utf-8")
     count = text.count(old)
     if count == 0:
-        raise FileError(f"Aranan metin {resolved} içinde bulunamadı; dosyayı önce oku")
+        raise FileError(f"The search text was not found in {resolved}; read the file first")
     if count > 1:
         # Kısmi bir düzenleme, düzenleme yapmamaktan kötü: model dosyanın
         # değiştiğini sanıp devam eder.
         raise FileError(
-            f"Aranan metin {count} kez geçiyor; hangisi olduğu belirsiz. "
-            f"Daha fazla çevre satırı ekleyerek eşsiz hale getir."
+            f"The search text appears {count} times, so which one is unclear. "
+            f"Add more surrounding lines to make it unique."
         )
 
     resolved.write_text(text.replace(old, new), encoding="utf-8", newline="")
-    return f"{resolved} güncellendi ({len(old)} karakter -> {len(new)} karakter)"
+    return f"{resolved} updated ({len(old)} characters -> {len(new)} characters)"
 
 
 def list_dir(path: str, limit: int = 200) -> str:
     resolved = resolve(path)
     if not resolved.exists():
-        raise FileError(f"{resolved} yok")
+        raise FileError(f"{resolved} does not exist")
     if not resolved.is_dir():
-        raise FileError(f"{resolved} bir klasör değil")
+        raise FileError(f"{resolved} is not a folder")
 
     entries = []
     for index, item in enumerate(sorted(resolved.iterdir(),
                                         key=lambda p: (p.is_file(), p.name.lower()))):
         if index >= limit:
-            entries.append(f"... {limit} ögede kesildi")
+            entries.append(f"... truncated at {limit} entries")
             break
         if item.is_dir():
             entries.append(f"{item.name}/")
@@ -144,6 +144,6 @@ def list_dir(path: str, limit: int = 200) -> str:
                 size = item.stat().st_size
             except OSError:
                 size = 0
-            entries.append(f"{item.name}  ({size} bayt)")
+            entries.append(f"{item.name}  ({size} bytes)")
 
-    return f"{resolved}\n" + ("\n".join(entries) if entries else "(boş)")
+    return f"{resolved}\n" + ("\n".join(entries) if entries else "(empty)")

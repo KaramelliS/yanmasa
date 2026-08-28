@@ -32,8 +32,8 @@ class Change:
     author: str = "ajan"
 
     def describe(self) -> str:
-        before = "(boş)" if self.before in (None, "") else repr(self.before)
-        after = "(boş)" if self.after in (None, "") else repr(self.after)
+        before = "(empty)" if self.before in (None, "") else repr(self.before)
+        after = "(empty)" if self.after in (None, "") else repr(self.after)
         return f"{self.at:%H:%M:%S} {self.target}: {before} -> {after}  — {self.why}"
 
 
@@ -48,8 +48,8 @@ class Ledger:
                author: str = "ajan") -> Change:
         if not why or not why.strip():
             raise ValueError(
-                f"{target} değiştiriliyor ama gerekçe yok. Her değişiklik "
-                f"neden yapıldığını taşımak zorunda."
+                f"{target} is being changed with no reason given. Every change "
+                f"has to carry why it was made."
             )
         change = Change(
             target=target, before=before, after=after,
@@ -88,11 +88,11 @@ class Ledger:
 
     def report(self, limit: int = 30) -> str:
         if not self._changes:
-            return "Henüz değişiklik yok."
+            return "No changes yet."
         lines = [c.describe() for c in self.recent(limit)]
-        header = f"{len(self._changes)} değişiklik"
+        header = f"{len(self._changes)} changes"
         if self.dirty:
-            header += f", {self.unsaved_count} tanesi kaydedilmemiş"
+            header += f", {self.unsaved_count} of them unsaved"
         if len(self._changes) > limit:
             lines.insert(0, f"(son {limit} tanesi)")
         return f"{header}\n" + "\n".join(lines)

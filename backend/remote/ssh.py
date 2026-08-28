@@ -121,8 +121,8 @@ class SshSession:
         found = shutil.which("ssh")
         if not found:
             raise RemoteError(
-                "ssh bulunamadı. Windows'ta Ayarlar > Uygulamalar > İsteğe "
-                "bağlı özellikler'den OpenSSH İstemcisi'ni kur."
+                "ssh was not found. On Windows, install the OpenSSH Client from "
+                "Settings > Apps > Optional features."
             )
         return found
 
@@ -166,18 +166,18 @@ class SshSession:
             )
         except subprocess.TimeoutExpired:
             raise RemoteError(
-                f"{self.host.label}: {timeout} saniyede yanıt gelmedi"
+                f"{self.host.label}: no answer within {timeout} seconds"
             ) from None
         except OSError as exc:
-            raise RemoteError(f"ssh çalıştırılamadı: {exc}") from None
+            raise RemoteError(f"could not run ssh: {exc}") from None
 
         if done.returncode != 0:
             detail = (done.stderr or done.stdout or "").strip().splitlines()
-            first = detail[0] if detail else f"çıkış kodu {done.returncode}"
+            first = detail[0] if detail else f"exit code {done.returncode}"
             if "Permission denied" in first or "publickey" in first:
                 first += (
-                    " — anahtar kabul edilmedi. Parola ile giriş "
-                    "desteklenmiyor; sunucuya ortak anahtarını ekle."
+                    " — the key was rejected. Password login is not "
+                    "supported; add your public key to the server."
                 )
             raise RemoteError(f"{self.host.label}: {first}")
         return done.stdout
@@ -229,8 +229,8 @@ class SshSession:
         size = self.run(f"stat -c %s {_quote(path)}").strip()
         if size.isdigit() and int(size) > max_bytes:
             raise RemoteError(
-                f"{path} {int(size) // 1024} KB — {max_bytes // 1024} KB üstü "
-                f"dosyayı buradan açmıyoruz. `remote_run` ile bir bölümünü al."
+                f"{path} is {int(size) // 1024} KB — we do not open files over "
+                f"{max_bytes // 1024} KB here. Take a section with `remote_run`."
             )
         return self.run(f"cat {_quote(path)}")
 
@@ -242,7 +242,7 @@ class SshSession:
         blob = base64.b64encode(content.encode("utf-8")).decode("ascii")
         self.run(f"printf %s {_quote(blob)} | base64 -d > {_quote(path)}")
         self._cache.pop(str(PurePosixPath(path).parent), None)
-        return f"{path} yazıldı ({len(content)} karakter)"
+        return f"{path} written ({len(content)} characters)"
 
     def disk(self) -> str:
         return self.run("df -h / | tail -1").strip()

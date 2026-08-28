@@ -53,7 +53,7 @@ def normalise(raw: Any) -> dict[str, Any] | None:
     if panel is None:
         return None
     if not isinstance(panel, dict):
-        raise PanelError("'panel' bir sözlük olmalı")
+        raise PanelError("'panel' must be a dict")
 
     baslik = str(panel.get("baslik", "")).strip()
     if not baslik:
@@ -61,7 +61,7 @@ def normalise(raw: Any) -> dict[str, Any] | None:
 
     bolumler = panel.get("bolumler")
     if not isinstance(bolumler, list) or not bolumler:
-        raise PanelError("panel['bolumler'] boş olmayan bir liste olmalı")
+        raise PanelError("panel['bolumler'] must be a non-empty list")
 
     temiz = [_section(index, item) for index, item in enumerate(bolumler)]
     return {
@@ -73,16 +73,16 @@ def normalise(raw: Any) -> dict[str, Any] | None:
 
 def _section(index: int, item: Any) -> dict[str, Any]:
     if not isinstance(item, dict):
-        raise PanelError(f"bölüm {index} bir sözlük olmalı")
+        raise PanelError(f"section {index} must be a dict")
     tur = str(item.get("tur", ""))
     if tur not in SECTIONS:
         raise PanelError(
-            f"bölüm {index}: {tur!r} diye bir tür yok. "
+            f"section {index}: there is no type called {tur!r}. "
             f"Olanlar: {', '.join(SECTIONS)}"
         )
     for alan in SECTIONS[tur]:
         if item.get(alan) is None:
-            raise PanelError(f"bölüm {index} ({tur}): {alan!r} gerekli")
+            raise PanelError(f"section {index} ({tur}): {alan!r} is required")
 
     out: dict[str, Any] = {"tur": tur, "baslik": str(item.get("baslik", ""))}
     if tur == "olcu":
@@ -104,13 +104,13 @@ def _section(index: int, item: Any) -> dict[str, Any]:
 
 def _as_list(index: int, value: Any) -> list:
     if not isinstance(value, list):
-        raise PanelError(f"bölüm {index}: liste bekleniyordu, {type(value).__name__} geldi")
+        raise PanelError(f"section {index}: a list was expected, got {type(value).__name__}")
     return value
 
 
 def _metric(index: int, item: Any) -> dict[str, str]:
     if not isinstance(item, dict) or "deger" not in item:
-        raise PanelError(f"bölüm {index}: ölçü ögesi {{'etiket', 'deger'}} olmalı")
+        raise PanelError(f"section {index}: a metric item must be {{'etiket', 'deger'}}")
     return {
         "etiket": str(item.get("etiket", "")),
         "deger": str(item["deger"]),
@@ -120,7 +120,7 @@ def _metric(index: int, item: Any) -> dict[str, str]:
 
 def _row(index: int, item: Any) -> dict[str, str]:
     if not isinstance(item, dict):
-        raise PanelError(f"bölüm {index}: liste ögesi sözlük olmalı")
+        raise PanelError(f"section {index}: a list item must be a dict")
     return {
         "baslik": str(item.get("baslik", "")),
         "alt": str(item.get("alt", "")),
@@ -134,7 +134,7 @@ def _tone(index: int, value: Any) -> str:
     tone = str(value or "notr")
     if tone not in TONES:
         raise PanelError(
-            f"bölüm {index}: {tone!r} diye bir durum yok. Olanlar: {', '.join(TONES)}"
+            f"section {index}: there is no state called {tone!r}. The valid ones are: {', '.join(TONES)}"
         )
     return tone
 

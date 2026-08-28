@@ -158,9 +158,12 @@ The most useful section in any README.
   reusing this, that is a blocker.
 - **The audit log is never pruned.** `runs/` grows forever. Repeat
   detection only looks at the last 14 days, but the files stay.
-- **Claim verification only knows Turkish patterns.** The interface is
-  English now; `rapor.py` still matches Turkish claim phrasing, so an
-  English reply gets no verification. This is the most immediate hole.
+- **Turkish is still in the code, deliberately.** Identifiers, comments
+  and docstrings are Turkish; the whole user interface, the system prompt,
+  the tool descriptions and every message the model sees are English. The
+  skill API's keys (`ARAC`, `girdi`, `calistir`, `bolumler`) are Turkish
+  too, and they have to stay that way: they are the runtime contract, so
+  renaming them would break every skill the agent already wrote.
 - **No live view of the side workspace.** The frame refreshes after every
   `side_act`, so it is frozen whenever the agent is not acting. Making the
   side workspace clickable — you reaching into it by hand — was never

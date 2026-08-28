@@ -23,12 +23,13 @@ adımda sana soruluyor.
 ARAC = {
     "ad": "discord",
     "aciklama": (
-        "Discord'u klavyeyle sürer. islem: ac (aç ve öne getir), git (Ctrl+K "
-        "ile sunucu/kanal/kişiye geç), yaz (mesaj kutusuna yaz, GÖNDERMEZ), "
-        "gonder (yazılanı gönderir, onay ister), sustur, sagirlastir, "
+        "Drives Discord from the keyboard. islem: ac (open and bring to "
+        "the front), git (jump to a server/channel/person with Ctrl+K), "
+        "yaz (type into the message box, DOES NOT SEND), gonder (sends "
+        "what was typed, asks for approval), sustur, sagirlastir, "
         "sesten_ayril, kanal_yukari, kanal_asagi, kapat_kutu. "
-        "Gezindikten sonra mutlaka ekran görüntüsü al ve doğru yerde "
-        "olduğunu doğrula — hızlı geçiş kutusu benzer adları karıştırabilir."
+        "After navigating, always take a screenshot and verify you are in "
+        "the right place — the quick switcher confuses similar names."
     ),
     "girdi": {
         "islem": {
@@ -40,9 +41,9 @@ ARAC = {
         },
         "hedef": {
             "type": "string",
-            "description": "git için: sunucu, kanal ya da kişi adı",
+            "description": "for git: a server, channel or person name",
         },
-        "metin": {"type": "string", "description": "yaz için: mesaj metni"},
+        "metin": {"type": "string", "description": "for yaz: the message text"},
     },
     "zorunlu": ["islem"],
     "onay": False,
@@ -50,10 +51,10 @@ ARAC = {
 
 KOMUT = {
     "ad": "dc",
-    "aciklama": "Discord'u aç ve ekrana bak",
+    "aciklama": "Open Discord and look at the screen",
     "talimat": (
-        "discord yeteneğiyle Discord'u aç, ekran görüntüsü al ve ne "
-        "olduğunu özetle. Hiçbir şey gönderme."
+        "Open Discord with the discord skill, take a screenshot and "
+        "summarise what is there. Do not send anything."
     ),
 }
 
@@ -85,9 +86,9 @@ def _ekrana_gec(ortam) -> str:
     """
     index = ortam.pencerenin_ekrani(PENCERE)
     if index is None:
-        return "Ekran belirlenemedi; ekran görüntüsü almadan önce doğrula."
+        return "Could not tell which display; verify before taking a screenshot."
     ortam.arac("switch_display", index=index)
-    return f"Aktif ekran {index} yapıldı (Discord orada)."
+    return f"The active display is now {index} (that is where Discord is)."
 
 
 def calistir(girdi, ortam):
@@ -101,10 +102,10 @@ def calistir(girdi, ortam):
         acik = ortam.pencerenin_ekrani(PENCERE) is not None
         if acik:
             if ortam.pencereye_gec(PENCERE, timeout=2.0):
-                return "Discord öne getirildi. " + _ekrana_gec(ortam)
+                return "Discord was brought to the front. " + _ekrana_gec(ortam)
             return (
-                "Discord açık ama öne getirilemedi (tam ekran bir uygulama "
-                "önde olabilir). Ekran görüntüsü al ve pencereye tıkla."
+                "Discord is open but could not be brought to the front (a "
+                "full-screen app may be in front). Take a screenshot and click the window."
             )
 
         # Discord PATH'te değil: Squirrel ile kuruluyor ve gerçek exe sürüm
@@ -116,8 +117,8 @@ def calistir(girdi, ortam):
         )
         if not os.path.exists(stub):
             return (
-                f"Discord kurulu değil ya da bulunamadı ({stub}). "
-                f"Elle açıp tekrar dene."
+                f"Discord is not installed or was not found ({stub}). "
+                f"Open it by hand and try again."
             )
         ortam.arac("launch_app", target=stub,
                    arguments="--processStart Discord.exe")
@@ -129,10 +130,10 @@ def calistir(girdi, ortam):
                 break
             ortam.bekle(0.5)
         if ortam.pencereye_gec(PENCERE, timeout=3.0):
-            return "Discord başlatıldı ve öne getirildi. " + _ekrana_gec(ortam)
+            return "Discord was launched and brought to the front. " + _ekrana_gec(ortam)
         return (
-            "Discord başlatıldı ama pencere öne gelmedi. Ekran görüntüsü al "
-            "ve pencereye tıkla; ön planda olmadan tuşlar başka uygulamaya "
+            "Discord was launched but its window did not come forward. Take a "
+            "screenshot and click the window; without focus the keys go to "
             "gider."
         )
 
@@ -143,14 +144,14 @@ def calistir(girdi, ortam):
         # tıklamış olabiliyor ve her seferinde ajana geri dönmek pahalı.
         if not ortam.pencereye_gec(PENCERE):
             return (
-                "Discord ön planda değil ve öne getirilemedi; hiçbir tuş "
-                "gönderilmedi. Ekran görüntüsü al ve pencereye tıkla."
+                "Discord is not in the foreground and could not be brought there; "
+                "no key was sent. Take a screenshot and click the window."
             )
 
     if islem == "git":
         hedef = str(girdi.get("hedef", "")).strip()
         if not hedef:
-            return "git için hedef gerekli (sunucu, kanal ya da kişi adı)."
+            return "git needs a target (a server, channel or person name)."
         ortam.arac("key", text="ctrl+k")
         ortam.bekle(BEKLE)
         ortam.arac("type", text=hedef)
@@ -159,40 +160,40 @@ def calistir(girdi, ortam):
         ortam.arac("key", text="Return")
         ortam.bekle(BEKLE)
         return (
-            f"Hızlı geçişte {hedef!r} arandı ve ilk sonuca gidildi. "
-            f"Ekran görüntüsü al ve doğru yerde olduğunu doğrula — benzer "
-            f"adlar karışabilir."
+            f"Searched the quick switcher for {hedef!r} and went to the first "
+            f"result. Take a screenshot and verify you are in the right place — "
+            f"similar names get confused."
         )
 
     if islem == "yaz":
         metin = str(girdi.get("metin", ""))
         if not metin.strip():
-            return "yaz için metin gerekli."
+            return "yaz needs text."
         # Satır sonu Enter'a dönüşüp mesajı erkenden gönderirdi.
         if "\n" in metin:
             return (
-                "Metinde satır sonu var; Discord'da Enter mesajı gönderir. "
-                "Tek satır yaz ya da satırları ayrı ayrı gönder."
+                "The text contains a line break, and Enter sends the message in "
+                "Discord. Write a single line, or send the lines one by one."
             )
         ortam.arac("type", text=metin)
         ortam.bekle(0.3)
         return (
-            f"Mesaj kutusuna yazıldı ({len(metin)} karakter), "
-            f"GÖNDERİLMEDİ. Ekran görüntüsüyle doğru kişide olduğunu "
-            f"doğrula, sonra islem='gonder' çağır."
+            f"Typed into the message box ({len(metin)} characters), "
+            f"NOT SENT. Verify with a screenshot that you are on the right "
+            f"conversation, then call islem='gonder'."
         )
 
     if islem == "gonder":
         # Tek geri alınamaz adım. Kapı burada.
         if not ortam.onay(
             "discord gonder",
-            "Mesaj kutusundaki metin Discord'da gönderilecek.",
-            "Başka birine senin adına mesaj gidiyor",
+            "The text in the message box will be sent in Discord.",
+            "a message goes to someone else in your name",
         ):
-            return "Berkay göndermeyi reddetti. Mesaj kutusunda duruyor."
+            return "The user declined sending it. It is still in the message box."
         ortam.arac("key", text="Return")
         ortam.bekle(0.4)
-        return "Gönderildi. Ekran görüntüsüyle gittiğini doğrula."
+        return "Sent. Verify with a screenshot that it went."
 
     tuslar = {
         "sustur": "ctrl+shift+m",
@@ -204,17 +205,17 @@ def calistir(girdi, ortam):
     if islem in tuslar:
         ortam.arac("key", text=tuslar[islem])
         ortam.bekle(0.3)
-        return f"{islem} yapıldı ({tuslar[islem]})."
+        return f"{islem} done ({tuslar[islem]})."
 
     if islem == "sesten_ayril":
         # Ayrılma düğmesinin kısayolu yok; ajanın görüp tıklaması gerekiyor.
         return (
-            "Sesli kanaldan ayrılmanın klavye kısayolu yok. Ekran görüntüsü "
-            "al, sol altta ses panelindeki ayrılma düğmesini bul ve tıkla."
+            "There is no keyboard shortcut for leaving a voice channel. Take a "
+            "screenshot, find the disconnect button in the voice panel at the bottom left and click it."
         )
 
     return (
-        f"{islem!r} diye bir işlem yok. Olanlar: ac, git, yaz, gonder, "
+        f"There is no operation called {islem!r}. The valid ones are: ac, git, yaz, gonder, "
         f"sustur, sagirlastir, sesten_ayril, kanal_yukari, kanal_asagi, "
         f"kapat_kutu."
     )

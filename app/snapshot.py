@@ -26,7 +26,7 @@ MAX_PARAS = 400
 @dataclass
 class DocSnapshot:
     name: str
-    kind: str                       # "tablo" | "yazı"
+    kind: str                       # "sheet" | "text"
     path: str
     unsaved: int
     sheets: list[str] = field(default_factory=list)
@@ -46,7 +46,7 @@ def _reasons(document) -> dict[str, str]:
 def snapshot(name: str, document) -> DocSnapshot | None:
     """Ajanın thread'inde çağrılır. Hata hâlinde panel açılmaz, çökmez."""
     try:
-        if document.kind == "tablo":
+        if document.kind == "sheet":
             return _workbook(name, document)
         return _text(name, document)
     except Exception:
@@ -77,7 +77,7 @@ def _workbook(name: str, document) -> DocSnapshot:
 
     return DocSnapshot(
         name=name,
-        kind="tablo",
+        kind="sheet",
         path=document.path,
         unsaved=document.ledger.unsaved_count,
         sheets=list(document.book.sheetnames),
@@ -91,12 +91,12 @@ def _text(name: str, document) -> DocSnapshot:
     paragraphs = document.doc.paragraphs[:MAX_PARAS]
     return DocSnapshot(
         name=name,
-        kind="yazı",
+        kind="text",
         path=document.path,
         unsaved=document.ledger.unsaved_count,
         paragraphs=[
             (p.text, p.style.name if p.style is not None else "Normal",
-             why.get(f"paragraf {i}"))
+             why.get(f"paragraph {i}"))
             for i, p in enumerate(paragraphs)
         ],
         truncated=len(document.doc.paragraphs) > MAX_PARAS,

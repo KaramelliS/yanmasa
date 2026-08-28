@@ -42,8 +42,8 @@ class Display:
         """Ekran görüntüsü koordinatını sanal masaüstü koordinatına çevirir."""
         if not (0 <= x < self.width and 0 <= y < self.height):
             raise ValueError(
-                f"({x}, {y}) {self.width}x{self.height} boyutundaki "
-                f"{self.index}. ekranın dışında"
+                f"({x}, {y}) is outside display {self.index}, which is "
+                f"{self.width}x{self.height}"
             )
         return self.left + x, self.top + y
 
@@ -63,7 +63,7 @@ class DisplayMap:
 
     def __init__(self, displays: list[Display]) -> None:
         if not displays:
-            raise ValueError("En az bir monitör gerekli")
+            raise ValueError("At least one monitor is required")
         self._displays = displays
 
     def __len__(self) -> int:
@@ -77,7 +77,7 @@ class DisplayMap:
             return self._displays[index]
         except IndexError:
             raise IndexError(
-                f"{index}. ekran yok — bu makinede {len(self._displays)} ekran var"
+                f"There is no display {index} — this machine has {len(self._displays)}"
             ) from None
 
     def locate_virtual(self, vx: int, vy: int) -> Display | None:
@@ -157,7 +157,7 @@ def enumerate_displays() -> DisplayMap:
         return 1
 
     if not user32.EnumDisplayMonitors(None, None, proc_type(_callback), 0):
-        raise OSError("EnumDisplayMonitors başarısız")
+        raise OSError("EnumDisplayMonitors failed")
 
     # Birincil önce, sonra soldan sağa.
     found.sort(key=lambda item: (not item[1], item[0].left, item[0].top))

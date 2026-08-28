@@ -58,7 +58,7 @@ def snapshot(
     """Ön plandaki pencerenin ağacını verilen ekranın koordinatlarında döndürür."""
     window = auto.GetForegroundControl()
     if window is None:
-        return SnapshotResult(text="Ön planda pencere yok.", node_count=0, window_title="")
+        return SnapshotResult(text="There is no foreground window.", node_count=0, window_title="")
 
     title = str(window.Name or "")
     lines: list[str] = []
@@ -68,10 +68,10 @@ def snapshot(
           lines=lines, state=state)
 
     if state["truncated"]:
-        lines.append(f"... {max_nodes} düğümde kesildi")
+        lines.append(f"... truncated at {max_nodes} nodes")
 
-    header = f"Pencere: {title!r} (ekran {display.index})"
-    body = "\n".join(lines) if lines else "(okunabilir denetim yok)"
+    header = f"Window: {title!r} (display {display.index})"
+    body = "\n".join(lines) if lines else "(no readable controls)"
     return SnapshotResult(
         text=f"{header}\n{body}", node_count=state["count"], window_title=title
     )
@@ -127,7 +127,7 @@ def _describe(control, display: Display) -> str | None:
         return None  # başka ekranda ya da ekran dışında
 
     x, y = display.from_virtual(vx, vy)
-    label = f'"{name[:70]}"' if name else "(adsız)"
+    label = f'"{name[:70]}"' if name else "(unnamed)"
     suffix = "" if enabled else " [pasif]"
 
     value = _value_of(control)

@@ -33,7 +33,7 @@ class TextDocument(OfficeDocument):
 
     @property
     def kind(self) -> str:
-        return "yazı"
+        return "text"
 
     @classmethod
     def create(cls, path: str) -> TextDocument:
@@ -43,11 +43,11 @@ class TextDocument(OfficeDocument):
     def open(cls, path: str) -> TextDocument:
         target = Path(path)
         if not target.exists():
-            raise TextError(f"{target} yok")
+            raise TextError(f"{target} does not exist")
         try:
             return cls(path=str(target), doc=docx.Document(str(target)))
         except Exception as exc:
-            raise TextError(f"{target} açılamadı: {exc}") from None
+            raise TextError(f"could not open {target}: {exc}") from None
 
     # --- okuma ------------------------------------------------------------
 
@@ -59,13 +59,13 @@ class TextDocument(OfficeDocument):
             f"  {len(paragraphs)} paragraf, {len(self.doc.tables)} tablo, ~{words} kelime",
         ]
         if self.ledger.dirty:
-            lines.append(f"  {self.ledger.unsaved_count} kaydedilmemiş değişiklik")
+            lines.append(f"  {self.ledger.unsaved_count} unsaved changes")
         return "\n".join(lines)
 
     def read(self, start: int = 0, count: int = MAX_PARAGRAPHS) -> str:
         paragraphs = self.doc.paragraphs
         if not paragraphs:
-            return "(belge boş)"
+            return "(the document is empty)"
 
         end = min(start + count, len(paragraphs))
         lines = []
@@ -76,7 +76,7 @@ class TextDocument(OfficeDocument):
             lines.append(f"{marker} {paragraph.text}")
 
         if end < len(paragraphs):
-            lines.append(f"[... {len(paragraphs)} paragraftan {end} tanesi gösterildi]")
+            lines.append(f"[... showing {end} of {len(paragraphs)} paragraphs]")
         return "\n".join(lines)
 
     # --- yazma ------------------------------------------------------------
@@ -86,18 +86,18 @@ class TextDocument(OfficeDocument):
             paragraph = self.doc.add_paragraph(text, style=style)
         except KeyError:
             raise TextError(
-                f"{style!r} diye bir stil yok. Yaygın olanlar: Title, "
+                f"There is no style called {style!r}. The common ones are: Title, "
                 f"Heading 1, Heading 2, Normal, List Bullet, Quote"
             ) from None
         index = len(self.doc.paragraphs) - 1
-        self.ledger.record(f"paragraf {index}", None, text, why)
-        return f"Paragraf {index} eklendi ({paragraph.style.name}) — {why}"
+        self.ledger.record(f"paragraph {index}", None, text, why)
+        return f"Paragraph {index} added ({paragraph.style.name}) — {why}"
 
     def replace(self, index: int, text: str, why: str) -> str:
         paragraphs = self.doc.paragraphs
         if not 0 <= index < len(paragraphs):
             raise TextError(
-                f"Paragraf {index} yok; belgede {len(paragraphs)} paragraf var"
+                f"There is no paragraph {index}; the document has {len(paragraphs)}"
             )
         paragraph = paragraphs[index]
         before = paragraph.text
@@ -112,12 +112,12 @@ class TextDocument(OfficeDocument):
         else:
             paragraph.add_run(text)
 
-        self.ledger.record(f"paragraf {index}", before, text, why)
-        return f"Paragraf {index} değiştirildi — {why}"
+        self.ledger.record(f"paragraph {index}", before, text, why)
+        return f"Paragraph {index} replaced — {why}"
 
     def add_table(self, rows: list[list[str]], why: str) -> str:
         if not rows or not rows[0]:
-            raise TextError("Tablo en az bir satır ve bir sütun ister")
+            raise TextError("A table needs at least one row and one column")
         table = self.doc.add_table(rows=len(rows), cols=len(rows[0]))
         table.style = "Table Grid"
         for r, row in enumerate(rows):
@@ -141,7 +141,7 @@ class TextDocument(OfficeDocument):
             raise TextError(f"{target} kaydedilemedi: {exc}") from None
         self.path = str(target)
         self.ledger.mark_saved()
-        return f"{target} kaydedildi ({len(self.ledger)} değişiklik)."
+        return f"{target} saved ({len(self.ledger)} changes)."
 
     def undo(self, count: int = 1) -> str:
         """Yalnızca paragraf metni değişiklikleri geri alınabilir.
@@ -152,11 +152,11 @@ class TextDocument(OfficeDocument):
         """
         changes = self.ledger.last(count)
         if not changes:
-            return "Geri alınacak değişiklik yok."
+            return "There is no change to revert."
 
         undone = 0
         for change in changes:
-            if not change.target.startswith("paragraf ") or change.before is None:
+            if not change.target.startswith("paragraph ") or change.before is None:
                 break
             index = int(change.target.split()[1])
             if index >= len(self.doc.paragraphs):
@@ -171,7 +171,7 @@ class TextDocument(OfficeDocument):
         self.ledger.drop_last(undone)
         if undone < len(changes):
             return (
-                f"{undone} değişiklik geri alındı. Kalanlar ekleme olduğu için "
-                f"geri alınamadı — silmek gerekirse belgeyi yeniden oluştur."
+                f"{undone} changes reverted. The rest were insertions, so they "
+                f"could not be reverted — rebuild the document if you need them gone."
             )
-        return f"{undone} değişiklik geri alındı."
+        return f"{undone} changes reverted."

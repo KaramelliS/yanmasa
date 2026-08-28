@@ -203,7 +203,7 @@ class Girdi:
         """
         alici = hwnd or self._odak
         if not alici:
-            raise DesteklenmiyorHatasi("önce bir yere tıkla — odak bilinmiyor")
+            raise DesteklenmiyorHatasi("click somewhere first — the focus is unknown")
         for harf in metin:
             _u32.PostMessageW(alici, WM_CHAR, ord(harf), 1)
             time.sleep(HARF_ARASI)
@@ -213,15 +213,15 @@ class Girdi:
         anahtar = ad.strip().casefold()
         if "+" in anahtar:
             raise DesteklenmiyorHatasi(
-                f"'{ad}': ileti taklidinde değiştirici tuş basılı görünmüyor. "
-                "Kısayol yerine uygulamanın menüsüne tıkla."
+                f"'{ad}': a posted message cannot hold a modifier key down. "
+                "Click the app's menu instead of using a shortcut."
             )
         vk = TUSLAR.get(anahtar)
         if vk is None:
-            raise DesteklenmiyorHatasi(f"bilinmeyen tuş: {ad}")
+            raise DesteklenmiyorHatasi(f"unknown key: {ad}")
         alici = hwnd or self._odak
         if not alici:
-            raise DesteklenmiyorHatasi("önce bir yere tıkla — odak bilinmiyor")
+            raise DesteklenmiyorHatasi("click somewhere first — the focus is unknown")
         _u32.PostMessageW(alici, WM_KEYDOWN, vk, 1)
         time.sleep(HARF_ARASI)
         _u32.PostMessageW(alici, WM_KEYUP, vk, 1)

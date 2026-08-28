@@ -31,7 +31,7 @@ class TestDisplay:
         assert SECONDARY.to_virtual(1919, 1079) == (3839, 1079)
 
     def test_disari_tasan_koordinat_reddedilir(self):
-        with pytest.raises(ValueError, match="dışında"):
+        with pytest.raises(ValueError, match="outside"):
             PRIMARY.to_virtual(1920, 0)
 
     def test_1080p_kucultme_gerektirmez(self):
@@ -55,7 +55,7 @@ class TestDisplayMap:
         assert self.map.locate_virtual(0, 5000) is None
 
     def test_olmayan_ekran_anlasilir_hata(self):
-        with pytest.raises(IndexError, match="2 ekran var"):
+        with pytest.raises(IndexError, match="has 2"):
             self.map[7]
 
     def test_bos_harita_reddedilir(self):
@@ -338,7 +338,7 @@ class TestFiles:
         from backend.computer import files
         p = tmp_path / "k.py"
         files.write(str(p), "x = 1\ny = 1\n")
-        with pytest.raises(files.FileError, match="2 kez"):
+        with pytest.raises(files.FileError, match="2 times"):
             files.edit(str(p), "= 1", "= 2")
         # Başarısız düzenleme dosyaya dokunmamalı.
         assert files.read(str(p)) == "x = 1\ny = 1\n"
@@ -347,7 +347,7 @@ class TestFiles:
         from backend.computer import files
         p = tmp_path / "k.py"
         files.write(str(p), "x = 1\n")
-        with pytest.raises(files.FileError, match="bulunamadı"):
+        with pytest.raises(files.FileError, match="was not found"):
             files.edit(str(p), "z = 9", "z = 8")
         assert files.read(str(p)) == "x = 1\n"
 
@@ -360,7 +360,7 @@ class TestFiles:
 
     def test_olmayan_dosya_anlasilir_hata(self, tmp_path):
         from backend.computer import files
-        with pytest.raises(files.FileError, match="yok"):
+        with pytest.raises(files.FileError, match="does not exist"):
             files.read(str(tmp_path / "yok.txt"))
 
     def test_hassas_yol_isaretlenir(self):
@@ -423,7 +423,7 @@ class TestLedger:
 
     def test_gerekcesiz_degisiklik_reddedilir(self):
         from backend.office.model import Ledger
-        with pytest.raises(ValueError, match="gerekçe"):
+        with pytest.raises(ValueError, match="no reason given"):
             Ledger().record("A1", None, 5, "")
 
     def test_bosluk_gerekce_sayilmaz(self):
@@ -504,7 +504,7 @@ class TestWorkbook:
         original = sheet_mod.evaluate
         sheet_mod.evaluate = patla
         try:
-            assert "hesaplanamadı" in wb.read("B5")
+            assert "could not be evaluated" in wb.read("B5")
         finally:
             sheet_mod.evaluate = original
 
@@ -564,7 +564,7 @@ class TestTextDocument:
     def test_olmayan_paragraf_sayi_verir(self, tmp_path):
         from backend.office.text import TextDocument, TextError
         d = TextDocument.create(str(tmp_path / "r.docx"))
-        with pytest.raises(TextError, match="0 paragraf"):
+        with pytest.raises(TextError, match="the document has 0"):
             d.replace(9, "x", why="y")
 
 
@@ -574,14 +574,14 @@ class TestOfficeStore:
         st = OfficeStore()
         wb = st.open("b", str(tmp_path / "a.xlsx"))
         wb.write("A1", [["x"]], why="test")
-        with pytest.raises(OfficeError, match="kaydedilmemiş"):
+        with pytest.raises(OfficeError, match="unsaved changes"):
             st.close("b")
 
     def test_discard_ile_kapanir(self, tmp_path):
         from backend.office.store import OfficeStore
         st = OfficeStore()
         st.open("b", str(tmp_path / "a.xlsx")).write("A1", [["x"]], why="test")
-        assert "atıldı" in st.discard("b")
+        assert "discarded" in st.discard("b")
         assert st.names() == []
 
     def test_desteklenmeyen_uzanti_yol_gosterir(self, tmp_path):
@@ -593,7 +593,7 @@ class TestOfficeStore:
         from backend.office.store import OfficeError, OfficeStore
         st = OfficeStore()
         st.open("b", str(tmp_path / "a.xlsx"))
-        with pytest.raises(OfficeError, match="zaten var"):
+        with pytest.raises(OfficeError, match="is already open"):
             st.open("b", str(tmp_path / "c.xlsx"))
 
 
@@ -624,7 +624,7 @@ class TestSkills:
     def test_sozdizimi_hatasi_dosya_birakmaz(self, tmp_path):
         from backend.skills.registry import SkillError
         r = self._registry(tmp_path)
-        with pytest.raises(SkillError, match="sözdizimi"):
+        with pytest.raises(SkillError, match="syntax error"):
             r.write("bozuk", "def calistir(:")
         assert not (r.directory / "bozuk.py").exists()
 
@@ -641,7 +641,7 @@ class TestSkills:
         from backend.skills.registry import SkillError
         r = self._registry(tmp_path, reserved=frozenset({"run_shell"}))
         kod = self.IYI.replace('"ad": "topla"', '"ad": "run_shell"')
-        with pytest.raises(SkillError, match="yerleşik"):
+        with pytest.raises(SkillError, match="built-in tool name"):
             r.write("sinsi", kod)
 
     def test_bozuk_dosya_sessizce_atlanmaz(self, tmp_path):
@@ -818,7 +818,7 @@ class TestShortcuts:
     def test_talimatsiz_dugme_reddedilir(self, tmp_path):
         from backend.skills.shortcuts import ShortcutError
         store = self._store(tmp_path)
-        with pytest.raises(ShortcutError, match="Talimat"):
+        with pytest.raises(ShortcutError, match="instruction cannot be empty"):
             store.save(self._one(instruction="   "))
 
     def test_uzun_etiket_reddedilir(self, tmp_path):
@@ -884,7 +884,7 @@ class TestCommandNames:
     def test_gecersiz_komut_adi_yine_reddedilir(self, tmp_path):
         from backend.skills.registry import SkillError, SkillRegistry
         r = SkillRegistry(directory=tmp_path / "y")
-        with pytest.raises(SkillError, match="komut adı"):
+        with pytest.raises(SkillError, match="valid command name"):
             r.write("kotu", (
                 'ARAC = {"ad": "kotu", "aciklama": "a", "girdi": {}}\n'
                 'KOMUT = {"ad": "3 gun", "aciklama": "a", "talimat": "b"}\n'
@@ -901,12 +901,12 @@ class TestRefusal:
         from backend.agent.loop import _refusal_text
         out = _refusal_text("Ekranda doğrulama kodu var, ona dokunmadım.")
         assert "doğrulama kodu var, ona dokunmadım" in out
-        assert "tekrar dene" in out
+        assert "try again" in out
 
     def test_metin_yoksa_yine_de_ne_yapilacagi_yazar(self):
         from backend.agent.loop import _refusal_text
         out = _refusal_text("   ")
-        assert "ekranda olanla ilgili" in out
+        assert "about what was on screen" in out
         assert out.strip() == out
 
     def test_reddedilince_gecmisteki_gorseller_dusurulur(self):
@@ -927,7 +927,7 @@ class TestRefusal:
         ]
         agent._drop_last_images()
         blocks = agent.messages[0]["content"]
-        assert blocks[0] == {"type": "text", "text": "(ekran görüntüsü kaldırıldı)"}
+        assert blocks[0] == {"type": "text", "text": "(the screenshot was removed)"}
         assert blocks[1]["text"] == "devam"
         assert agent.messages[1]["content"] == "tamam"
 
@@ -1155,7 +1155,7 @@ class TestTekrarlayanHata:
             sonuclar = agent._run_batch([Blok()], Turn(), seen)
             son = sonuclar[-1]
         metin = str(son)
-        assert "Tekrar deneme" in metin, metin
+        assert "Do not retry it" in metin, metin
         assert max(seen.values()) == 2
 
 
@@ -1278,7 +1278,7 @@ class TestYetenekPaneli:
 
     def test_eksik_alan_hangi_bolum_oldugunu_soyler(self):
         from backend.skills.panel import PanelError, normalise
-        with pytest.raises(PanelError, match="bölüm 1"):
+        with pytest.raises(PanelError, match="section 1"):
             normalise(self._panel(bolumler=[
                 {"tur": "metin", "icerik": "a"},
                 {"tur": "tablo"},
@@ -1474,14 +1474,14 @@ class TestDiscordEklentisi:
         skill = self._skill(tmp_path)
         o = self.Ortam(odak=False, gecebilir=False)
         out = skill.run({"islem": "git", "hedef": "genel"}, o)
-        assert "hiçbir tuş gönderilmedi" in out
+        assert "no key was sent" in out
         assert self._tuslar(o) == []
 
     def test_yaz_gondermiyor(self, tmp_path):
         skill = self._skill(tmp_path)
         o = self.Ortam()
         out = skill.run({"islem": "yaz", "metin": "merhaba"}, o)
-        assert "GÖNDERİLMEDİ" in out
+        assert "NOT SENT" in out
         assert not any(g.get("text") == "Return" for g in self._tuslar(o))
 
     def test_satir_sonlu_metin_reddedilir(self, tmp_path):
@@ -1489,14 +1489,14 @@ class TestDiscordEklentisi:
         skill = self._skill(tmp_path)
         o = self.Ortam()
         out = skill.run({"islem": "yaz", "metin": "bir\niki"}, o)
-        assert "satır sonu" in out
+        assert "line break" in out
         assert self._tuslar(o) == []
 
     def test_gonder_onaysiz_calismaz(self, tmp_path):
         skill = self._skill(tmp_path)
         o = self.Ortam()
         out = skill.run({"islem": "gonder"}, o)
-        assert "reddetti" in out
+        assert "declined sending" in out
         assert o.onaylar == ["discord gonder"]
         assert self._tuslar(o) == []
 
@@ -1516,7 +1516,7 @@ class TestDiscordEklentisi:
         o = self.Ortam()
         out = skill.run({"islem": "ac"}, o)
         assert ("switch_display", {"index": 1}) in o.cagrilar
-        assert "ekran 1" in out
+        assert "display is now 1" in out
 
 
 class TestHiz:

@@ -31,12 +31,12 @@ class OfficeStore:
     def open(self, name: str, path: str, create: bool = False) -> OfficeDocument:
         if name in self._documents:
             raise OfficeError(
-                f"{name!r} adıyla açık bir belge zaten var. Başka bir ad ver ya "
-                f"da önce kapat."
+                f"A document named {name!r} is already open. Give another name or "
+                f"close that one first."
             )
         if len(self._documents) >= self.MAX_OPEN:
             raise OfficeError(
-                f"En fazla {self.MAX_OPEN} belge açık olabilir. Birini kapat."
+                f"At most {self.MAX_OPEN} documents can be open. Close one."
             )
 
         target = Path(path).expanduser()
@@ -56,8 +56,8 @@ class OfficeStore:
                 )
             else:
                 raise OfficeError(
-                    f"{suffix or '(uzantısız)'} desteklenmiyor. "
-                    f"Tablo için .xlsx, yazı için .docx kullan."
+                    f"{suffix or '(no extension)'} is not supported. "
+                    f"Use .xlsx for a sheet and .docx for a text document."
                 )
         except (SheetError, TextError) as exc:
             raise OfficeError(str(exc)) from None
@@ -68,30 +68,30 @@ class OfficeStore:
     def get(self, name: str) -> OfficeDocument:
         document = self._documents.get(name)
         if document is None:
-            known = ", ".join(sorted(self._documents)) or "yok"
-            raise OfficeError(f"{name!r} açık değil. Açık belgeler: {known}")
+            known = ", ".join(sorted(self._documents)) or "none"
+            raise OfficeError(f"{name!r} is not open. Open documents: {known}")
         return document
 
     def close(self, name: str) -> str:
         document = self._documents.get(name)
         if document is None:
-            raise OfficeError(f"{name!r} açık değil")
+            raise OfficeError(f"{name!r} is not open")
         if document.ledger.dirty:
             # Sessizce kapatmak, ajanın kaydettiğini sanmasına yol açar.
             raise OfficeError(
-                f"{name!r} belgesinde {document.ledger.unsaved_count} "
-                f"kaydedilmemiş değişiklik var. Önce kaydet ya da bilerek "
-                f"atıyorsan discard=true ver."
+                f"The document {name!r} has {document.ledger.unsaved_count} "
+                f"unsaved changes. Save it first, or pass discard=true if you "
+                f"are deliberately throwing them away."
             )
         del self._documents[name]
-        return f"{name!r} kapatıldı."
+        return f"{name!r} was closed."
 
     def discard(self, name: str) -> str:
         document = self._documents.pop(name, None)
         if document is None:
-            raise OfficeError(f"{name!r} açık değil")
+            raise OfficeError(f"{name!r} is not open")
         lost = document.ledger.unsaved_count
-        return f"{name!r} kaydedilmeden kapatıldı ({lost} değişiklik atıldı)."
+        return f"{name!r} was closed without saving ({lost} changes discarded)."
 
     def names(self) -> list[str]:
         return sorted(self._documents)

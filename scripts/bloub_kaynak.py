@@ -40,7 +40,7 @@ def _govde_yolu() -> str:
     metin = KAYNAK.read_text(encoding="utf-8")
     yollar = re.findall(r'd="(M91\.51[^"]+)"', metin)
     if not yollar:
-        raise SystemExit("kaynak SVG'de gövde yolu yok")
+        raise SystemExit("the source SVG has no body path")
     return yollar[0]
 
 

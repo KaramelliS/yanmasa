@@ -372,7 +372,7 @@ class CodePane(QWidget):
             self.hits.setText(f"1 / {sayi}")
             self.editor.jump(0)
         else:
-            self.hits.setText("yok")
+            self.hits.setText("none")
 
     def _next(self) -> None:
         toplam = self.editor.match_count

@@ -50,11 +50,11 @@ def _fiziksel_imlec() -> tuple[int, int]:
 
 def main() -> int:
     if not os.path.exists(KROM):
-        print("Chrome bulunamadı:", KROM)
+        print("Chrome not found:", KROM)
         return 1
 
     once = _fiziksel_imlec()
-    print("fiziksel imleç, başlarken:", once)
+    print("physical cursor, at the start:", once)
 
     url = "data:text/html;base64," + base64.b64encode(SAYFA.encode()).decode()
     profil = os.path.join(os.environ["TEMP"], "ajan-dogrula")
@@ -73,13 +73,13 @@ def main() -> int:
                 pencere = adaylar[0]
                 break
         if pencere is None:
-            print("pencere açılmadı")
+            print("no window opened")
             return 1
         print(f"pencere: {pencere.sinif} {pencere.en}x{pencere.boy}")
 
         kare = calisma.yakala(pencere.hwnd)
         renk = len(kare.image.getcolors(maxcolors=1 << 20) or [])
-        print(f"yakalama: {kare.width}x{kare.height}, {renk} ayrık renk")
+        print(f"capture: {kare.width}x{kare.height}, {renk} distinct colours")
 
         girdi = Girdi()
         girdi.tikla(pencere.hwnd, pencere.x + 500, pencere.y + 340)
@@ -91,18 +91,18 @@ def main() -> int:
         okunan = pencere_bilgisi(pencere.hwnd).baslik
         beklenen = "YAZILAN:" + METIN
         tamam = okunan.startswith(beklenen)
-        print(f"geri okunan başlık: {okunan!r}")
-        print("YAZMA:", "BAŞARILI" if tamam else f"BAŞARISIZ (beklenen {beklenen!r})")
+        print(f"title read back: {okunan!r}")
+        print("TYPING:", "PASSED" if tamam else f"FAILED (expected {beklenen!r})")
 
         sonra = _fiziksel_imlec()
-        print("fiziksel imleç, bitirirken:", sonra)
+        print("physical cursor, at the end:", sonra)
         # Fark varsa bunu **Berkay** yapmıştır: bu kod yolunda imleci
         # oynatan tek bir çağrı yok ve `tests/test_ikinci_imlec.py` bunu
         # kaynağa bakarak doğruluyor. Otomatik koşuda fark çıkması bu
         # yüzden başarısızlık değil, tam tersi — o sırada bilgisayarı
         # kullanabilmiş olması.
-        print("fiziksel imleç:",
-              "yerinde" if sonra == once else "Berkay oynatmış (beklenen)")
+        print("physical cursor:",
+              "unmoved" if sonra == once else "the user moved it (expected)")
 
     return 0 if tamam else 1
 

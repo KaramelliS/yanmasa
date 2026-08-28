@@ -39,8 +39,8 @@ class Ortam:
 
         if ad in VISUAL_MEMBERS:
             raise RuntimeError(
-                f"{ad} görsel döndürür, yetenek içinden çağrılamaz — "
-                f"ekran görüntüsünü ajanın kendisi almalı"
+                f"{ad} returns an image and cannot be called from a skill — "
+                f"the agent itself has to take the screenshot"
             )
         outcome = self._dispatcher.run(ad, dict(girdi))
         content = outcome.content

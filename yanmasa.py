@@ -127,7 +127,7 @@ def _ortak_klasor(paths: list[str]) -> str:
 
 def _panel_for(shot, tokens):
     """Anlık görüntüden panel içeriği üretir."""
-    if shot.kind == "tablo":
+    if shot.kind == "sheet":
         from app.sheet_view import Cell, SheetView
 
         rows = [
@@ -182,7 +182,7 @@ def main() -> int:
         window.activateWindow()
         bar.show()
         bar.raise_()
-        bar.set_status("Yan Masa zaten açık.")
+        bar.set_status("Yan Masa is already open.")
 
     guard.woken.connect(on_woken)
 
@@ -191,7 +191,7 @@ def main() -> int:
     def on_ready(ok: bool, why: str) -> None:
         if ok:
             bar.attach_buttons(bridge.button_store(), bridge.commands)
-            bar.set_status("Yazıp Enter'a bas.")
+            bar.set_status("Type something and press Enter.")
         else:
             bar.set_status(f"Agent could not start: {why}")
             bar.field.setEnabled(False)
@@ -209,7 +209,7 @@ def main() -> int:
             bar.show_operation(None)
         bar.add_user(text)
         bar.set_busy(True)
-        bar.set_status("Çalışıyor…")
+        bar.set_status("Working…")
         window.run_instruction(text)
         bridge.run(expanded or text)
 
@@ -235,7 +235,7 @@ def main() -> int:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         session = SshSession(dialog.result_host())
-        bar.set_status(f"{session.host.label} bağlanıyor…")
+        bar.set_status(f"connecting to {session.host.label}…")
         try:
             banner = session.connect()
         except RemoteError as exc:
@@ -246,7 +246,7 @@ def main() -> int:
         bridge.adopt_remote(session)
         open_remote(session)
         bar.set_status("")
-        window.status.set_line(f"Bağlandı: {banner}")
+        window.status.set_line(f"Connected: {banner}")
 
     window.status.connect_remote.clicked.connect(connect_remote)
 
@@ -287,7 +287,7 @@ def main() -> int:
         unsaved[shot.name] = shot.unsaved
         title = f"{shot.name} · {shot.kind}"
         if shot.unsaved:
-            title += f"  ({shot.unsaved} kaydedilmemiş)"
+            title += f"  ({shot.unsaved} unsaved)"
         window.open_panel(shot.name, title, _panel_for(shot, tokens))
         window.set_counters(steps["n"], sum(unsaved.values()), 0)
 

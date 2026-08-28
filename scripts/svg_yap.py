@@ -167,7 +167,7 @@ def main() -> int:
     for ad in POZLAR:
         (HEDEF / f"poz-{ad}.svg").write_text(poz_svg(ad), encoding="utf-8")
     (HEDEF / "gozler.svg").write_text(gozler_svg(), encoding="utf-8")
-    print(f"{len(POZLAR)} poz + gözler -> {HEDEF}")
+    print(f"{len(POZLAR)} poses + eyes -> {HEDEF}")
     print("  poz:   " + ", ".join(POZLAR))
     return 0
 

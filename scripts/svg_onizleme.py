@@ -63,7 +63,7 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     if not KAYNAK.is_dir():
-        print(f"kaynak yok: {KAYNAK} — önce scripts/svg_yap.py")
+        print(f"no source: {KAYNAK} — run scripts/svg_yap.py first")
         return 1
 
     app = QApplication.instance() or QApplication(sys.argv)  # noqa: F841
@@ -96,7 +96,7 @@ def main() -> int:
     for yol in sorted(KAYNAK.glob("*.svg")):
         cizici = QSvgRenderer(str(yol))
         if not cizici.isValid():
-            print(f"  atlandı (geçersiz): {yol.name}")
+            print(f"  skipped (invalid): {yol.name}")
             continue
         parcalar = _elemanlar(yol)
         if len(parcalar) > 1:
@@ -135,7 +135,7 @@ def main() -> int:
     p.end()
     tabaka.save(str(HEDEF / "_tabaka.png"))
 
-    print(f"{len(yazilan)} önizleme -> {HEDEF}")
+    print(f"{len(yazilan)} previews -> {HEDEF}")
     for ad, _ in yazilan:
         print(f"  {ad}")
     print(f"  _tabaka.png  ({tabaka.width()}x{tabaka.height()})")

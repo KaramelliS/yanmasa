@@ -43,7 +43,7 @@ class Workbook(OfficeDocument):
 
     @property
     def kind(self) -> str:
-        return "tablo"
+        return "sheet"
 
     def values(self) -> dict[str, str]:
         """Formüllerin hesaplanmış sonuçları. Hesaplanamazsa boş sözlük.
@@ -80,11 +80,11 @@ class Workbook(OfficeDocument):
     def open(cls, path: str) -> Workbook:
         target = Path(path)
         if not target.exists():
-            raise SheetError(f"{target} yok")
+            raise SheetError(f"{target} does not exist")
         try:
             book = openpyxl.load_workbook(target)
         except Exception as exc:
-            raise SheetError(f"{target} açılamadı: {exc}") from None
+            raise SheetError(f"could not open {target}: {exc}") from None
         return cls(path=str(target), book=book)
 
     # --- gezinme ----------------------------------------------------------
@@ -94,7 +94,7 @@ class Workbook(OfficeDocument):
             return self.book.active
         if name not in self.book.sheetnames:
             raise SheetError(
-                f"{name!r} sayfası yok. Sayfalar: {', '.join(self.book.sheetnames)}"
+                f"There is no sheet {name!r}. Sheets: {', '.join(self.book.sheetnames)}"
             )
         return self.book[name]
 
@@ -102,17 +102,17 @@ class Workbook(OfficeDocument):
         lines = [f"{self.path} ({self.kind})"]
         for ws in self.book.worksheets:
             used = f"{get_column_letter(ws.max_column)}{ws.max_row}"
-            lines.append(f"  {ws.title}: A1:{used} ({ws.max_row} satır, {ws.max_column} sütun)")
+            lines.append(f"  {ws.title}: A1:{used} ({ws.max_row} rows, {ws.max_column} columns)")
         if self.ledger.dirty:
-            lines.append(f"  {self.ledger.unsaved_count} kaydedilmemiş değişiklik")
+            lines.append(f"  {self.ledger.unsaved_count} unsaved changes")
         return "\n".join(lines)
 
     def add_sheet(self, name: str, why: str) -> str:
         if name in self.book.sheetnames:
-            raise SheetError(f"{name!r} sayfası zaten var")
+            raise SheetError(f"the sheet {name!r} already exists")
         self.book.create_sheet(name)
-        self.ledger.record(f"sayfa {name}", None, "oluşturuldu", why)
-        return f"{name!r} sayfası eklendi."
+        self.ledger.record(f"sheet {name}", None, "created", why)
+        return f"The sheet {name!r} was added."
 
     # --- okuma ------------------------------------------------------------
 
@@ -158,18 +158,18 @@ class Workbook(OfficeDocument):
         )
         out = [f"{ws.title}!{_range_label(min_col, min_row, max_col, max_row)}", header, *lines]
         if truncated:
-            out.append(f"[{MAX_CELLS} hücrede kesildi — daha dar bir aralık iste]")
+            out.append(f"[truncated at {MAX_CELLS} cells — ask for a narrower range]")
         if uncomputed:
             # Bu boşluğu gizlemek, modelin formül sonucunu bildiğini sanmasına
             # yol açar ve o varsayımla yanlış rapor yazar.
             out.append(
-                f"[{uncomputed} formül hesaplanamadı; sonucunu tahmin etme, "
-                f"kullanıcıya hesaplanamadığını söyle]"
+                f"[{uncomputed} formulas could not be evaluated; do not guess the "
+                f"result, tell the user it could not be evaluated]"
             )
         elif formulas_seen:
             out.append(
-                f"[{formulas_seen} formülün sonucu ok işaretinden sonra "
-                f"yazılı; sonucu kendin hesaplama, oradakini kullan]"
+                f"[the result of {formulas_seen} formulas is written after the "
+                f"arrow; do not compute it yourself, use what is there]"
             )
         return "\n".join(out)
 
@@ -179,7 +179,7 @@ class Workbook(OfficeDocument):
               sheet: str | None = None) -> str:
         ws = self._sheet(sheet)
         if not values or not isinstance(values, list):
-            raise SheetError("values boş olamaz; satır listesi bekleniyor")
+            raise SheetError("values cannot be empty; a list of rows is expected")
 
         min_col, min_row, _max_col, _max_row = _parse_range(ref)
         written = 0
@@ -198,8 +198,8 @@ class Workbook(OfficeDocument):
                 written += 1
 
         if not written:
-            return "Değer zaten aynıydı, hiçbir hücre değişmedi."
-        return f"{written} hücre yazıldı ({ws.title}!{ref}) — {why}"
+            return "The values were already the same; no cell changed."
+        return f"{written} cells written ({ws.title}!{ref}) — {why}"
 
     # --- kaydetme ve geri alma --------------------------------------------
 
@@ -212,12 +212,12 @@ class Workbook(OfficeDocument):
             raise SheetError(f"{target} kaydedilemedi: {exc}") from None
         self.path = str(target)
         self.ledger.mark_saved()
-        return f"{target} kaydedildi ({len(self.ledger)} değişiklik)."
+        return f"{target} saved ({len(self.ledger)} changes)."
 
     def undo(self, count: int = 1) -> str:
         changes = self.ledger.last(count)
         if not changes:
-            return "Geri alınacak değişiklik yok."
+            return "There is no change to revert."
 
         undone = 0
         for change in changes:
@@ -233,10 +233,10 @@ class Workbook(OfficeDocument):
         self.ledger.drop_last(undone)
         if undone < len(changes):
             return (
-                f"{undone} değişiklik geri alındı. Kalanlar hücre değişikliği "
-                f"olmadığı için geri alınamadı."
+                f"{undone} changes reverted. The rest were not cell changes, so "
+                f"they could not be reverted."
             )
-        return f"{undone} değişiklik geri alındı."
+        return f"{undone} changes reverted."
 
 
 def _parse_range(ref: str) -> tuple[int, int, int, int]:
@@ -248,10 +248,10 @@ def _parse_range(ref: str) -> tuple[int, int, int, int]:
         min_col, min_row, max_col, max_row = range_boundaries(cleaned)
     except Exception:
         raise SheetError(
-            f"{ref!r} geçerli bir hücre aralığı değil. Örnek: A1, B2:D10"
+            f"{ref!r} is not a valid cell range. For example: A1, B2:D10"
         ) from None
     if None in (min_col, min_row, max_col, max_row):
-        raise SheetError(f"{ref!r} sınırsız aralık; satır numarası ver (A1:A100 gibi)")
+        raise SheetError(f"{ref!r} is an unbounded range; give row numbers (like A1:A100)")
     return min_col, min_row, max_col, max_row
 
 

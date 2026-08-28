@@ -283,7 +283,7 @@ class Calisma:
         kol = _u32.CreateDesktopW(self.ad, None, None, 0, GENERIC_ALL, None)
         if not kol:
             hata = ctypes.get_last_error()
-            raise MasaustuHatasi(f"masaüstü açılamadı (hata {hata})")
+            raise MasaustuHatasi(f"could not create the desktop (error {hata})")
         self._masa = kol
         self._is = self._is_nesnesi()
 
@@ -366,7 +366,7 @@ class Calisma:
         )
         if not ok:
             hata = ctypes.get_last_error()
-            raise MasaustuHatasi(f"süreç başlatılamadı (hata {hata}): {komut}")
+            raise MasaustuHatasi(f"could not start the process (error {hata}): {komut}")
         if self._is:
             _k32.AssignProcessToJobObject(self._is, pi.hProcess)
         _k32.ResumeThread(pi.hThread)
@@ -426,7 +426,7 @@ class Calisma:
         """
         p = pencere_bilgisi(hwnd)
         if p.en <= 0 or p.boy <= 0:
-            raise MasaustuHatasi(f"pencere ölçüsü geçersiz: {p.en}x{p.boy}")
+            raise MasaustuHatasi(f"invalid window size: {p.en}x{p.boy}")
 
         dc = _u32.GetWindowDC(hwnd)
         bellek = _g32.CreateCompatibleDC(dc)

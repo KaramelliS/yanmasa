@@ -89,7 +89,7 @@ class TerminalSession:
                 argv, cwd=cwd, dimensions=(rows, cols), backend=winpty.Backend.ConPTY
             )
         except Exception as exc:
-            raise TerminalError(f"{argv!r} başlatılamadı: {exc}") from None
+            raise TerminalError(f"could not start {argv!r}: {exc}") from None
 
         screen = pyte.Screen(cols, rows)
         session = cls(
@@ -147,7 +147,7 @@ class TerminalSession:
 
     def send(self, text: str) -> None:
         if not self.alive:
-            raise TerminalError(f"{self.name!r} oturumu kapalı")
+            raise TerminalError(f"session {self.name!r} is closed")
         with self._lock:
             self._awaiting = True
             self._last_output = time.monotonic()
@@ -157,7 +157,7 @@ class TerminalSession:
         sequence = KEYS.get(key.strip().lower())
         if sequence is None:
             raise TerminalError(
-                f"Bilinmeyen tuş: {key!r}. Geçerli olanlar: {', '.join(sorted(KEYS))}"
+                f"Unknown key: {key!r}. The valid ones are: {', '.join(sorted(KEYS))}"
             )
         self.send(sequence)
 
@@ -191,8 +191,8 @@ class TerminalSession:
             while lines and not lines[-1]:
                 lines.pop()
 
-        body = "\n".join(lines) if lines else "(ekran boş)"
-        return f"{body}\n[imleç: satır {cursor[0]}, sütun {cursor[1]}]"
+        body = "\n".join(lines) if lines else "(the screen is empty)"
+        return f"{body}\n[cursor: row {cursor[0]}, column {cursor[1]}]"
 
     def close(self) -> None:
         self._closed.set()
@@ -214,15 +214,15 @@ class TerminalRegistry:
              cwd: str | None = None) -> TerminalSession:
         if name in self._sessions and self._sessions[name].alive:
             raise TerminalError(
-                f"{name!r} adında açık bir oturum zaten var. Ona yazabilir ya da "
-                f"kapatıp yeniden açabilirsin."
+                f"A session named {name!r} is already open. You can write to it or "
+                f"close it and open it again."
             )
         if len(self._sessions) >= self.MAX_SESSIONS:
             self._reap()
         if len(self._sessions) >= self.MAX_SESSIONS:
             raise TerminalError(
-                f"En fazla {self.MAX_SESSIONS} oturum açık olabilir. "
-                f"Kullanmadığın birini kapat."
+                f"At most {self.MAX_SESSIONS} sessions can be open. "
+                f"Close one you are not using."
             )
 
         session = TerminalSession.open(name, command=command, cwd=cwd)
@@ -232,14 +232,14 @@ class TerminalRegistry:
     def get(self, name: str) -> TerminalSession:
         session = self._sessions.get(name)
         if session is None:
-            known = ", ".join(sorted(self._sessions)) or "yok"
-            raise TerminalError(f"{name!r} oturumu yok. Açık oturumlar: {known}")
+            known = ", ".join(sorted(self._sessions)) or "none"
+            raise TerminalError(f"There is no session {name!r}. Open sessions: {known}")
         return session
 
     def close(self, name: str) -> None:
         session = self._sessions.pop(name, None)
         if session is None:
-            raise TerminalError(f"{name!r} oturumu yok")
+            raise TerminalError(f"there is no session {name!r}")
         session.close()
 
     def close_all(self) -> None:

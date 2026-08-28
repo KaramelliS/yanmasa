@@ -87,7 +87,7 @@ def _send(*events: _INPUT) -> None:
     )
     if sent != len(events):
         raise OSError(
-            f"SendInput {len(events)} olaydan {sent} tanesini gönderdi "
+            f"SendInput sent {sent} of {len(events)} events "
             f"(GetLastError={ctypes.get_last_error()})"
         )
 
@@ -101,7 +101,7 @@ def normalize_absolute(vx: int, vy: int, rect: tuple[int, int, int, int]) -> tup
     """
     left, top, width, height = rect
     if width <= 1 or height <= 1:
-        raise ValueError(f"Geçersiz sanal masaüstü boyutu: {width}x{height}")
+        raise ValueError(f"Invalid virtual desktop size: {width}x{height}")
     nx = round((vx - left) * 65535 / (width - 1))
     ny = round((vy - top) * 65535 / (height - 1))
     return max(0, min(65535, nx)), max(0, min(65535, ny))
@@ -134,7 +134,7 @@ def cursor_position() -> tuple[int, int]:
 def click(vx: int, vy: int, button: str = "left", count: int = 1) -> None:
     """Verilen noktaya tıklar. count=2 çift, count=3 üçlü tıklama."""
     if button not in _BUTTONS:
-        raise ValueError(f"Bilinmeyen fare tuşu: {button}")
+        raise ValueError(f"Unknown mouse button: {button}")
     down, up = _BUTTONS[button]
     move_to(vx, vy)
     for i in range(count):
@@ -181,7 +181,7 @@ def scroll(direction: str, amount: int, at: tuple[int, int] | None = None) -> No
     axis = {"up": (MOUSEEVENTF_WHEEL, 1), "down": (MOUSEEVENTF_WHEEL, -1),
             "right": (MOUSEEVENTF_HWHEEL, 1), "left": (MOUSEEVENTF_HWHEEL, -1)}
     if direction not in axis:
-        raise ValueError(f"Bilinmeyen kaydırma yönü: {direction}")
+        raise ValueError(f"Unknown scroll direction: {direction}")
     flag, sign = axis[direction]
     delta = ctypes.c_long(sign * WHEEL_DELTA * amount).value & 0xFFFFFFFF
     _send(_INPUT(type=INPUT_MOUSE, mi=_MOUSEINPUT(0, 0, delta, flag, 0, 0)))
@@ -223,9 +223,9 @@ def parse_combo(combo: str) -> list[int]:
     for part in combo.split("+"):
         name = part.strip().lower()
         if not name:
-            raise ValueError(f"Boş tuş adı: {combo!r}")
+            raise ValueError(f"Empty key name: {combo!r}")
         if name not in VK_NAMES:
-            raise ValueError(f"Bilinmeyen tuş: {part!r} ({combo!r} içinde)")
+            raise ValueError(f"Unknown key: {part!r} (in {combo!r})")
         codes.append(VK_NAMES[name])
     return codes
 

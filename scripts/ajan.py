@@ -60,22 +60,22 @@ def make_turn() -> Turn:
 
 def ask_approval(name: str, detail: str, reason: str) -> bool:
     """Terminalde onay ister. Faz 5'te bunun yerini arayüzdeki modal alacak."""
-    print(f"\n{BOLD}[ONAY GEREKLİ]{RESET} {name} — {reason}")
+    print(f"\n{BOLD}[APPROVAL NEEDED]{RESET} {name} — {reason}")
     for line in detail.splitlines():
         print(f"  {line}")
     try:
-        answer = input(f"{BOLD}Çalıştırılsın mı? (e/H) {RESET}").strip().lower()
+        answer = input(f"{BOLD}Run it? (y/N) {RESET}").strip().lower()
     except (EOFError, KeyboardInterrupt):
-        print("  reddedildi")
+        print("  declined")
         return False
     approved = answer in {"e", "evet", "y", "yes"}
-    print("  onaylandı" if approved else "  reddedildi")
+    print("  approved" if approved else "  declined")
     return approved
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("instruction", nargs="*", help="talimat; boşsa etkileşimli")
+    parser.add_argument("instruction", nargs="*", help="the instruction; interactive when empty")
     parser.add_argument("--max-steps", type=int, default=60)
     args = parser.parse_args()
 
@@ -92,7 +92,7 @@ def main() -> int:
         on_trigger=lambda: print(f"\n{BOLD}[DURDURULDU]{RESET}", flush=True)
     ) as kill:
         agent = Agent.create(cfg, displays, capture, kill, approve=ask_approval)
-        print(f"{len(displays)} ekran. Durdurmak için Esc x3.\n")
+        print(f"{len(displays)} displays. Esc x3 to stop.\n")
 
         instructions = [" ".join(args.instruction)] if args.instruction else None
         while True:
@@ -117,7 +117,7 @@ def main() -> int:
                 print()
                 open_terminals = agent.dispatcher.terminals.names()
                 if open_terminals:
-                    print(f"{DIM}  açık terminaller: {', '.join(open_terminals)}{RESET}")
+                    print(f"{DIM}  open terminals: {', '.join(open_terminals)}{RESET}")
             except Aborted as exc:
                 print(f"\n{exc}")
             except Exception as exc:
