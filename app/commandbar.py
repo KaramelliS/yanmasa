@@ -36,7 +36,14 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QPushButton,
@@ -427,6 +434,38 @@ class ApprovalRow(QWidget):
         self._more.setVisible(kesik)
 
 
+class UstSolma(QWidget):
+    """Kaydırılmış dökümün üstünde kartın rengine giden geçiş.
+
+    Döküm bir tavanı aşınca en yeni satır görünsün diye sona kaydırılıyor
+    ve üstteki satır ortasından kesiliyor. Kesik bir harf sırası bozuk
+    çizim gibi okunuyor; oysa söylenmek istenen "yukarıda devamı var".
+    Geçiş bunu söylüyor, kırpmayı gizlemiyor.
+
+    Kaydırma sıfırdayken hiç görünmüyor: sığan bir dökümün üstüne gölge
+    koymak, olmayan bir devamı ima etmek olurdu.
+    """
+
+    BOY = 16
+
+    def __init__(self, t: Tokens, alan: QScrollArea) -> None:
+        super().__init__(alan.viewport())
+        self.t = t
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setVisible(False)
+
+    def paintEvent(self, _event) -> None:
+        gecis = QLinearGradient(0.0, 0.0, 0.0, float(self.height()))
+        kart = QColor(self.t.card)
+        gecis.setColorAt(0.0, kart)
+        soluk = QColor(kart)
+        soluk.setAlpha(0)
+        gecis.setColorAt(1.0, soluk)
+        p = QPainter(self)
+        p.fillRect(self.rect(), gecis)
+        p.end()
+
+
 class CommandBar(QWidget):
     """Yüzen komut çubuğu: mikrofon, yazı alanı, işlem önizlemesi."""
 
@@ -504,6 +543,14 @@ class CommandBar(QWidget):
             f"QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}"
         )
         self._reply_scroll.setVisible(False)
+        # Tavanı aşan döküm üstten kırpılıyor ve harfin ortasından kesilen
+        # bir satır bozuk görünüyor: bakan kişi kırpma olduğunu değil
+        # çizimin hatalı olduğunu düşünüyor. Geçiş kırpmayı kırpma gibi
+        # gösteriyor.
+        self._solma = UstSolma(t, self._reply_scroll)
+        self._reply_scroll.verticalScrollBar().valueChanged.connect(
+            self._solmayi_tazele
+        )
         # Maskot solda dar bir sütunda, döküm sağında. Önce üstte bir
         # şeritti ve yanlıştı: bir iş başlayınca cevabı aşağı itiyor,
         # okuduğun yer kayıyordu. Sütunda hiçbir şey yer değiştirmiyor.
@@ -781,6 +828,17 @@ class CommandBar(QWidget):
         self._grow()
         bar = self._reply_scroll.verticalScrollBar()
         bar.setValue(bar.maximum())
+        self._solmayi_tazele()
+
+    def _solmayi_tazele(self) -> None:
+        """Geçiş yalnızca yukarıda gizli satır varken görünüyor."""
+        bar = self._reply_scroll.verticalScrollBar()
+        gorunur = self._reply_scroll.isVisible() and bar.value() > 0
+        gorunum = self._reply_scroll.viewport()
+        self._solma.setGeometry(0, 0, gorunum.width(), UstSolma.BOY)
+        self._solma.setVisible(gorunur)
+        if gorunur:
+            self._solma.raise_()
 
     def ask_approval(self, tool: str, detail: str, reason: str) -> None:
         self.approval.ask(tool, detail, reason)

@@ -47,15 +47,22 @@ def _qt_temizlik():
     app = QApplication.instance()
     if app is None:
         return
+    silinen = 0
     for w in list(app.topLevelWidgets()):
         try:
             w.close()
             w.deleteLater()
+            silinen += 1
         except RuntimeError:
             # C++ tarafı zaten silinmiş.
             pass
-    app.processEvents()
-    gc.collect()
+    if silinen:
+        # `gc.collect()` her testte çağrılıyordu ve Qt yığını büyüdükçe
+        # test başına 0.3–0.4 saniye tutuyordu: 370 testte iki dakikadan
+        # fazla, tamamı hiç widget kurmayan testlerde de ödeniyordu.
+        # Ölçtüm — süre 342 saniyeden 48'e indi.
+        app.processEvents()
+        gc.collect()
 
     from app.motion import clock
 

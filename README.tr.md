@@ -82,6 +82,38 @@ yazarken sağ kenar sürüklenir ve satır kırılımı harf sayısıyla oynard�
 İki satıra sığmayan yazı üç noktayla kesiliyor: `QTextLayout` fazlasını
 sessizce düşürüyor ve kesildiğini söylemeyen bir baloncuk yalan söylüyor.
 
+### Cevabın kendisi
+
+Cevap `QLabel` değil, kendi düzenini kuran bir widget: imlecin son harfin
+tam yanında durması gerekiyor ve `QLabel` satır kırılımını nereye koyduğunu
+söylemiyor. Bunun bir bedeli var ve üçünü de ekranda gördüm.
+
+**Paragraf başına bir düzen.** Tek bir `QTextLayout` bütün metni alıyordu
+ve `QTextLayout` satır sonunu bilmiyor: `
+` sıradan bir karakter, satır
+kırılımını yalnızca sarma üretiyor. Sonuç "…(lightest).One caveat" gibi
+birbirine yapışmış iki paragraf. Ölçtüm — iki paragraflı bir metin tek
+satıra iniyordu. Boş satır tam satır değil yarım satır boşluk bırakıyor:
+yüzen bir çubukta yer pahalı.
+
+**Yıldızlar ekranda yok.** Model `**Reacher**` yazıyor. İşaretler metinden
+çıkarılıp yerleri kalın olarak çiziliyor; ters tırnak içi kod da öyle.
+İşaretleri saklayıp yalnızca çizimde gizlemek olurdu ama o zaman
+kopyaladığın metinde yıldızlar kalırdı. Akış sırasında yarım kalan bir
+`**` kendiliğinden çözülüyor: her parçada ham metinden yeniden
+hesaplanıyor, kapanmayan işaret eşleşmiyor.
+
+**Seçim yıkama, tabaka değil.** Vurgu dolu vurgu rengiyle çiziliyordu ve
+seçili bir cevap okunmaz bir pembe tabaka oluyordu. Bir de kalıcıydı:
+çubuğa yazmak için Ctrl+A'ya basmak dökümü seçiyor ve seçim ekranda
+kalıyordu. Odak gidince kalkıyor.
+
+Tavanı aşan döküm sona kaydırılıyor ve üstteki satır ortasından kesiliyor.
+Kesik bir harf sırası bozuk çizim gibi okunuyor; oysa söylenmek istenen
+"yukarıda devamı var". Üstte kartın rengine giden bir geçiş var ve
+kaydırma sıfırdayken hiç görünmüyor — sığan bir dökümün üstüne gölge
+koymak olmayan bir devamı ima etmek olurdu.
+
 ## Kurulum
 
 Proje kendi başına duruyor: dizini nereye kopyalarsan orada çalışıyor,
@@ -105,7 +137,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 369 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 376 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/ajan.py                   # ajan, etkileşimli

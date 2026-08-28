@@ -22,6 +22,7 @@ gibi okunuyordu.
 from __future__ import annotations
 
 import math
+import re
 import time
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
@@ -38,7 +39,7 @@ from PySide6.QtGui import (
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
-from .fluent import Tokens
+from .fluent import Tokens, _blend
 from .glyphs import glyph_for, paint_glyph
 from .motion import (
     Ripple, Shake, Spring, Tween, clock, ease_out_back, ease_out_expo,
@@ -382,6 +383,49 @@ class RunRing(QWidget):
         )
 
 
+#: Modelin yazdığı kalın vurgu. Yıldızlar **ekranda görünmemeli** —
+#: `**Reacher**` diye basılan bir cevap, biçimlendirmeyi çizmek yerine
+#: kaynağını gösteriyor demektir.
+_KALIN = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+
+#: Ters tırnak içindeki kod. Yıldızla aynı gerekçe.
+_KOD = re.compile(r"`([^`\n]+)`")
+
+
+def bicimle(ham: str) -> tuple[str, list[tuple[int, int]], list[tuple[int, int]]]:
+    """Markdown işaretlerini metinden çıkarır, yerlerini geri verir.
+
+    Dönen şey: temizlenmiş metin, kalın aralıklar, kod aralıkları. Aralıklar
+    **temizlenmiş metnin** koordinatında; tek bir koordinat sistemi olması
+    seçimi ve imleci de doğru tutuyor.
+
+    İşaretler saklanmak yerine silinip yeniden çizilebilirdi ama o zaman
+    kopyaladığın metinde yıldızlar kalırdı. Burada kopyalanan da temiz.
+
+    Akış sırasında yarım kalan bir `**` kendiliğinden çözülüyor: her parça
+    geldiğinde bütün ham metinden yeniden hesaplanıyor, yani kapanmayan bir
+    işaret eşleşmiyor ve olduğu gibi duruyor — sonra kapanınca kayboluyor.
+    """
+    temiz: list[str] = []
+    kalin: list[tuple[int, int]] = []
+    kod: list[tuple[int, int]] = []
+    i = 0
+    while i < len(ham):
+        for desen, hedef in ((_KALIN, kalin), (_KOD, kod)):
+            m = desen.match(ham, i)
+            if m:
+                govde = m.group(1)
+                bas = sum(len(p) for p in temiz)
+                temiz.append(govde)
+                hedef.append((bas, len(govde)))
+                i = m.end()
+                break
+        else:
+            temiz.append(ham[i])
+            i += 1
+    return "".join(temiz), kalin, kod
+
+
 class AkanMetin(QWidget):
     """Model yazarken harflerin düştüğü alan, sonunda yanıp sönen imleç.
 
@@ -391,6 +435,18 @@ class AkanMetin(QWidget):
 
     Fare ile seçme de burada: ajanın cevabını kopyalayabilmek gerekiyor ve
     kendi düzenini kuran bir widget bunu kendi eklemezse kaybediyor.
+
+    ## Paragraf başına bir düzen
+
+    Tek bir `QTextLayout` bütün metni alıyordu ve `QTextLayout` satır
+    sonunu bilmiyor: `\\n` sıradan bir karakter, satır kırılımını yalnızca
+    sarma üretiyor. Sonuç ekranda görüldü — "…(lightest).One caveat" gibi
+    iki paragraf birbirine yapışıyordu. Ölçtüm: iki paragraflı bir metin
+    tek satıra iniyor, `\\n\\n` yutuluyor.
+
+    Artık `\\n` başına bir düzen var ve boş satır tam satır değil daha
+    küçük bir boşluk bırakıyor: yüzen çubukta yer pahalı, paragraf arası
+    tam satır olsa cevabın yarısı boşluk olurdu.
     """
 
     PAD_X = 14
@@ -398,20 +454,30 @@ class AkanMetin(QWidget):
     PAD_BOTTOM = 3
     #: Satır yüksekliği çarpanı. 13 piksel gövdede 1.0 sıkışık okunuyor.
     LEADING = 1.34
+    #: Paragraf arası boşluk, satır yüksekliğinin katı olarak.
+    PARA_ARA = 0.5
 
     def __init__(self, t: Tokens, font_px: int = 13) -> None:
         super().__init__()
         self.t = t
+        self._ham = ""
         self._text = ""
+        self._kalin: list[tuple[int, int]] = []
+        self._kod: list[tuple[int, int]] = []
         self._live = False
         self._caret_on = True
-        self._layout: QTextLayout | None = None
+        self._bloklar: list[tuple[QTextLayout, int, float]] = []
         self._width = 0
+        self._text_height = 0.0
         self._sel = (0, 0)
         self._anchor: int | None = None
 
         self._font = QFont(t.font_ui)
         self._font.setPixelSize(font_px)
+        self._font_kalin = QFont(self._font)
+        self._font_kalin.setWeight(QFont.Weight.DemiBold)
+        self._font_kod = QFont(t.font_mono)
+        self._font_kod.setPixelSize(font_px - 1)
 
         self.setCursor(Qt.CursorShape.IBeamCursor)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -433,22 +499,29 @@ class AkanMetin(QWidget):
     # --- içerik -----------------------------------------------------------
 
     def text(self) -> str:
+        """Ekranda duran metin — markdown işaretleri çıkarılmış hâli.
+
+        Kopyalanan da bu. Yıldızları saklayıp yalnızca çizimde gizlemek,
+        panoya yıldızlı metin koymak olurdu.
+        """
         return self._text
 
     def set_text(self, text: str) -> None:
-        if text == self._text:
+        if text == self._ham:
             return
-        self._text = text
+        self._ham = text
         self._sel = (0, 0)
-        self._layout = None
-        self._resize_to_text()
-        self.update()
+        self._yenile()
 
     def append(self, parca: str) -> None:
         if not parca:
             return
-        self._text += parca
-        self._layout = None
+        self._ham += parca
+        self._yenile()
+
+    def _yenile(self) -> None:
+        self._text, self._kalin, self._kod = bicimle(self._ham)
+        self._bloklar = []
         self._resize_to_text()
         self.update()
 
@@ -470,28 +543,66 @@ class AkanMetin(QWidget):
 
     # --- düzen ------------------------------------------------------------
 
-    def _build(self, width: int) -> QTextLayout:
-        if self._layout is not None and self._width == width:
-            return self._layout
+    def _bicimler(self, bas: int, boy: int) -> list[QTextLayout.FormatRange]:
+        """Bir bloğa düşen kalın ve kod aralıkları, blok koordinatında."""
+        cikti = []
+        for araliklar, font in ((self._kalin, self._font_kalin),
+                                (self._kod, self._font_kod)):
+            for a_bas, a_boy in araliklar:
+                kesisim_bas = max(bas, a_bas)
+                kesisim_son = min(bas + boy, a_bas + a_boy)
+                if kesisim_son <= kesisim_bas:
+                    continue
+                r = QTextLayout.FormatRange()
+                r.start = kesisim_bas - bas
+                r.length = kesisim_son - kesisim_bas
+                r.format.setFont(font)
+                if font is self._font_kod:
+                    r.format.setForeground(QColor(self.t.accent_text))
+                cikti.append(r)
+        return cikti
+
+    def _build(self, width: int) -> list[tuple[QTextLayout, int, float]]:
+        """Paragraf başına bir düzen. Dönen: (düzen, metindeki başı, y)."""
+        if self._bloklar and self._width == width:
+            return self._bloklar
         secenek = QTextOption()
         secenek.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-        duzen = QTextLayout(self._text, self._font)
-        duzen.setTextOption(secenek)
         kullanilir = max(1, width - self.PAD_X * 2)
-        duzen.beginLayout()
+
+        bloklar: list[tuple[QTextLayout, int, float]] = []
         y = 0.0
-        while True:
-            satir = duzen.createLine()
-            if not satir.isValid():
-                break
-            satir.setLineWidth(kullanilir)
-            satir.setPosition(QPointF(0, y))
-            y += satir.height() * self.LEADING
-        duzen.endLayout()
-        self._layout = duzen
+        yer = 0
+        satir_boy = 0.0
+        for parca in self._text.split("\n"):
+            if not parca.strip():
+                # Boş satır: tam satır değil, paragraf boşluğu. Yüzen
+                # çubukta yer pahalı.
+                y += (satir_boy or self._font.pixelSize()) * self.PARA_ARA
+                yer += len(parca) + 1
+                continue
+            duzen = QTextLayout(parca, self._font)
+            duzen.setTextOption(secenek)
+            duzen.setFormats(self._bicimler(yer, len(parca)))
+            duzen.beginLayout()
+            ic_y = 0.0
+            while True:
+                satir = duzen.createLine()
+                if not satir.isValid():
+                    break
+                satir.setLineWidth(kullanilir)
+                satir.setPosition(QPointF(0, ic_y))
+                satir_boy = satir.height()
+                ic_y += satir.height() * self.LEADING
+            duzen.endLayout()
+            bloklar.append((duzen, yer, y))
+            y += ic_y
+            yer += len(parca) + 1
+
+        self._bloklar = bloklar
         self._width = width
         self._text_height = y
-        return duzen
+        return bloklar
 
     def heightForWidth(self, width: int) -> int:
         if not self._text:
@@ -523,20 +634,36 @@ class AkanMetin(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._layout = None
+        self._bloklar = []
         self._resize_to_text()
 
     # --- seçim ------------------------------------------------------------
 
     def _cursor_at(self, point) -> int:
-        duzen = self._build(self.width())
+        bloklar = self._build(self.width())
+        if not bloklar:
+            return 0
         yerel = QPointF(point.x() - self.PAD_X, point.y() - self.PAD_TOP)
-        for i in range(duzen.lineCount()):
-            satir = duzen.lineAt(i)
-            alt = satir.y() + satir.height() * self.LEADING
-            if yerel.y() < alt or i == duzen.lineCount() - 1:
-                return satir.xToCursor(yerel.x())
+        for blok_i, (duzen, yer, blok_y) in enumerate(bloklar):
+            son_blok = blok_i == len(bloklar) - 1
+            for i in range(duzen.lineCount()):
+                satir = duzen.lineAt(i)
+                alt = blok_y + satir.y() + satir.height() * self.LEADING
+                son_satir = son_blok and i == duzen.lineCount() - 1
+                if yerel.y() < alt or son_satir:
+                    return yer + satir.xToCursor(yerel.x())
         return len(self._text)
+
+    def focusOutEvent(self, event) -> None:
+        """Odak gidince seçim kalkıyor.
+
+        Kalmıyordu ve sekiz satırlık bir cevabın tamamı vurgulu duruyordu:
+        çubuğa yazmak için Ctrl+A'ya basmak dökümü seçiyor, sonra seçim
+        sonsuza kadar ekranda kalıyor. Kalıcı bir vurgu okumayı bozuyor.
+        """
+        self._sel = (0, 0)
+        self.update()
+        super().focusOutEvent(event)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._text:
@@ -570,34 +697,48 @@ class AkanMetin(QWidget):
     def paintEvent(self, _event) -> None:
         if not self._text:
             return
-        duzen = self._build(self.width())
+        bloklar = self._build(self.width())
+        if not bloklar:
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(QColor(self.t.text))
 
-        secimler = []
         bas, son = self._sel
-        if son > bas:
-            aralik = QTextLayout.FormatRange()
-            aralik.start = bas
-            aralik.length = son - bas
-            aralik.format.setBackground(QColor(self.t.accent))
-            aralik.format.setForeground(QColor(self.t.on_accent))
-            secimler.append(aralik)
+        for duzen, yer, blok_y in bloklar:
+            secimler = []
+            if son > bas:
+                kesisim_bas = max(bas, yer)
+                kesisim_son = min(son, yer + len(duzen.text()))
+                if kesisim_son > kesisim_bas:
+                    aralik = QTextLayout.FormatRange()
+                    aralik.start = kesisim_bas - yer
+                    aralik.length = kesisim_son - kesisim_bas
+                    # Vurgu dolu vurgu rengiyle çiziliyordu ve seçili bir
+                    # cevap okunmaz bir pembe tabaka oluyordu. Yıkama
+                    # yeterli: seçildiğini söylüyor, yazıyı ezmiyor.
+                    aralik.format.setBackground(
+                        QColor(_blend(self.t.accent, 0.30, self.t.layer))
+                    )
+                    aralik.format.setForeground(QColor(self.t.text))
+                    secimler.append(aralik)
+            duzen.draw(painter, QPointF(self.PAD_X, self.PAD_TOP + blok_y),
+                       secimler)
 
-        koken = QPointF(self.PAD_X, self.PAD_TOP)
-        duzen.draw(painter, koken, secimler)
-
-        if self._live and self._caret_on and duzen.lineCount():
-            self._paint_caret(painter, duzen, koken)
+        if self._live and self._caret_on:
+            duzen, yer, blok_y = bloklar[-1]
+            if duzen.lineCount():
+                self._paint_caret(painter, duzen,
+                                  QPointF(self.PAD_X, self.PAD_TOP + blok_y),
+                                  len(duzen.text()))
         painter.end()
 
     def _paint_caret(self, painter: QPainter, duzen: QTextLayout,
-                     koken: QPointF) -> None:
+                     koken: QPointF, son: int) -> None:
         """Son harfin yanındaki imleç. Blok değil ince bir çubuk: metnin
         altını kapatan bir blok, gelen son kelimeyi okunmaz yapıyordu."""
         satir = duzen.lineAt(duzen.lineCount() - 1)
-        x = satir.cursorToX(len(self._text))[0]
+        x = satir.cursorToX(son)[0]
         yukseklik = satir.height() * 0.82
         ust = satir.y() + (satir.height() - yukseklik) / 2
         painter.setPen(Qt.PenStyle.NoPen)

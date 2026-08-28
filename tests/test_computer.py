@@ -2254,6 +2254,66 @@ class TestAkanMetin:
         w.keyPressEvent(_copy_event())
         assert QGuiApplication.clipboard().text() == "kopyalanacak"
 
+    def test_paragraf_yapismiyor(self, qt_app):
+        # Ekranda görüldü: "…(lightest).One caveat" — iki paragraf
+        # birbirine yapışmış. Tek bir `QTextLayout` satır sonunu bilmiyor,
+        # `\n` sıradan bir karakter ve satır kırılımını yalnızca sarma
+        # üretiyor. Ölçtüm: iki paragraflı metin tek satıra iniyordu.
+        w = self._m(qt_app, "Birinci bitti.\n\nİkinci başladı.")
+        bloklar = w._build(320)
+        assert len(bloklar) == 2
+        assert bloklar[0][0].text() == "Birinci bitti."
+        assert bloklar[1][0].text() == "İkinci başladı."
+        # İkinci blok birincinin altında, üstünde değil.
+        assert bloklar[1][2] > bloklar[0][2]
+
+    def test_paragraf_bosluk_biraktiriyor(self, qt_app):
+        tek = self._m(qt_app, "Birinci bitti. İkinci başladı.")
+        cift = self._m(qt_app, "Birinci bitti.\n\nİkinci başladı.")
+        assert cift.heightForWidth(320) > tek.heightForWidth(320)
+
+    def test_yildizlar_ekranda_yok(self, qt_app):
+        # `**Reacher**` diye basılan bir cevap, biçimlendirmeyi çizmek
+        # yerine kaynağını gösteriyor demektir.
+        w = self._m(qt_app, "en iyisi **Reacher** ve `notlar.md`")
+        assert w.text() == "en iyisi Reacher ve notlar.md"
+        assert w._kalin == [(9, 7)]
+        assert w._kod == [(20, 9)]
+
+    def test_yarim_isaret_oldugu_gibi_duruyor(self, qt_app):
+        # Akış sırasında `**` yarım geliyor. Kapanmayan bir işaret
+        # eşleşmiyor ve olduğu gibi duruyor; kapanınca kayboluyor.
+        w = self._m(qt_app)
+        w.append("yarım **kal")
+        assert w.text() == "yarım **kal"
+        w.append("ın** bitti")
+        assert w.text() == "yarım kalın bitti"
+
+    def test_kopyalanan_metinde_isaret_yok(self, qt_app):
+        from PySide6.QtGui import QGuiApplication
+        w = self._m(qt_app, "**hepsi** kalın")
+        w._sel = (0, len(w.text()))
+        w.keyPressEvent(_copy_event())
+        assert QGuiApplication.clipboard().text() == "hepsi kalın"
+
+    def test_odak_gidince_secim_kalkiyor(self, qt_app):
+        # Kalmıyordu: çubuğa yazmak için Ctrl+A'ya basmak dökümü seçiyor
+        # ve sekiz satırlık cevap sonsuza kadar vurgulu kalıyordu.
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QFocusEvent
+        w = self._m(qt_app, "seçili kalmasın")
+        w._sel = (0, 6)
+        w.focusOutEvent(QFocusEvent(QEvent.Type.FocusOut))
+        assert w._sel == (0, 0)
+
+    def test_tikladigin_yer_dogru_paragrafta(self, qt_app):
+        w = self._m(qt_app, "Birinci bitti.\n\nİkinci başladı.")
+        bloklar = w._build(320)
+        from PySide6.QtCore import QPointF
+        _, yer, blok_y = bloklar[1]
+        nokta = QPointF(w.PAD_X + 2, w.PAD_TOP + blok_y + 4)
+        assert w._cursor_at(nokta) >= yer
+
 
 def _copy_event():
     from PySide6.QtCore import Qt
