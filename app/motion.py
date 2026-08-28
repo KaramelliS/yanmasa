@@ -78,6 +78,32 @@ def ease_out_cubic(t: float) -> float:
 
 # --- saat ------------------------------------------------------------------
 
+def _canli(geri: Callable[[float], None]) -> bool:
+    """Geri çağrının sahibi hâlâ yaşıyor mu.
+
+    Zayıf başvuru yetmiyor: Qt bir widget'ın **C++ tarafını** silip
+    Python sarmalayıcıyı ayakta bırakabiliyor. O durumda `WeakMethod`
+    canlı görünüyor, çağrı yapılıyor ve ölü nesneye dokunulduğu anda
+    süreç segfault ile düşüyor. Ölçtüm: `del` ve `gc.collect()` sonrası
+    abone sayısı hâlâ birdi ve bir sonraki tick onu boyamaya çalıştı.
+
+    Bu kontrol saatte, tek tek widget'larda değil. Her animasyonlu
+    widget'a aynı korumayı elle eklemek, birini unutmanın kesin yoluydu.
+    """
+    sahip = getattr(geri, "__self__", None)
+    if sahip is None:
+        return True
+    try:
+        from shiboken6 import isValid
+    except ImportError:  # Qt yok — saf mantık testleri
+        return True
+    try:
+        return bool(isValid(sahip))
+    except (TypeError, RuntimeError):
+        # Qt nesnesi değil: silinmiş olamaz.
+        return True
+
+
 class Clock(QObject):
     """Bütün hareketi süren tek zamanlayıcı.
 
@@ -127,7 +153,7 @@ class Clock(QObject):
         olu = False
         for ref in list(self._aboneler):
             geri = ref()
-            if geri is None:
+            if geri is None or not _canli(geri):
                 olu = True
                 continue
             geri(dt)

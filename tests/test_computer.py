@@ -2906,85 +2906,104 @@ class TestBloubKaynagi:
         assert abs(sol[2]) != abs(sag[2])
 
 
-class TestMaskotSutunu:
-    """Maskot solda, elinde nesneyle."""
+class TestBaloncuk:
+    """Maskot ne yaptığını çizmiyor, **yazıyor**.
 
-    def _s(self, qt_app):
+    Elinde nesne tutan bir maskot vardı ve altı tur uğraştıktan sonra
+    kaldırıldı: 78 pikselde bir kol iki piksel ediyor ve hiçbir ayar bunu
+    çözmüyor. Yerine baloncuk.
+    """
+
+    def _b(self, qt_app):
         from app import fluent
-        from app.sahne import Sahne, nesneler_var
-        from app.stream import RunRing
-        if not nesneler_var():
-            import pytest as _p
-            _p.skip("nesneler yok")
-        t = fluent.tokens()
-        return Sahne(t, RunRing(t, 52))
+        from app.baloncuk import Baloncuk
 
-    def test_her_is_kendi_nesnesini_aliyor(self, qt_app):
-        s = self._s(qt_app)
-        nesneler = []
-        for arac in ("office_edit", "run_shell", "screenshot",
-                     "remote_list", "write_file"):
-            s.set_tool(arac)
-            nesneler.append(s._nesne)
-        assert len(set(nesneler)) == 5, nesneler
+        return Baloncuk(fluent.tokens())
 
-    def test_karsiligi_olmayan_araca_nesne_uydurulmuyor(self, qt_app):
-        # Her işe bir nesne uydurmak, nesnelerin anlamını yok ederdi.
-        s = self._s(qt_app)
-        s.set_tool("left_click")
-        assert s._nesne is None
+    def test_yazi_harf_harf_akiyor(self, qt_app):
+        b = self._b(qt_app)
+        b.soyle("Dosya yazıyor: notlar.md")
+        assert b.akiyor
+        b._tick(10.0)
+        assert not b.akiyor, "on saniyede yazı bitmeliydi"
 
-    def test_ayni_nesne_elinden_dusmuyor(self, qt_app):
-        # Her adımda nesneyi yeniden getirmek, dosya yazan bir turda
-        # sayfanın sürekli elinden düşüp geri gelmesi olurdu.
-        s = self._s(qt_app)
-        s.set_tool("write_file")
-        s._gelis.jump(1.0)
-        s.set_tool("read_file")
-        assert s._gelis.value == 1.0
+    def test_ortak_on_ek_korunuyor(self, qt_app):
+        # "Dosya yazıyor: a.md" ile "Dosya yazıyor: b.md" arasında
+        # baloncuk boşalıp yeniden dolsaydı, gözün takip ettiği şey iş
+        # değil animasyon olurdu.
+        b = self._b(qt_app)
+        b.soyle("Dosya yazıyor: a.md")
+        b._tick(10.0)
+        b.soyle("Dosya yazıyor: b.md")
+        assert b._gorunen >= len("Dosya yazıyor: ")
 
-    def test_terminalde_asagi_bakiyor(self, qt_app):
-        # Terminalde el görünmüyor; yazdığını anlatan tek şey bakışı.
-        s = self._s(qt_app)
-        s.set_tool("run_shell")
-        assert s.yuz._gaze_y.target > 0.5
-        s.set_tool("left_click")
-        assert s.yuz._gaze_y.target == 0.0
+    def test_ayni_metin_akisi_sifirlamiyor(self, qt_app):
+        b = self._b(qt_app)
+        b.soyle("Ekran görüntüsü alıyor")
+        b._tick(10.0)
+        b.soyle("Ekran görüntüsü alıyor")
+        assert not b.akiyor
 
-    def test_mercekte_ileri_bakiyor(self, qt_app):
-        # Merceğe bakmıyor, onun **içinden** bakıyor. Aşağı bakan bir
-        # göz camın altında kalırdı.
-        s = self._s(qt_app)
-        s.set_tool("screenshot")
-        assert abs(s.yuz._gaze_y.target) < 0.2
+    def test_bos_metin_kapatiyor(self, qt_app):
+        b = self._b(qt_app)
+        b.soyle("Bir şey")
+        b.soyle("")
+        assert b._giris.target == 0.0
 
-    def test_yandan_bakilan_sahnede_profil_aciliyor(self, qt_app):
-        s = self._s(qt_app)
-        s.set_tool("office_edit")     # dizüstü: yandan
-        assert s.yuz._profil.target == 1.0
-        s.set_tool("run_shell")       # terminal: bize dönük
-        assert s.yuz._profil.target == 0.0
+    def test_temizle_her_seyi_siliyor(self, qt_app):
+        b = self._b(qt_app)
+        b.soyle("Bir şey")
+        b.temizle()
+        assert b._tam == "" and not b.isVisible()
 
-    def test_el_govdenin_silueti(self):
-        # Ayrı bir daire çizmek maskotu birbirine yapıştırılmış parçalar
-        # gibi gösterirdi. El artık sahnenin içinde ve aynı siluetten
-        # üretiliyor.
-        import sys
-        from pathlib import Path as _P
-        sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
-        import sahne_svg
-        yol = sahne_svg._el((10.0, 10.0))
-        assert yol.count("L") > 40
+    def test_govde_yaziya_yapisiyor(self, qt_app):
+        # Sütunun tamamını kaplayan bir baloncuk konuşma gibi durmuyor,
+        # devre dışı bir metin alanı gibi duruyor.
+        b = self._b(qt_app)
+        b.resize(400, 40)
+        b.soyle("Klasöre bakıyor")
+        kisa = b._govde(b._duzen(b._ic_en(), b._gosterim())).width()
+        b.soyle("Komut çalıştırıyor: python -m pytest tests/ -q --tb=short")
+        uzun = b._govde(b._duzen(b._ic_en(), b._gosterim())).width()
+        assert kisa < uzun <= 400
 
-    def test_sutun_dokumu_asagi_itmiyor(self):
-        # Sahne önce çubuğun üstünde bir şeritti: iş başlayınca cevabı
-        # aşağı itiyor, okuduğun yer kayıyordu.
-        import inspect
-        from app import commandbar
-        kaynak = inspect.getsource(commandbar.CommandBar.__init__)
-        assert "addWidget(self.sahne" in kaynak
-        yatay = kaynak[kaynak.index("self._govde"):]
-        assert "QHBoxLayout" in yatay, "sütun yan yana olmalı, alt alta değil"
+    def test_sigmayan_yazi_uc_noktayla_kesiliyor(self, qt_app):
+        # `QTextLayout` iki satırdan fazlasını sessizce düşürüyordu:
+        # imleç ikinci satırın sonunda yanıp söner, baloncuk yazının
+        # bittiğini söyler, oysa yolun ortasında kesilmiştir.
+        b = self._b(qt_app)
+        b.resize(180, 40)
+        b.soyle("Komut çalıştırıyor: " + "uzun-bir-argument " * 20)
+        gosterim = b._gosterim()
+        assert gosterim.endswith("…")
+        assert len(gosterim) < len(b._tam)
+        b._tick(60.0)
+        assert not b.akiyor, "kesilen yazı da bir yerde bitmeli"
+
+    def test_sigan_yazi_kesilmiyor(self, qt_app):
+        b = self._b(qt_app)
+        b.resize(400, 40)
+        b.soyle("Tabloyu açıyor: butce.xlsx")
+        assert b._gosterim() == b._tam
+
+    def test_saat_olu_widgetlari_dusuruyor(self, qt_app):
+        # Zayıf başvuru yetmiyor: Qt bir widget'ın C++ tarafını silip
+        # Python sarmalayıcıyı ayakta bırakabiliyor. O durumda çağrı
+        # yapılıyor ve ölü nesneye dokunulduğu anda süreç düşüyor.
+        from app.motion import _canli, clock
+
+        b = self._b(qt_app)
+        b.soyle("Bir şey")
+        assert _canli(b._tick), "canlı widget düşürülmemeli"
+        # `deleteLater` yetmiyor: sahipsiz ve hiç gösterilmemiş bir
+        # widget'ı Qt hemen silmiyor. `shiboken6.delete` C++ tarafını
+        # kesin olarak yok ediyor ve testin taklit etmek istediği durum
+        # tam bu — Python sarmalayıcı yaşıyor, C++ nesnesi yok.
+        from shiboken6 import delete
+
+        delete(b)
+        assert not _canli(b._tick), "C++ tarafı silinen widget düşmeli"
+        clock()._tick()  # patlamamalı
 
 
 class TestYarimKalanArac:
@@ -3179,24 +3198,13 @@ class TestCubukBoyu:
         QApplication.processEvents()
         assert bar.height() <= 130, bar.height()
 
-    def test_sutun_cevabin_yerini_yemiyor(self, qt_app):
-        # Sütun 78'den 160'a çıktı çünkü o boyutta sahnenin ayrıntısı
-        # yaşamıyordu — kol iki piksel, kalem bir piksel. Korunması
-        # gereken şey sütunun küçük kalması değil, **cevabın okunabilir
-        # kalması**: çubuk da genişledi ve döküm yerini korudu.
+    def test_maskot_cevabin_yerini_yemiyor(self, qt_app):
+        # Maskot artık yalnızca halka: nesne yok, kol yok. Korunması
+        # gereken tek şey cevabın okunabilir kalması.
         from app.commandbar import BAR_WIDTH
-        from app.sahne import GENISLIK, YUKSEKLIK
         bar = self._dolu(qt_app)
-        assert bar.sahne.width() == GENISLIK
-        assert bar.sahne.height() == YUKSEKLIK
-        dokum = BAR_WIDTH - 28 - 14 - GENISLIK
-        assert dokum >= 300, f"cevap alanı {dokum} piksele düştü"
-
-    def test_sutun_cevaptan_uzun_degil(self, qt_app):
-        # Sütun dökümden uzunsa altında boşluk kalıyor.
-        from app.commandbar import REPLY_MAX_HEIGHT
-        from app.sahne import YUKSEKLIK
-        assert YUKSEKLIK <= REPLY_MAX_HEIGHT
+        dokum = BAR_WIDTH - 28 - 20 - bar.ring.width()
+        assert dokum >= 380, f"cevap alanı {dokum} piksele düştü"
 
 
 class TestArayuzKusurlari:
@@ -3297,18 +3305,18 @@ class TestAdimIzi:
 
     def _r(self, qt_app):
         from app import fluent
+        from app.commandbar import RING_SIZE
         from app.stream import RunRing
-        from app.sahne import GENISLIK, YUKSEKLIK
-        r = RunRing(fluent.tokens(), GENISLIK)
-        r.resize(GENISLIK, YUKSEKLIK)
+        r = RunRing(fluent.tokens(), RING_SIZE)
+        r.resize(RING_SIZE, RING_SIZE)
         return r
 
-    def test_iz_solda_figurun_disinda(self, qt_app):
-        # Daire, elinde nesne olan bir figürle çalışmıyordu: nesne
-        # çemberi kesiyor ve koşu kaydı okunmaz oluyordu.
+    def test_iz_yuzun_solunda_kaliyor(self, qt_app):
+        # Daire yerine dikey iz: adımlar yukarıdan aşağı diziliyor ve
+        # figürün üstünden geçmiyor.
         from app.stream import TRACK_W, TRACK_X
-        from app.sahne import IZ_PAY
-        assert TRACK_X + TRACK_W <= IZ_PAY, "iz, nesnenin alanına giriyor"
+        r = self._r(qt_app)
+        assert r.yuz_kutusu().left() >= TRACK_X + TRACK_W
 
     def test_yuz_izin_saginda(self, qt_app):
         from app.stream import TRACK_W, TRACK_X
@@ -3317,41 +3325,6 @@ class TestAdimIzi:
         boyut = alan * getattr(r.face, "fill", 0.56)
         sol = TRACK_X + TRACK_W + (alan - boyut) / 2
         assert sol >= TRACK_X + TRACK_W
-
-    def _sahne(self, qt_app):
-        from app import fluent
-        from app.sahne import GENISLIK, YUKSEKLIK, Sahne
-        from app.stream import RunRing
-
-        t = fluent.tokens()
-        s = Sahne(t, RunRing(t, 52))
-        s.resize(GENISLIK, YUKSEKLIK)
-        s._yerlestir()
-        return s
-
-    def test_yuva_sahnenin_icinde(self, qt_app):
-        # Yüz yuvaya oturuyor; yuva sahnenin dışına taşarsa yüzün bir
-        # kısmı sütunun dışında kalır.
-        s = self._sahne(qt_app)
-        kutu = s._sahne_kutusu()
-        for ad in ("mercek", "laptop", "terminal", "sayfa", "sunucu"):
-            s.set_tool({"mercek": "screenshot", "laptop": "office_edit",
-                        "terminal": "run_shell", "sayfa": "write_file",
-                        "sunucu": "remote_list"}[ad])
-            yuva = s.yuz_kutusu()
-            assert kutu.contains(yuva), ad
-
-    def test_kivilcim_kablonun_uzerinde(self, qt_app):
-        # Eğrinin denklemi iki yerde olsaydı bir gün ayrı düşerlerdi ve
-        # kıvılcım kablonun yanından geçerdi.
-        s = self._sahne(qt_app)
-        s.set_tool("remote_list")
-        cizici = s._cizici("sunucu")
-        kablo = cizici.boundsOnElement("kablo")
-        for u in (0.0, 0.5, 1.0):
-            nokta = s._kablo_noktasi(cizici, u)
-            assert nokta is not None
-            assert kablo.adjusted(-2, -2, 2, 2).contains(nokta), u
 
     def test_adimlar_hala_birikiyor(self, qt_app):
         r = self._r(qt_app)

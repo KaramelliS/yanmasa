@@ -45,16 +45,39 @@ OmniParser/Qwen-VL sınıfı bir model çalışmıyor.
   tıklayınca gerçek, ayrı bir Windows penceresine çıkar ve ikinci ekrana
   atılabilir. Bu Qt'nin kendi davranışı, taklit edilmiş bir sürükleme değil.
 - **Komut çubuğu** — ajanla konuşulan yer burası, ana pencere değil.
-  Çerçevesiz, hep üstte, ekranın köşesinde yüzen bir çubuk. Üç parçası var:
-  mikrofon, **yazı alanı** (ses kullanılamıyorsa tek çalışan giriş yolu) ve
+  Çerçevesiz, hep üstte, ekranın köşesinde yüzen bir çubuk. Dört parçası var:
+  mikrofon, **yazı alanı** (ses kullanılamıyorsa tek çalışan giriş yolu),
   ajanın o an yaptığı işi gösteren **önizleme karesi** — eylem, hedef,
-  gerekçe ve gerçek bir küçük resim. Sürüklenip taşınır, konumu
-  `~/.ajan/bar.json` içinde kalır.
+  gerekçe ve gerçek bir küçük resim — ve **maskot**. Sürüklenip taşınır,
+  konumu `~/.ajan/bar.json` içinde kalır.
 
 Fluent'e uymanın pratikteki anlamı `app/fluent.py`'de: renkler sistemden
 okunuyor. Temayı açığa alırsan uygulama açılır, vurgu rengini değiştirirsen
 uygulama onu alır. Sabit bir palet yazmak, Fluent olduğunu iddia edip tek
 gerçek kuralını çiğnemek olurdu.
+
+### Maskot ne yaptığını çizmiyor, yazıyor
+
+Maskotun elinde nesneler vardı: dizüstü, mercek, sayfa, sunucu. Her biri kol,
+el ve tutuş noktası hesaplayan bir kompozisyondu ve altı turda hiçbiri
+iyi olmadı — 78 piksellik bir sahnede bir kol iki piksel, bir kalem bir
+piksel ediyor. Sonunda nesneler tamamen kalktı (1180 kare ve on SVG silindi),
+yerine bir **konuşma baloncuğu** geldi.
+
+Bir baloncuk çizilen nesneden iki nedenle iyi. Belirsizlik yok: dizüstü çizimi
+"ofis işi" diyebilir, `notlar.md yazıyor` tam olarak ne yaptığını söylüyor.
+Ve ölçekten bağımsız: yazı 11 puntoda okunuyor, iki piksellik bir kol hiçbir
+puntoda okunmuyor.
+
+Yazı harf harf akıyor (42 harf/sn) ve akış bitince ucundaki imleç yanıp
+sönmeye başlıyor — tersi olsaydı yanıp sönen imleç yazı durmuşken "devam
+ediyor" derdi. Yeni bir iş geldiğinde baloncuk boşalmıyor, **ortak ön ek
+korunup gerisi değişiyor**: `Dosya yazıyor: a.md` ile `Dosya yazıyor: b.md`
+arasında gözün takip ettiği şey iş kalıyor, animasyon olmuyor. Baloncuğun
+ölçüsü görünen harflerden değil **tam metinden** alınıyor; görünenden alsaydı
+yazarken sağ kenar sürüklenir ve satır kırılımı harf sayısıyla oynardı.
+İki satıra sığmayan yazı üç noktayla kesiliyor: `QTextLayout` fazlasını
+sessizce düşürüyor ve kesildiğini söylemeyen bir baloncuk yalan söylüyor.
 
 ## Kurulum
 
@@ -637,6 +660,7 @@ app/
   fluent.py             Fluent token'ları; tema ve vurgu sistemden okunuyor
   window.py             ana pencere, dock panelleri, durum şeridi
   commandbar.py         yüzen komut çubuğu: mikrofon, yazı alanı, önizleme
+  baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
   sheet_view.py         Excel benzeri tablo: formül çubuğu, sayfa sekmeleri
   panels.py             tablo, yazı, kod, terminal, değişiklik listesi
   fixtures.py           ajanın gerçekten ürettiği örnek içerik
@@ -644,10 +668,8 @@ yanmasa.py              masaüstü uygulaması girişi
 scripts/
   check_phase1.py       yakalama ve girdi elle doğrulama
   ajan.py               terminal arayüzü (ajan çekirdeği)
-  svg_yap.py            maskotun pozlarını ve nesnelerini üretir
+  svg_yap.py            maskotun pozlarını üretir
   svg_onizleme.py       üretilen SVG'lerin PNG önizlemesi + tabaka
-  sahne_svg.py          maskotun beş sahnesi: her iş için ayrı kompozisyon
-  sahne_onizleme.py     sahnelerin **canlı** hâli — yüzüyle, bakışıyla
 varliklar/
   kaynak/bloub.svg      maskotun asıl silueti; pozlar buradan türüyor
   svg/                  üretilen varlıklar — elle düzenlenmez

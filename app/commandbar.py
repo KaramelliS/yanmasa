@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
 )
 
 from .buttons import ButtonStrip
-from .sahne import Sahne
+from .baloncuk import Baloncuk
 from .stream import Akis, RunRing
 from .glyphs import PreviewFrame
 
@@ -85,8 +85,10 @@ BREAK = "\n\n"
 MIC_SIZE = 40
 
 #: Koşu halkası. Mikrofondan büyük: içinde bir yüz var ve 40 pikselde
-#: ifade okunmuyor — ölçtüm.
-RING_SIZE = 52
+#: ifade okunmuyor — ölçtüm. 52'den 64'e çıktı: elindeki nesneler
+#: kalkınca sütun boşaldı ve maskot 520 piksellik bir çubukta bir simge
+#: kadar kalıyordu. 64'te göz, ağız ve eğilme okunuyor.
+RING_SIZE = 64
 
 
 @dataclass
@@ -505,19 +507,29 @@ class CommandBar(QWidget):
         # şeritti ve yanlıştı: bir iş başlayınca cevabı aşağı itiyor,
         # okuduğun yer kayıyordu. Sütunda hiçbir şey yer değiştirmiyor.
         self.ring = RunRing(t, RING_SIZE)
-        self.sahne = Sahne(t, self.ring)
-        self.sahne.setToolTip(
-            "Ajan. Halkadaki her dilim bir adım, kırmızı olan düştü"
+        self.ring.setToolTip(
+            "Ajan. İzdeki her çentik bir adım, kırmızı olan düştü"
         )
-        self.sahne.setVisible(False)
+        self.ring.setVisible(False)
+
+        # Maskotun elinde nesne yok. Vardı — dizüstü, mercek, sayfa — ve
+        # her biri çalışma anında kol, el, tutuş noktası hesaplayan bir
+        # kompozisyondu; 78 pikselde hiçbiri okunmuyordu. Yerine baloncuk:
+        # ne yaptığını çizmeye çalışmak yerine **yazıyor**.
+        self.baloncuk = Baloncuk(t)
 
         self._govde = QWidget()
         govde = self._govde
         govde_yatay = QHBoxLayout(govde)
         govde_yatay.setContentsMargins(0, 0, 0, 0)
-        govde_yatay.setSpacing(0)
-        govde_yatay.addWidget(self.sahne, 0, Qt.AlignmentFlag.AlignTop)
-        govde_yatay.addWidget(self._reply_scroll, 1)
+        govde_yatay.setSpacing(6)
+        govde_yatay.addWidget(self.ring, 0, Qt.AlignmentFlag.AlignTop)
+        sag = QVBoxLayout()
+        sag.setContentsMargins(0, 0, 0, 0)
+        sag.setSpacing(6)
+        sag.addWidget(self.baloncuk)
+        sag.addWidget(self._reply_scroll)
+        govde_yatay.addLayout(sag, 1)
         card_layout.addWidget(govde)
 
         self.preview = PreviewCard(t)
@@ -678,14 +690,37 @@ class CommandBar(QWidget):
     def settle_step(self, is_error: bool) -> None:
         self.reply.mark_last(is_error)
 
-    def set_tool(self, tool: str) -> None:
-        """Sahnedeki nesne o anki işe göre değişiyor."""
-        self.sahne.set_tool(tool)
+    def bakisi_tazele(self) -> None:
+        """Maskot baloncuğa bakıyor — kendi söylediğine.
+
+        Baloncuk maskotun sağında ve biraz aşağıda. Bakış olmadan
+        baloncuk maskotun yanında duran bir etiket gibi görünüyor;
+        bakışla onun söylediği şey oluyor.
+        """
+        yuz = getattr(self.ring, "face", None)
+        if yuz is None:
+            return
+        if self.baloncuk.sizeHint().height() > 0:
+            yuz.look_at(0.55, 0.12)
+        else:
+            yuz.look_forward()
+
+    def set_tool(self, etiket: str, hedef: str = "") -> None:
+        """Baloncuk o an ne yapıldığını yazıyor.
+
+        Araç adı değil **Türkçe etiket** geliyor: "Dosya yazıyor",
+        "run_shell" değil. Baloncuğun okunması için yazılmış bir cümle
+        olması gerekiyor; ham araç adı dökümde zaten var.
+        """
+        metin = etiket if not hedef else f"{etiket}: {hedef}"
+        self.baloncuk.soyle(metin)
+        self.bakisi_tazele()
+        self._fit_reply()
 
     def clear_run(self) -> None:
         """Yeni talimat: önceki turun şekli ve dökümü gidiyor."""
-        self.sahne.setVisible(False)
-        self.sahne.clear()
+        self.ring.setVisible(False)
+        self.baloncuk.temizle()
         self.reply.clear()
         self._fit_reply()
 
@@ -703,6 +738,19 @@ class CommandBar(QWidget):
         """Akış bitti — imleç sönüyor, metin kalıyor."""
         self.reply.end_stream()
 
+    def _dokum_tavani(self) -> int:
+        """Dökümün en fazla kaplayabileceği yükseklik.
+
+        Baloncuk görünürken yerini **dökümden ödünç alıyor**, çubuğu
+        büyütmüyor. Büyütseydi çubuk 315 piksele çıkıyordu — ölçtüm ve bir
+        test yakaladı. Yüzen bir çubuğun boyu ekranı yemeye başladığı
+        anda, üstünde çalıştığın işi görmüyorsun.
+        """
+        pay = self.baloncuk.sizeHint().height()
+        if pay <= 0:
+            return REPLY_MAX_HEIGHT
+        return max(60, REPLY_MAX_HEIGHT - pay - 6)
+
     def _fit_reply(self) -> None:
         dolu = not self.reply.is_empty()
         self._reply_scroll.setVisible(dolu)
@@ -712,10 +760,10 @@ class CommandBar(QWidget):
         # sıkışıp kayıyordu — tavanın altında kalan cevap hiç kaymamalı.
         # Sütun genişliği düşülüyor: döküm artık bütün çubuğu değil,
         # maskotun sağında kalanı kaplıyor.
-        width = BAR_WIDTH - 28 - 14 - self.sahne.width()
+        width = BAR_WIDTH - 28 - 20 - self.ring.width()
         needed = self.reply.heightForWidth(width) if dolu else 0
         self._reply_scroll.setFixedHeight(
-            min(REPLY_MAX_HEIGHT, max(0, needed) + 14)
+            min(self._dokum_tavani(), max(0, needed) + 14)
         )
         self._grow()
         bar = self._reply_scroll.verticalScrollBar()
@@ -750,10 +798,13 @@ class CommandBar(QWidget):
         # talimat verildiğinde `clear_run` siliyor.
         self.stop.setVisible(busy)
         if busy:
-            self.sahne.setVisible(True)
+            self.ring.setVisible(True)
             self.ring.begin()
         else:
             self.ring.finish()
+            # Baloncuk kapanıyor: duran bir baloncuk "hâlâ yapıyor" der.
+            self.baloncuk.sakla()
+            self._fit_reply()
         self.field.setPlaceholderText(
             "Araya yaz — ajan sıradaki adımda görür" if busy
             else "Yaz ya da konuş…"

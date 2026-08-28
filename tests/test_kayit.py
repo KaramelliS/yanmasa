@@ -198,55 +198,6 @@ class TestKayitOkuma:
         ]
 
 
-class TestSahneListeleri:
-    """Uygulamadaki çizim sırası, üreten betikle aynı olmak zorunda.
-
-    İki liste var: `scripts/sahne_svg.py` sahneyi çiziyor,
-    `app/sahne.py` onu sırayla boyuyor. Ayrı düşerlerse maskotun bir
-    parçası sessizce kaybolur — hata yok, uyarı yok, sadece eksik bir el.
-    """
-
-    def _uretici(self):
-        import sys
-        from pathlib import Path
-
-        kok = Path(__file__).resolve().parent.parent
-        sys.path.insert(0, str(kok / "scripts"))
-        import sahne_svg
-
-        return sahne_svg
-
-    def test_cizim_sirasi_ureticiyle_ayni(self):
-        from app.sahne import PARCALAR
-
-        uretici = self._uretici()
-        for ad in uretici.SAHNELER:
-            _, sira, _ = uretici.sahne(ad)
-            assert PARCALAR[ad] == sira, ad
-
-    def test_profil_tablosu_ureticiyle_ayni(self):
-        from app.sahne import PROFIL
-
-        uretici = self._uretici()
-        for ad in uretici.SAHNELER:
-            _, _, profil = uretici.sahne(ad)
-            assert PROFIL[ad] is profil, ad
-
-    def test_her_sahnenin_yuvasi_var(self):
-        # Yüz yuvaya oturuyor; yuvası olmayan sahnede yüz nereye
-        # çizileceğini bilmiyor.
-        uretici = self._uretici()
-        for ad in uretici.SAHNELER:
-            metin, _, _ = uretici.sahne(ad)
-            assert 'id="yuva"' in metin, ad
-
-    def test_yuz_sirada_bir_kez_geciyor(self):
-        from app.sahne import PARCALAR, YUZ
-
-        for ad, sira in PARCALAR.items():
-            assert sira.count(YUZ) == 1, ad
-
-
 class TestBeklemeyeDonus:
     """Tur bitince maskot beklemeye dönmeli.
 
@@ -257,46 +208,37 @@ class TestBeklemeyeDonus:
 
     def _kur(self, qt_app):
         from app import fluent
-        from app.sahne import GENISLIK, YUKSEKLIK, Sahne
         from app.stream import RunRing
 
-        t = fluent.tokens()
-        halka = RunRing(t, 52)
-        sahne = Sahne(t, halka)
-        sahne.resize(GENISLIK, YUKSEKLIK)
-        sahne._yerlestir()
-        return sahne, halka
+        halka = RunRing(fluent.tokens(), 52)
+        return halka.face, halka
 
-    def _ilerle(self, sahne, halka, saniye):
+    def _ilerle(self, yuz, halka, saniye):
         for _ in range(int(saniye * 60)):
-            sahne._tick(1 / 60)
             halka._tick(1 / 60)
 
     def test_bitince_beklemeye_donuyor(self, qt_app):
         from app.svgyuz import BITTI_SURESI
 
-        sahne, halka = self._kur(qt_app)
+        yuz, halka = self._kur(qt_app)
         halka.begin()
         halka.step("office_edit")
-        sahne.set_tool("office_edit")
-        self._ilerle(sahne, halka, 0.5)
-        assert sahne._nesne == "laptop"
+        self._ilerle(yuz, halka, 0.5)
+        assert yuz._anim != "bosta", "çalışırken beklemede olmamalı"
 
         halka.settle(False)
         halka.finish()
-        self._ilerle(sahne, halka, BITTI_SURESI * 0.4)
+        self._ilerle(yuz, halka, BITTI_SURESI * 0.4)
         # Bitiş pozu bir süre duruyor: hemen sıfırlamak "bitti"yi
         # görünmez yapardı.
-        assert sahne.yuz._anim == "bitti"
+        assert yuz._anim == "bitti"
 
-        self._ilerle(sahne, halka, BITTI_SURESI + 0.5)
-        assert sahne.yuz._anim == "bosta"
-        assert sahne._nesne is None, "nesne elinde kalmamalı"
-        assert sahne.yuz._live, "göz kırpması geri gelmeli"
-        assert sahne.yuz._profil.target == 0.0, "profil öne dönmeli"
+        self._ilerle(yuz, halka, BITTI_SURESI + 0.5)
+        assert yuz._anim == "bosta"
+        assert yuz._live, "göz kırpması geri gelmeli"
 
     def test_bosta_ozelligi_durumu_yansitiyor(self, qt_app):
-        sahne, _ = self._kur(qt_app)
-        assert sahne.yuz.bosta
-        sahne.yuz.set_state("yaziyor")
-        assert not sahne.yuz.bosta
+        yuz, _ = self._kur(qt_app)
+        assert yuz.bosta
+        yuz.set_state("yaziyor")
+        assert not yuz.bosta

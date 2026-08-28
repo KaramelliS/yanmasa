@@ -39,8 +39,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bloub_kaynak import POZLAR as KAYNAK_POZLAR  # noqa: E402
 from bloub_kaynak import poz as poz_uret  # noqa: E402
 from bloub_kaynak import taban_noktalari  # noqa: E402
-import nesneler  # noqa: E402
-from nesneler import NESNELER  # noqa: E402
 
 HEDEF = Path(__file__).resolve().parent.parent / "varliklar" / "svg"
 
@@ -169,13 +167,8 @@ def main() -> int:
     for ad in POZLAR:
         (HEDEF / f"poz-{ad}.svg").write_text(poz_svg(ad), encoding="utf-8")
     (HEDEF / "gozler.svg").write_text(gozler_svg(), encoding="utf-8")
-    for ad in NESNELER:
-        (HEDEF / f"nesne-{ad}.svg").write_text(
-            nesneler.svg(ad), encoding="utf-8"
-        )
-    print(f"{len(POZLAR)} poz + gözler + {len(NESNELER)} nesne -> {HEDEF}")
+    print(f"{len(POZLAR)} poz + gözler -> {HEDEF}")
     print("  poz:   " + ", ".join(POZLAR))
-    print("  nesne: " + ", ".join(NESNELER))
     return 0
 
 
