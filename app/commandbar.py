@@ -120,7 +120,7 @@ class MicDot(QWidget):
         self.t = t
         self.setFixedSize(MIC_SIZE, MIC_SIZE)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Bas ve konuş")
+        self.setToolTip("Push to talk")
         self._level = 0.0
         self._live = False
         self._enabled = True
@@ -142,7 +142,8 @@ class MicDot(QWidget):
         """Ses motoru yoksa mikrofon sönük durur ve bunu söyler."""
         self._enabled = available
         self.setToolTip(
-            "Bas ve konuş" if available else "Ses motoru bağlı değil — yazarak komut ver"
+            "Push to talk" if available
+            else "No voice engine — type your command instead"
         )
         self.setCursor(
             Qt.CursorShape.PointingHandCursor if available else Qt.CursorShape.ArrowCursor
@@ -213,7 +214,7 @@ class StopDot(QWidget):
         self.t = t
         self.setFixedSize(MIC_SIZE, MIC_SIZE)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Durdur — Esc ×3 her yerden çalışır")
+        self.setToolTip("Stop — Esc ×3 works from anywhere")
         self._hover = False
 
     def enterEvent(self, event) -> None:
@@ -267,7 +268,7 @@ class DragGrip(QWidget):
         self.t = t
         self.setFixedHeight(14)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
-        self.setToolTip("Sürükleyerek taşı")
+        self.setToolTip("Drag to move")
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
@@ -402,7 +403,7 @@ class ApprovalRow(QWidget):
         deny.setCursor(Qt.CursorShape.PointingHandCursor)
         deny.clicked.connect(lambda: self.answered.emit(False))
         row.addWidget(deny)
-        allow = QPushButton("Çalıştır")
+        allow = QPushButton("Run")
         allow.setProperty("role", "accent")
         allow.setFixedHeight(30)
         allow.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -422,7 +423,7 @@ class ApprovalRow(QWidget):
         # Kaydırma çubuğu tek başına "burada daha var" demeye yetmiyor;
         # onaylanan şeyin ne kadarını görmediğin yazıyor.
         kesik = needed + 14 > DETAIL_MAX_HEIGHT
-        self._more.setText(f"{lines} satır — kaydırarak tamamını oku" if kesik else "")
+        self._more.setText(f"{lines} lines — scroll to read all of it" if kesik else "")
         self._more.setVisible(kesik)
 
 
@@ -508,7 +509,7 @@ class CommandBar(QWidget):
         # okuduğun yer kayıyordu. Sütunda hiçbir şey yer değiştirmiyor.
         self.ring = RunRing(t, RING_SIZE)
         self.ring.setToolTip(
-            "Ajan. İzdeki her çentik bir adım, kırmızı olan düştü"
+            "The agent. Every notch on the trail is a step; red ones failed"
         )
         self.ring.setVisible(False)
 
@@ -558,7 +559,7 @@ class CommandBar(QWidget):
 
         self._busy = False
         self.field = QLineEdit()
-        self.field.setPlaceholderText("Yaz ya da konuş…")
+        self.field.setPlaceholderText("Type or talk…")
         self.field.setFixedHeight(34)
         self.field.setStyleSheet(self._field_style(t))
         self.field.returnPressed.connect(self._submit)
@@ -604,7 +605,7 @@ class CommandBar(QWidget):
     def set_voice_available(self, available: bool) -> None:
         self.mic.set_available(available)
         if not available:
-            self.set_status("Ses motoru bağlı değil — yazarak komut verebilirsin.")
+            self.set_status("No voice engine — you can type your commands.")
 
     def _field_style(self, t: Tokens, live: bool = False) -> str:
         """Yazı alanının biçimi. `live` ajan çalışırken: alt kenar vurgu
@@ -665,8 +666,8 @@ class CommandBar(QWidget):
             self.set_status("   ".join(matches[:4]))
         else:
             self.set_status(
-                "Komut yok. Ajandan yazmasını isteyebilirsin."
-                if prefix else "Henüz komut yok."
+                "No commands yet. You can ask the agent to write one."
+                if prefix else "No commands yet."
             )
         self._grow()
 
@@ -760,8 +761,20 @@ class CommandBar(QWidget):
         # sıkışıp kayıyordu — tavanın altında kalan cevap hiç kaymamalı.
         # Sütun genişliği düşülüyor: döküm artık bütün çubuğu değil,
         # maskotun sağında kalanı kaplıyor.
-        width = BAR_WIDTH - 28 - 20 - self.ring.width()
+        # Ölçü gerçek genişlikten alınıyor, hesaptan değil: halka 52'den
+        # 64'e çıkınca hesap 12 piksel şaştı ve döküm satırları kendi
+        # üstüne bindi. Gerçek genişlik yalnızca ilk çağrıda bilinmiyor;
+        # orada hesaba düşüyor.
+        width = self._reply_scroll.viewport().width() or (
+            BAR_WIDTH - 28 - 20 - self.ring.width()
+        )
         needed = self.reply.heightForWidth(width) if dolu else 0
+        # Dökümün kendi boyu **tavandan bağımsız** veriliyor. Verilmezse
+        # `setWidgetResizable` içteki widget'ı görünen alana sıkıştırıyor
+        # ve sabit yükseklikli satırlar üst üste biniyor: ölçtüm, 22
+        # piksellik altı satır 14 piksel arayla çizildi, harfler birbirine
+        # girdi. Tavanı aşan döküm sıkışmıyor, kayıyor.
+        self.reply.setMinimumHeight(max(0, needed))
         self._reply_scroll.setFixedHeight(
             min(self._dokum_tavani(), max(0, needed) + 14)
         )
@@ -806,8 +819,8 @@ class CommandBar(QWidget):
             self.baloncuk.sakla()
             self._fit_reply()
         self.field.setPlaceholderText(
-            "Araya yaz — ajan sıradaki adımda görür" if busy
-            else "Yaz ya da konuş…"
+            "Cut in — the agent sees it on the next step" if busy
+            else "Type or talk…"
         )
         # Çalışırken alanın kenarı vurgu rengine dönüyor: yazdığın şeyin
         # yeni bir iş değil, süren işe eklendiği görünür olsun.

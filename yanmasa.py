@@ -28,58 +28,58 @@ from app.window import MainWindow
 TARGET_KEYS = ("path", "name", "target", "ref", "command", "text", "coordinate")
 
 TOOL_LABEL = {
-    "screenshot": "Ekrana bakıyor",
-    "zoom": "Yakınlaştırıyor",
-    "left_click": "Tıklıyor",
-    "double_click": "Çift tıklıyor",
-    "type": "Yazıyor",
-    "key": "Tuş basıyor",
-    "scroll": "Kaydırıyor",
-    "read_ui_tree": "Pencereyi okuyor",
-    "launch_app": "Uygulama açıyor",
-    "run_shell": "Komut çalıştırıyor",
-    "write_file": "Dosya yazıyor",
-    "read_file": "Dosya okuyor",
-    "edit_file": "Dosya düzenliyor",
-    "list_dir": "Klasöre bakıyor",
-    "terminal_open": "Terminal açıyor",
-    "terminal_send": "Terminale yazıyor",
-    "terminal_read": "Terminali okuyor",
-    "office_open": "Belge açıyor",
-    "office_read": "Belgeyi okuyor",
-    "office_edit": "Belgeyi düzenliyor",
-    "office_save": "Belgeyi kaydediyor",
-    "office_history": "Değişikliklere bakıyor",
-    "office_close": "Belgeyi kapatıyor",
-    "cursor_position": "İmleci arıyor",
-    "right_click": "Sağ tıklıyor",
-    "middle_click": "Orta tuşla tıklıyor",
-    "triple_click": "Üç kez tıklıyor",
-    "mouse_move": "İmleci taşıyor",
-    "left_mouse_down": "Basılı tutuyor",
-    "left_mouse_up": "Bırakıyor",
-    "left_click_drag": "Sürüklüyor",
-    "hold_key": "Tuşu basılı tutuyor",
-    "wait": "Bekliyor",
-    "switch_display": "Ekran değiştiriyor",
-    "list_apps": "Uygulamalara bakıyor",
-    "write_files": "Dosyalar yazıyor",
-    "terminal_close": "Terminali kapatıyor",
-    "skill_list": "Yeteneklere bakıyor",
-    "skill_write": "Yetenek yazıyor",
-    "skill_remove": "Yetenek siliyor",
-    "button_write": "Düğme kuruyor",
-    "button_remove": "Düğme siliyor",
-    "remote_connect": "Sunucuya bağlanıyor",
-    "remote_list": "Sunucuya bakıyor",
-    "remote_read": "Sunucudan okuyor",
-    "remote_write": "Sunucuya yazıyor",
-    "remote_run": "Sunucuda çalıştırıyor",
-    "side_launch": "Yan alanda açıyor",
-    "side_windows": "Yan alana bakıyor",
-    "side_capture": "Yan alanı görüyor",
-    "side_act": "Yan alanda çalışıyor",
-    "side_close": "Yan alanı kapatıyor",
+    "screenshot": "Looking at the screen",
+    "zoom": "Zooming in",
+    "left_click": "Clicking",
+    "double_click": "Double-clicking",
+    "type": "Typing",
+    "key": "Pressing a key",
+    "scroll": "Scrolling",
+    "read_ui_tree": "Reading the window",
+    "launch_app": "Launching an app",
+    "run_shell": "Running a command",
+    "write_file": "Writing a file",
+    "read_file": "Reading a file",
+    "edit_file": "Editing a file",
+    "list_dir": "Listing a folder",
+    "terminal_open": "Opening a terminal",
+    "terminal_send": "Typing in the terminal",
+    "terminal_read": "Reading the terminal",
+    "office_open": "Opening a document",
+    "office_read": "Reading the document",
+    "office_edit": "Editing the document",
+    "office_save": "Saving the document",
+    "office_history": "Reviewing the changes",
+    "office_close": "Closing the document",
+    "cursor_position": "Locating the cursor",
+    "right_click": "Right-clicking",
+    "middle_click": "Middle-clicking",
+    "triple_click": "Triple-clicking",
+    "mouse_move": "Moving the cursor",
+    "left_mouse_down": "Holding the button",
+    "left_mouse_up": "Releasing",
+    "left_click_drag": "Dragging",
+    "hold_key": "Holding a key",
+    "wait": "Waiting",
+    "switch_display": "Switching display",
+    "list_apps": "Listing apps",
+    "write_files": "Writing files",
+    "terminal_close": "Closing the terminal",
+    "skill_list": "Listing skills",
+    "skill_write": "Writing a skill",
+    "skill_remove": "Removing a skill",
+    "button_write": "Adding a button",
+    "button_remove": "Removing a button",
+    "remote_connect": "Connecting to the server",
+    "remote_list": "Listing the server",
+    "remote_read": "Reading from the server",
+    "remote_write": "Writing to the server",
+    "remote_run": "Running on the server",
+    "side_launch": "Launching in the side desk",
+    "side_windows": "Listing the side desk",
+    "side_capture": "Looking at the side desk",
+    "side_act": "Working in the side desk",
+    "side_close": "Closing the side desk",
 }
 
 
@@ -134,7 +134,7 @@ def _panel_for(shot, tokens):
             [Cell(value=v, formula=f, why=w, result=r) for v, f, w, r in row]
             for row in shot.rows
         ]
-        return SheetView(rows, tokens, shot.sheets or ["Sayfa1"], shot.path)
+        return SheetView(rows, tokens, shot.sheets or ["Sheet1"], shot.path)
 
     from app.panels import DocPanel, Para
 
@@ -193,7 +193,7 @@ def main() -> int:
             bar.attach_buttons(bridge.button_store(), bridge.commands)
             bar.set_status("Yazıp Enter'a bas.")
         else:
-            bar.set_status(f"Ajan kurulamadı: {why}")
+            bar.set_status(f"Agent could not start: {why}")
             bar.field.setEnabled(False)
 
     def on_submit(text: str) -> None:
@@ -201,7 +201,7 @@ def main() -> int:
         # olduğu gibi gidiyor: eğik çizgiyle başlayan bir yol yazmak
         # engellenmemeli.
         expanded = bridge.expand_command(text)
-        window.activity.add_step("Sen", "", text, "__sen__")
+        window.activity.add_step("You", "", text, "__sen__")
         # Araya cümle sıkıştırırken cevabı silme: süren turun anlatımı
         # ekranda kalmalı, yeni bir tur başlıyorsa temizlenmeli.
         if not bar.busy:

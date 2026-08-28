@@ -290,6 +290,6 @@ def _as_text(content: Any) -> str:
         return content
     if isinstance(content, list):
         if any(isinstance(p, dict) and p.get("type") == "image" for p in content):
-            return "(ekran görüntüsü)"
+            return "(screenshot)"
         return " ".join(str(p) for p in content)
     return str(content)

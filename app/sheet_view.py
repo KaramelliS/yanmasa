@@ -235,7 +235,7 @@ class SheetView(QWidget):
         if stuck:
             # Hesaplanmamış formülü gizlemek, sonucun bilindiği yanılgısını
             # üretir.
-            warn = QLabel(f"{stuck} formül hesaplanamadı")
+            warn = QLabel(f"{stuck} formulas could not be calculated")
             warn.setStyleSheet(f"color: {t.critical}; font-size: 11px;")
             layout.addWidget(warn)
         return bar

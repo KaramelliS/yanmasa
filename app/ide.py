@@ -98,12 +98,12 @@ def _format_for(token, colours: dict[str, str]) -> QTextCharFormat | None:
 def highlight(editor: QPlainTextEdit, path: str, text: str, t: Tokens) -> str:
     """Belgeyi renklendirir ve kullanılan dilin adını döndürür."""
     if len(text) > MAX_HIGHLIGHT:
-        return "renklendirilmedi (çok büyük)"
+        return "not highlighted (too large)"
     try:
         from pygments.lexers import get_lexer_for_filename, guess_lexer
         from pygments.util import ClassNotFound
     except ImportError:
-        return "düz metin"
+        return "plain text"
 
     try:
         lexer = get_lexer_for_filename(path, text)
@@ -111,7 +111,7 @@ def highlight(editor: QPlainTextEdit, path: str, text: str, t: Tokens) -> str:
         try:
             lexer = guess_lexer(text)
         except ClassNotFound:
-            return "düz metin"
+            return "plain text"
 
     colours = _token_colours(t)
     document = editor.document()
@@ -400,7 +400,7 @@ class CodePane(QWidget):
         row.addWidget(yol)
         row.addStretch(1)
 
-        meta = QLabel(f"{len(text.splitlines())} satır · {self.editor.language}")
+        meta = QLabel(f"{len(text.splitlines())} lines · {self.editor.language}")
         meta.setStyleSheet(f"color: {t.text_tertiary}; font-size: 11px;")
         row.addWidget(meta)
         return bar
@@ -526,7 +526,7 @@ class IdeView(QWidget):
         try:
             text = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            text = f"Okunamadı: {exc}"
+            text = f"Could not read: {exc}"
 
         acik = self._open.get(path)
         if acik is not None:

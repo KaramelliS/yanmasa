@@ -45,49 +45,49 @@ def _rule(pattern: str, reason: str) -> tuple[re.Pattern[str], str]:
 #: Kabuk komutu desenleri. Sıra önemli değil, ilk eşleşen kazanır.
 SHELL_RULES = [
     _rule(r"\brm\b|\bRemove-Item\b|\bdel\b|\berase\b|\brd\b|\brmdir\b",
-          "dosya ya da klasör siliyor"),
+          "deletes a file or folder"),
     # `format` tek başına aranamaz: PowerShell'in en sık kullanılan salt-okunur
     # cmdlet'leri `Format-List`, `Format-Table`, `Format-Wide`. İlk sürüm bunu
-    # yapıyordu ve bir dosya listeleme komutuna "diski biçimlendiriyor" dedi.
+    # yapıyordu ve bir dosya listeleme komutuna "formats a disk" dedi.
     # Boş yere uyaran bir kapı görmezden gelinir; o yüzden burada geniş değil
     # dar olmak doğru.
     _rule(r"\bformat(?:\.com)?\s+[A-Za-z]:|\bFormat-Volume\b|\bdiskpart\b|\bmkfs\b",
-          "diski biçimlendiriyor"),
+          "formats a disk"),
     _rule(r"\bStop-Computer\b|\bshutdown\b|\bRestart-Computer\b|\blogoff\b",
-          "bilgisayarı kapatıyor ya da yeniden başlatıyor"),
-    _rule(r"\bStop-Process\b|\btaskkill\b|\bkill\b", "çalışan bir süreci sonlandırıyor"),
+          "shuts down or restarts the machine"),
+    _rule(r"\bStop-Process\b|\btaskkill\b|\bkill\b", "kills a running process"),
     _rule(r"\breg\b\s+(delete|add)|\bSet-ItemProperty\b.*HK(LM|CU)|\bregedit\b",
-          "kayıt defterini değiştiriyor"),
+          "changes the registry"),
     _rule(r"\bSet-ExecutionPolicy\b|\bDisable-\w+|\bUninstall-\b|\bwinget\s+uninstall\b",
-          "sistem ayarı değiştiriyor ya da uygulama kaldırıyor"),
-    _rule(r"\bnetsh\b|\bSet-NetFirewall|\bNew-NetFirewall", "ağ ya da güvenlik duvarı ayarı değiştiriyor"),
+          "changes a system setting or uninstalls an app"),
+    _rule(r"\bnetsh\b|\bSet-NetFirewall|\bNew-NetFirewall", "changes a network or firewall setting"),
     _rule(r"\bschtasks\b|\bNew-ScheduledTask\b|\bNew-Service\b|\bsc\.exe\b",
-          "kalıcı görev ya da servis oluşturuyor"),
+          "creates a persistent task or service"),
     _rule(r"\bcurl\b.*\|\s*(iex|bash|sh)|\bInvoke-Expression\b|\biex\b|\bInvoke-WebRequest\b.*\|",
-          "internetten indirdiğini doğrudan çalıştırıyor"),
+          "pipes something downloaded into a shell"),
     _rule(r"\bgit\b\s+(push|reset\s+--hard|clean\s+-\w*[fd]|checkout\s+--)",
-          "geri alınamaz bir git işlemi"),
+          "an irreversible git operation"),
     # `2>$null` gürültü bastırma, dosyaya yazma değil — onu dışarıda bırak.
     _rule(r"\bSet-Content\b|\bOut-File\b|>>?\s*(?!\$null\b)[A-Za-z0-9_.\\/]",
-          "bir dosyanın üzerine yazıyor"),
-    _rule(r"\bStart-Process\b.*-Verb\s+RunAs|\brunas\b", "yönetici olarak çalıştırıyor"),
+          "overwrites a file"),
+    _rule(r"\bStart-Process\b.*-Verb\s+RunAs|\brunas\b", "runs as administrator"),
 ]
 
 #: Tıklama koordinatı yerine pencere başlığına bakan kurallar. Ajan neye
 #: tıkladığını bilmez; hangi pencerede olduğunu bilir.
 WINDOW_RULES = [
     _rule(r"\bbank|\bhesab[ıi]m|ödeme|payment|checkout|iyzico|paypal|stripe",
-          "ödeme ya da bankacılık penceresi"),
+          "a payment or banking window"),
     _rule(r"biçimlendir|format|disk yönetimi|disk management",
-          "disk aracı"),
-    _rule(r"kayıt defteri|registry editor", "kayıt defteri düzenleyicisi"),
+          "a disk tool"),
+    _rule(r"kayıt defteri|registry editor", "the registry editor"),
 ]
 
 #: Yazılan metin bunlara benziyorsa dur — ajan kimlik bilgisi girmemeli.
 SECRET_HINTS = [
-    _rule(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b", "kart numarasına benziyor"),
-    _rule(r"\b\d{11}\b", "TC kimlik numarasına benziyor"),
-    _rule(r"\bsk-[A-Za-z0-9_-]{16,}|\bghp_[A-Za-z0-9]{20,}", "bir API anahtarı"),
+    _rule(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b", "looks like a card number"),
+    _rule(r"\b\d{11}\b", "looks like a national ID number"),
+    _rule(r"\bsk-[A-Za-z0-9_-]{16,}|\bghp_[A-Za-z0-9]{20,}", "an API key"),
 ]
 
 
@@ -131,9 +131,9 @@ def classify_write(path: str) -> Verdict:
         return SAFE  # yol zaten geçersiz; araç anlamlı bir hata verecek
 
     if info.sensitive:
-        return Verdict(Risk.CONFIRM, "sistem ya da kimlik bilgisi dosyasına yazıyor")
+        return Verdict(Risk.CONFIRM, "writes to a system or credential file")
     if info.existed:
-        return Verdict(Risk.CONFIRM, f"var olan {info.path.name} dosyasının üzerine yazıyor")
+        return Verdict(Risk.CONFIRM, f"overwrites the existing file {info.path.name}")
     return SAFE
 
 
@@ -153,7 +153,7 @@ def classify(name: str, payload: dict, window_title: str = "") -> Verdict:
 
         try:
             if inspect_write(str(payload.get("path", ""))).sensitive:
-                return Verdict(Risk.CONFIRM, "hassas bir dosyayı düzenliyor")
+                return Verdict(Risk.CONFIRM, "edits a sensitive file")
         except FileError:
             pass
         return SAFE
@@ -177,7 +177,7 @@ def classify(name: str, payload: dict, window_title: str = "") -> Verdict:
         # Yan alanda açılan uygulamayı Berkay göremiyor — masaüstü görünmez.
         # Görünür bir eylemi kaçırırsa fark eder, görünmez olanı fark etmez;
         # o yüzden burada onay, ne açıldığının tek göstergesi.
-        return Verdict(Risk.CONFIRM, "görünmeyen çalışma alanında uygulama açıyor")
+        return Verdict(Risk.CONFIRM, "opens an app on the invisible workspace")
 
     if name == "side_act" and payload.get("action") == "type":
         # Yan alanda tıklama sormuyoruz, yoksa paralel çalışma diye bir şey
@@ -255,7 +255,7 @@ def classify_remote(command: str) -> Verdict:
     if not text:
         return SAFE
     if _REMOTE_UNSAFE.search(text):
-        return Verdict(Risk.CONFIRM, "uzak makinede değişiklik yapıyor")
+        return Verdict(Risk.CONFIRM, "changes something on the remote machine")
 
     # Boru ve zincirin her parçası ayrı ayrı bakılıyor: `cat x | sh` içindeki
     # `cat` zararsız, `sh` değil.
@@ -269,9 +269,9 @@ def classify_remote(command: str) -> Verdict:
             sub = _subcommand(words[1:])
             if allowed is not None and sub not in allowed:
                 return Verdict(
-                    Risk.CONFIRM, f"uzak makinede {head} {sub} çalıştırıyor"
+                    Risk.CONFIRM, f"runs {head} {sub} on the remote machine"
                 )
             continue
         if head not in READ_ONLY_REMOTE:
-            return Verdict(Risk.CONFIRM, f"uzak makinede {head} çalıştırıyor")
+            return Verdict(Risk.CONFIRM, f"runs {head} on the remote machine")
     return SAFE

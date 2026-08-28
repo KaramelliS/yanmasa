@@ -36,13 +36,13 @@ from .fluent import GAP, RADIUS_CARD, RADIUS_CONTROL, Tokens
 from .activity import ActivityView
 
 PHASE_LABEL = {
-    "bos": "Hazır",
-    "dinleniyor": "Dinliyor",
-    "diziliyor": "Yazıya çeviriyor",
-    "kosuyor": "Çalışıyor",
-    "onay": "Onay bekliyor",
-    "bitti": "Bitti",
-    "durduruldu": "Durduruldu",
+    "bos": "Ready",
+    "dinleniyor": "Listening",
+    "diziliyor": "Transcribing",
+    "kosuyor": "Working",
+    "onay": "Waiting for approval",
+    "bitti": "Done",
+    "durduruldu": "Stopped",
 }
 
 
@@ -126,27 +126,27 @@ class StatusBar(QWidget):
         self._line.setProperty("role", "caption")
         layout.addWidget(self._line, 1)
 
-        self.steps = Counter(t, "adım")
-        self.unsaved = Counter(t, "kaydedilmedi", warn=True)
-        self.terminals = Counter(t, "terminal")
+        self.steps = Counter(t, "steps")
+        self.unsaved = Counter(t, "unsaved", warn=True)
+        self.terminals = Counter(t, "terminals")
         for counter in (self.steps, self.unsaved, self.terminals):
             layout.addWidget(counter)
 
-        self.connect_remote = QPushButton("Sunucu")
-        self.connect_remote.setToolTip("SSH ile bir sunucuya bağlan")
+        self.connect_remote = QPushButton("Server")
+        self.connect_remote.setToolTip("Connect to a server over SSH")
         self.connect_remote.setFixedHeight(32)
         self.connect_remote.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(self.connect_remote)
 
-        stop = QPushButton("Durdur")
-        stop.setToolTip("Ajanı durdur — Esc ×3 her yerden çalışır")
+        stop = QPushButton("Stop")
+        stop.setToolTip("Stop the agent — Esc ×3 works from anywhere")
         stop.setFixedHeight(32)
         stop.setCursor(Qt.CursorShape.PointingHandCursor)
         stop.clicked.connect(self.stop_requested.emit)
         layout.addWidget(stop)
 
         self.set_phase("bos")
-        self.set_line("Köşedeki çubuktan yaz ya da konuş.")
+        self.set_line("Type or talk from the bar in the corner.")
 
     def set_phase(self, phase: str) -> None:
         active = phase in {"dinleniyor", "diziliyor", "kosuyor"}
@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
         self.t = t
         panels.set_tokens(t)
 
-        self.setWindowTitle("Ajan")
+        self.setWindowTitle("Yan Masa")
         self.resize(1500, 940)
         self.setDockNestingEnabled(True)
         self.setDockOptions(
@@ -209,7 +209,7 @@ class MainWindow(QMainWindow):
         self.set_phase("kosuyor")
         self.status.set_line(text)
         if self._bar is not None:
-            self._bar.set_status(f"Çalışıyor: {text}")
+            self._bar.set_status(f"Working: {text}")
 
     def show_operation(self, op) -> None:
         """Ajanın o an yaptığı iş çubuktaki önizleme karesine düşer."""
@@ -314,7 +314,7 @@ class MainWindow(QMainWindow):
 
     def start_listening(self) -> None:
         self.set_phase("dinleniyor")
-        self.status.set_line("Dinliyorum — bırakınca çalışmaya başlar.")
+        self.status.set_line("Listening — it starts working when you let go.")
 
     def stop_listening(self) -> None:
         if self._phase != "dinleniyor":
@@ -322,12 +322,12 @@ class MainWindow(QMainWindow):
         self.set_phase("bos")
         # Ses motoru bağlı değil ve bu gizlenmiyor.
         self.status.set_line(
-            "Ses motoru bağlı değil — köşedeki çubuğa yazarak komut ver."
+            "No voice engine — type into the bar in the corner instead."
         )
 
     def stop(self) -> None:
         self.set_phase("durduruldu")
-        self.status.set_line("Durduruldu. Bekleyen eylemler iptal edildi.")
+        self.status.set_line("Stopped. Pending actions were cancelled.")
         self.stop_requested.emit()
         if self._bar is not None:
             self._bar.set_busy(False)

@@ -153,7 +153,7 @@ class ResultBox(QWidget):
             row.addWidget(name)
             row.addStretch(1)
 
-            meta = QLabel(parts["size"].strip() or ("klasör" if klasor else ""))
+            meta = QLabel(parts["size"].strip() or ("folder" if klasor else ""))
             meta.setStyleSheet(
                 f"color: {self.t.text_tertiary}; font-size: 11px; border: none;"
             )
@@ -174,7 +174,7 @@ class ResultBox(QWidget):
         satirlar = text.splitlines()
         gosterilen = "\n".join(satirlar[:MAX_LINES])
         if len(satirlar) > MAX_LINES:
-            gosterilen += f"\n… +{len(satirlar) - MAX_LINES} satır"
+            gosterilen += f"\n… +{len(satirlar) - MAX_LINES} lines"
 
         label = QLabel(gosterilen)
         label.setWordWrap(True)
@@ -192,7 +192,7 @@ class ResultBox(QWidget):
         satirlar = text.splitlines()
         gosterilen = "\n".join(satirlar[:MAX_LINES])
         if len(satirlar) > MAX_LINES:
-            gosterilen += f"\n… +{len(satirlar) - MAX_LINES} satır"
+            gosterilen += f"\n… +{len(satirlar) - MAX_LINES} lines"
         label = QLabel(gosterilen)
         label.setWordWrap(True)
         label.setStyleSheet(

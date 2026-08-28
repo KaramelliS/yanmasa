@@ -94,7 +94,7 @@ class ConnectDialog(QDialog):
     def __init__(self, t: Tokens, parent=None) -> None:
         super().__init__(parent)
         self.t = t
-        self.setWindowTitle("Sunucuya bağlan")
+        self.setWindowTitle("Connect to a server")
         self.setMinimumWidth(420)
         self.setStyleSheet(
             f"QDialog {{ background: {t.background}; }}"
@@ -113,8 +113,8 @@ class ConnectDialog(QDialog):
         form.addRow("Takma ad", self.alias)
 
         hint = QLabel(
-            "~/.ssh/config içinde tanımlı bir ad varsa yalnızca onu yaz; "
-            "alttakiler boş kalsın."
+            "If the name is defined in ~/.ssh/config, fill in only that; "
+            "leave the rest empty."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet(f"color: {t.text_tertiary}; font-size: 11px;")
@@ -129,7 +129,7 @@ class ConnectDialog(QDialog):
 
         self.user = QLineEdit(_varsayilan("ssh_user") or "root")
         self.user.setStyleSheet(self._field(t))
-        form.addRow("Kullanıcı", self.user)
+        form.addRow("User", self.user)
 
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
@@ -146,8 +146,8 @@ class ConnectDialog(QDialog):
         # Parolayı desteklemediğimizi gizlemek, parola alanını arayan
         # kullanıcıyı boşuna aratırdı.
         note = QLabel(
-            "Parola ile giriş desteklenmiyor — parolayı bir yerde tutmak "
-            "gerekirdi. Anahtarını sunucuya ekle."
+            "Password login is not supported — the password would have to "
+            "be stored somewhere. Add your key to the server instead."
         )
         note.setWordWrap(True)
         note.setStyleSheet(f"color: {t.text_tertiary}; font-size: 11px;")
@@ -162,8 +162,8 @@ class ConnectDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Bağlan")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Vazgeç")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Connect")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -260,7 +260,7 @@ class RemoteView(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(4)
-        self.tree.setHeaderLabels(["Ad", "Boyut", "Değiştirilme", "İzinler"])
+        self.tree.setHeaderLabels(["Name", "Size", "Modified", "Permissions"])
         self.tree.setRootIsDecorated(False)
         self.tree.setUniformRowHeights(True)
         self.tree.setIconSize(QSize(18, 18))
@@ -303,7 +303,7 @@ class RemoteView(QWidget):
         row.setContentsMargins(8, 6, 10, 6)
         row.setSpacing(6)
 
-        self._up = self._tool_button(t, "Üst klasör", "yukari")
+        self._up = self._tool_button(t, "Parent folder", "yukari")
         self._up.clicked.connect(self.go_up)
         row.addWidget(self._up)
 
@@ -375,8 +375,8 @@ class RemoteView(QWidget):
         self._up.setEnabled(path != "/")
         klasor = sum(1 for e in entries if e.is_dir)
         self.status.setText(
-            f"{klasor} klasör, {len(entries) - klasor} dosya"
-            if entries else "Bu klasör boş."
+            f"{klasor} folders, {len(entries) - klasor} files"
+            if entries else "This folder is empty."
         )
         self.status.setStyleSheet(
             f"color: {self.t.text_secondary}; font-size: 12px;"
@@ -421,7 +421,7 @@ class FilePreview(QDialog):
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(8)
 
-        head = QLabel(f"{path}  ·  {len(text.splitlines())} satır")
+        head = QLabel(f"{path}  ·  {len(text.splitlines())} lines")
         head.setStyleSheet(f"color: {t.text_secondary}; font-size: 12px;")
         layout.addWidget(head)
 

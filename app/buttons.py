@@ -109,16 +109,16 @@ class ShortcutChip(QPushButton):
     def _menu(self, point) -> None:
         menu = QMenu(self)
         if self._editable:
-            menu.addAction("Düzenle").triggered.connect(
+            menu.addAction("Edit").triggered.connect(
                 lambda: self.edit_requested.emit(self.name)
             )
-            menu.addAction("Kaldır").triggered.connect(
+            menu.addAction("Remove").triggered.connect(
                 lambda: self.remove_requested.emit(self.name)
             )
         else:
             # Yetenek dosyasından gelen düğme burada düzenlenemiyor; kaynağı
             # kod. Menüyü boş açmak yerine sebebi yazıyoruz.
-            action = menu.addAction("Yetenek dosyasında tanımlı")
+            action = menu.addAction("Defined in a skill file")
             action.setEnabled(False)
         menu.exec(self.mapToGlobal(point))
 
@@ -137,7 +137,7 @@ class ShortcutEditor(QDialog):
     def __init__(self, t: Tokens, shortcut=None, parent=None) -> None:
         super().__init__(parent)
         self.t = t
-        self.setWindowTitle("Düğmeyi düzenle" if shortcut else "Yeni düğme")
+        self.setWindowTitle("Edit button" if shortcut else "New button")
         self.setMinimumWidth(420)
         self.setStyleSheet(
             f"QDialog {{ background: {t.background}; }}"
@@ -152,13 +152,13 @@ class ShortcutEditor(QDialog):
 
         self.label = QLineEdit(shortcut.label if shortcut else "")
         self.label.setMaxLength(22)
-        self.label.setPlaceholderText("Günlük özet")
+        self.label.setPlaceholderText("Daily summary")
         self.label.setStyleSheet(self._field(t))
-        form.addRow("Üstünde yazan", self.label)
+        form.addRow("Label", self.label)
 
         self.instruction = QPlainTextEdit(shortcut.instruction if shortcut else "")
         self.instruction.setPlaceholderText(
-            "Tıklayınca ajana gidecek talimat. Ne yapmasını istiyorsan onu yaz."
+            "The instruction sent to the agent on click. Write what you want done."
         )
         self.instruction.setFixedHeight(92)
         # `QPlainTextEdit` varsayılan olarak eşaralıklı yazı kullanıyor;
@@ -178,7 +178,7 @@ class ShortcutEditor(QDialog):
             index = self.glyph.findText(shortcut.glyph)
             if index >= 0:
                 self.glyph.setCurrentIndex(index)
-        form.addRow("Çizim", self.glyph)
+        form.addRow("Icon", self.glyph)
         layout.addLayout(form)
 
         self._error = QLabel()
@@ -191,7 +191,7 @@ class ShortcutEditor(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Kaydet")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Vazgeç")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -221,9 +221,9 @@ class ShortcutEditor(QDialog):
 
     def _accept(self) -> None:
         if not self.label.text().strip():
-            return self._fail("Üstünde ne yazacak?")
+            return self._fail("What should the label say?")
         if not self.instruction.toPlainText().strip():
-            return self._fail("Talimat boş — tıklanınca ne gitsin?")
+            return self._fail("The instruction is empty — what should the click send?")
         self.accept()
 
     def _fail(self, message: str) -> None:
@@ -311,7 +311,7 @@ class ButtonStrip(QWidget):
         plus = QPushButton("+")
         plus.setFixedSize(30, 30)
         plus.setCursor(Qt.CursorShape.PointingHandCursor)
-        plus.setToolTip("Kendi düğmeni ekle")
+        plus.setToolTip("Add your own button")
         plus.setStyleSheet(
             f"QPushButton {{ background: transparent;"
             f" border: 1px dashed {t_stroke(self.t)};"

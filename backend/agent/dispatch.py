@@ -132,7 +132,7 @@ class Dispatcher:
 
     def _virtual(self, coordinate: Any) -> tuple[int, int]:
         if not (isinstance(coordinate, (list, tuple)) and len(coordinate) == 2):
-            raise ToolError(f"Koordinat [x, y] olmalı, gelen: {coordinate!r}")
+            raise ToolError(f"coordinate must be [x, y], got: {coordinate!r}")
         x, y = int(coordinate[0]), int(coordinate[1])
         try:
             return self.active.to_virtual(x, y)
@@ -146,7 +146,7 @@ class Dispatcher:
         if handler is None:
             skill = self.skills.get(name)
             if skill is None:
-                raise ToolError(f"Bilinmeyen araç: {name}")
+                raise ToolError(f"Unknown tool: {name}")
             return self._run_skill(skill, payload)
 
         self._gate(name, payload)
@@ -160,17 +160,17 @@ class Dispatcher:
         yararlı olmasının asıl yolu: ilk deneme tutmaz, ikinci tutar.
         """
         if skill.needs_approval and not self.approve(
-            skill.name, str(payload)[:400], f"{skill.name} yeteneği onay istiyor"
+            skill.name, str(payload)[:400], f"the {skill.name} skill is asking for approval"
         ):
-            raise Denied(f"Berkay {skill.name} yeteneğini reddetti.")
+            raise Denied(f"The user rejected the {skill.name} skill.")
         try:
             result = skill.run(dict(payload), Ortam(self))
         except Denied:
             raise
         except Exception as exc:
             raise ToolError(
-                f"{skill.name} çalışırken hata — {type(exc).__name__}: {exc}. "
-                f"Kod {skill.path}. skill_write ile düzeltebilirsin."
+                f"{skill.name} raised while running — {type(exc).__name__}: {exc}. "
+                f"The code is at {skill.path}. You can fix it with skill_write."
             ) from None
         # Yetenek panel döndürebiliyor: `{"panel": {...}}`. Panel arayüze
         # gidiyor, metin karşılığı modele. İkisi ayrılmazsa ajan kullanıcıya
@@ -179,8 +179,8 @@ class Dispatcher:
             panel = normalise(result)
         except PanelError as exc:
             raise ToolError(
-                f"{skill.name} geçersiz bir panel döndürdü: {exc}. "
-                f"skill_write ile düzelt."
+                f"{skill.name} returned an invalid panel: {exc}. "
+                f"Fix it with skill_write."
             ) from None
         if panel is not None:
             self.last_panel = (skill.name, panel)
@@ -196,7 +196,7 @@ class Dispatcher:
 
         detail = payload.get("command") or payload.get("text") or str(payload)
         if not self.approve(name, str(detail)[:400], verdict.reason):
-            raise Denied(f"Berkay reddetti ({verdict.reason}). Bu eylem çalıştırılmadı.")
+            raise Denied(f"The user declined ({verdict.reason}). This action was not run.")
 
     # --- yetenekler -------------------------------------------------------
 
@@ -216,21 +216,21 @@ class Dispatcher:
         # onaylamak, onay olmamasıyla aynı şey.
         detail = f"{name}.py\n\n{code}"
         if not self.approve("skill_write", detail, str(payload["why"])):
-            raise Denied(f"Berkay {name} yeteneğini onaylamadı.")
+            raise Denied(f"The user did not approve the {name} skill.")
         try:
             skill = self.skills.write(name, code)
         except SkillError as exc:
-            raise ToolError(f"Yetenek kurulamadı: {exc}") from None
+            raise ToolError(f"Could not install the skill: {exc}") from None
         return ToolOutcome(
-            content=f"{skill.name} kuruldu ve yüklendi — {skill.path}. "
-            f"Bir sonraki adımda çağırabilirsin."
+            content=f"{skill.name} installed and loaded — {skill.path}. "
+            f"You can call it on the next step."
         )
 
     def _do_skill_remove(self, payload: dict[str, Any]) -> ToolOutcome:
         _require(payload, "name", "why")
         name = str(payload["name"])
         if not self.approve("skill_remove", f"{name}.py siliniyor", str(payload["why"])):
-            raise Denied(f"Berkay {name} yeteneğinin silinmesini onaylamadı.")
+            raise Denied(f"The user did not approve removing the {name} skill.")
         try:
             path = self.skills.remove(name)
         except SkillError as exc:
@@ -248,25 +248,25 @@ class Dispatcher:
         # Düğme Berkay'ın arayüzünü değiştiriyor; sessizce eklenmemeli.
         detail = f"{shortcut.label} -> {shortcut.instruction}"
         if not self.approve("button_write", detail, str(payload["why"])):
-            raise Denied(f"Berkay {shortcut.name} düğmesini onaylamadı.")
+            raise Denied(f"The user did not approve the {shortcut.name} button.")
         try:
             self.buttons.save(shortcut)
         except ShortcutError as exc:
             raise ToolError(str(exc)) from None
         return ToolOutcome(
-            content=f"{shortcut.label!r} düğmesi çubukta. Berkay düzenleyip silebilir."
+            content=f"The {shortcut.label!r} button is on the bar. The user can edit or delete it."
         )
 
     def _do_button_remove(self, payload: dict[str, Any]) -> ToolOutcome:
         _require(payload, "name", "why")
         name = str(payload["name"])
-        if not self.approve("button_remove", f"{name} düğmesi siliniyor", str(payload["why"])):
-            raise Denied(f"Berkay {name} düğmesinin silinmesini onaylamadı.")
+        if not self.approve("button_remove", f"removing the {name} button", str(payload["why"])):
+            raise Denied(f"The user did not approve removing the {name} button.")
         try:
             self.buttons.remove(name)
         except ShortcutError as exc:
             raise ToolError(str(exc)) from None
-        return ToolOutcome(content=f"{name} düğmesi kaldırıldı.")
+        return ToolOutcome(content=f"The {name} button was removed.")
 
     # --- uzak makine ------------------------------------------------------
 
@@ -280,8 +280,8 @@ class Dispatcher:
         """
         if self.remote is None or not self.remote.connected:
             raise ToolError(
-                "Sunucuya bağlı değilsin. Önce remote_connect çağır "
-                "(Berkay'ın sunucusu için alias=\"brky\")."
+                "You are not connected to a server. Call remote_connect first "
+                "(for the user's own server, alias=\"brky\")."
             )
         return self.remote
 
@@ -301,7 +301,7 @@ class Dispatcher:
             raise ToolError(str(exc)) from None
         self.remote = session
         return ToolOutcome(
-            content=f"Bağlandı: {banner}\nBulunduğun yer: {session.cwd}"
+            content=f"Connected: {banner}\nWorking directory: {session.cwd}"
         )
 
     def _do_remote_list(self, payload: dict[str, Any]) -> ToolOutcome:
@@ -312,7 +312,7 @@ class Dispatcher:
         except RemoteError as exc:
             raise ToolError(str(exc)) from None
         if not entries:
-            return ToolOutcome(content=f"{path} boş.")
+            return ToolOutcome(content=f"{path} is empty.")
         lines = [f"{path}:"]
         for entry in entries:
             kind = "d" if entry.is_dir else "-"
@@ -338,7 +338,7 @@ class Dispatcher:
         # bilmemek, yanlış makineyi bozmanın en kolay yolu.
         detail = f"{session.host.label}:{path}\n\n{content[:2000]}"
         if not self.approve("remote_write", detail, str(payload["why"])):
-            raise Denied(f"Berkay {path} yazımını reddetti.")
+            raise Denied(f"The user rejected writing {path}.")
         try:
             return ToolOutcome(content=session.write(path, content))
         except RemoteError as exc:
@@ -357,7 +357,7 @@ class Dispatcher:
             out = session.run(command, timeout=int(payload.get("timeout") or 60))
         except RemoteError as exc:
             raise ToolError(str(exc)) from None
-        return ToolOutcome(content=out.strip() or "(çıktı yok)")
+        return ToolOutcome(content=out.strip() or "(no output)")
 
     # --- görsel -----------------------------------------------------------
 
@@ -380,10 +380,10 @@ class Dispatcher:
         try:
             hwnd = int(payload.get("hwnd"))
         except (TypeError, ValueError):
-            raise ToolError("hwnd bir tamsayı olmalı; side_windows ile al.") from None
+            raise ToolError("hwnd must be an integer; get it from side_windows.") from None
         if hwnd not in {p.hwnd for p in self._side().pencereler()}:
             raise ToolError(
-                f"{hwnd} yan çalışma alanında değil. side_windows ile güncel "
+                f"{hwnd} is not in the side workspace. Get a fresh list "
                 "listeyi al."
             )
         return pencere_bilgisi(hwnd)
@@ -395,19 +395,19 @@ class Dispatcher:
         except MasaustuHatasi as exc:
             raise ToolError(str(exc)) from None
         return ToolOutcome(
-            content=f"Yan alanda başlatıldı, pid {pid}. Pencere açılması birkaç "
-            "saniye sürebilir; side_windows ile bak."
+            content=f"Launched in the side desk, pid {pid}. The window can take a "
+            "couple of seconds; check with side_windows."
         )
 
     def _do_side_windows(self, _payload: dict[str, Any]) -> ToolOutcome:
         pencereler = self._side().pencereler()
         if not pencereler:
             return ToolOutcome(
-                content="Yan alanda pencere yok. Yeni açtıysan bir iki saniye "
-                "bekle; Store uygulamaları burada hiç pencere açmıyor."
+                content="No windows in the side desk. If you just launched one, wait "
+                "a second or two; Store apps never open a window here."
             )
         satirlar = [
-            f"{p.hwnd}  {p.en}x{p.boy}  [{p.sinif}]  {p.baslik or '(başlıksız)'}"
+            f"{p.hwnd}  {p.en}x{p.boy}  [{p.sinif}]  {p.baslik or '(untitled)'}"
             for p in pencereler
         ]
         return ToolOutcome(content="\n".join(satirlar))
@@ -439,7 +439,7 @@ class Dispatcher:
         def nokta() -> tuple[int, int]:
             c = payload.get("coordinate")
             if not (isinstance(c, (list, tuple)) and len(c) == 2):
-                raise ToolError(f"{action} için coordinate [x, y] gerekli.")
+                raise ToolError(f"{action} needs coordinate [x, y].")
             # Model pencereye göre konuşuyor; masaüstü uzayına taşı.
             return pencere.x + int(c[0]), pencere.y + int(c[1])
 
@@ -453,7 +453,7 @@ class Dispatcher:
             if action == "type":
                 metin = payload.get("text")
                 if not metin:
-                    raise ToolError("type için text gerekli.")
+                    raise ToolError("type needs text.")
                 girdi.yaz(str(metin))
                 return ToolOutcome(content="OK")
             if action == "key":
@@ -484,11 +484,11 @@ class Dispatcher:
 
     def _do_side_close(self, _payload: dict[str, Any]) -> ToolOutcome:
         if self.side is None:
-            return ToolOutcome(content="Yan alan zaten kapalı.")
+            return ToolOutcome(content="The side desk is already closed.")
         self.side.kapat()
         self.side = None
         self.side_input = Girdi()
-        return ToolOutcome(content="Yan alan kapatıldı, süreçler sonlandırıldı.")
+        return ToolOutcome(content="Side desk closed, its processes were terminated.")
 
     # --- ekran görüntüsü ---------------------------------------------------
 
@@ -499,7 +499,7 @@ class Dispatcher:
     def _do_zoom(self, payload: dict[str, Any]) -> ToolOutcome:
         region = payload.get("region")
         if not (isinstance(region, (list, tuple)) and len(region) == 4):
-            raise ToolError(f"region [x0, y0, x1, y1] olmalı, gelen: {region!r}")
+            raise ToolError(f"region must be [x0, y0, x1, y1], got: {region!r}")
 
         # Taze yakalama: model bölgeyi büyütmek istediğinde ilgilendiği şey
         # ekranın şu anki hali. Eski kareden kırpmak, aradan geçen sürede
@@ -549,7 +549,7 @@ class Dispatcher:
         vx, vy = kb.cursor_position()
         display = self.displays.locate_virtual(vx, vy)
         if display is None:
-            return ToolOutcome(content="İmleç hiçbir ekranın üstünde değil")
+            return ToolOutcome(content="The cursor is not over any display")
         x, y = display.from_virtual(vx, vy)
         return ToolOutcome(content=f"[{x}, {y}] (ekran {display.index})")
 
@@ -579,7 +579,7 @@ class Dispatcher:
     def _do_type(self, payload: dict[str, Any]) -> ToolOutcome:
         text = payload.get("text")
         if not isinstance(text, str):
-            raise ToolError(f"type için metin gerekli, gelen: {text!r}")
+            raise ToolError(f"type needs text, got: {text!r}")
         kb.type_text(text)
         return ToolOutcome(content="OK")
 
@@ -589,7 +589,7 @@ class Dispatcher:
             # Eksik alanda ham bir AttributeError dönüyordu; modele de
             # yeteneğe de neyin eksik olduğunu söylemiyordu.
             raise ToolError(
-                f"key için tuş gerekli — 'text' alanına 'ctrl+k' gibi bir "
+                f"key needs a key — put a combination like 'ctrl+k' in the "
                 f"kombinasyon yaz. Gelen: {combo!r}"
             )
         repeat = int(payload.get("repeat", 1))
@@ -622,8 +622,8 @@ class Dispatcher:
             return ToolOutcome(
                 content=(
                     f"{result.text}\n\n"
-                    "Ağaç yüzeysel — bu pencere erişilebilirlik bilgisi vermiyor. "
-                    "Ekran görüntüsü al."
+                    "The tree is shallow — this window exposes no accessibility "
+                    "information. Take a screenshot."
                 )
             )
         return ToolOutcome(content=result.text)
@@ -631,7 +631,7 @@ class Dispatcher:
     def _do_launch_app(self, payload: dict[str, Any]) -> ToolOutcome:
         target = str(payload.get("target", "")).strip()
         if not target:
-            raise ToolError("launch_app için target gerekli")
+            raise ToolError("launch_app needs target")
         arguments = str(payload.get("arguments", "")).strip()
 
         before = win.foreground_title()
@@ -650,12 +650,12 @@ class Dispatcher:
                     if app is None:
                         yakin = apps.suggest(target, limit=5)
                         oneri = (
-                            " Bunlar olabilir: "
+                            " Did you mean: "
                             + ", ".join(a.name for a in yakin)
                             if yakin else
-                            " `list_apps` ile kurulu uygulamalara bak."
+                            " Use `list_apps` to see the installed apps."
                         )
-                        raise ToolError(f"{target!r} diye bir uygulama yok.{oneri}")
+                        raise ToolError(f"There is no app called {target!r}.{oneri}")
 
                 if app is not None:
                     argv = apps.launch_argv(app)
@@ -676,7 +676,7 @@ class Dispatcher:
                     )
                     expect = os.path.basename(resolved)
         except OSError as exc:
-            raise ToolError(f"{target} başlatılamadı: {exc}") from None
+            raise ToolError(f"Could not launch {target}: {exc}") from None
 
         # Öne gelmesini bekle. Gelmezse modele söyle — sessizce devam edip
         # yanlış pencereye yazmak Faz 1'de tam olarak bu şekilde patlamıştı.
@@ -685,11 +685,11 @@ class Dispatcher:
         if not appeared:
             return ToolOutcome(
                 content=(
-                    f"{target} başlatıldı ama öne gelmedi. Odakta {now!r} var. "
-                    "Yazmadan önce ekran görüntüsü alıp doğrula."
+                    f"{target} launched but did not come to the front. {now!r} has focus. "
+                    "Take a screenshot and verify before typing."
                 )
             )
-        return ToolOutcome(content=f"{target} açıldı, ön planda: {now!r}")
+        return ToolOutcome(content=f"{target} opened, in the foreground: {now!r}")
 
     def _wait_for_new_foreground(
         self, before: str, expect: str | None, timeout: float = 10.0
@@ -710,8 +710,8 @@ class Dispatcher:
         found = apps.search(query, limit=30) if query else apps.catalog()
         if not found:
             return ToolOutcome(
-                content=f"{query!r} ile eşleşen uygulama yok. Sorgusuz çağır, "
-                        f"tamamını gör."
+                content=f"No app matches {query!r}. Call it without a query to see "
+                        f"the whole list."
             )
         lines = [f"{len(found)} uygulama:"]
         lines += [f"  {a.describe()}" for a in found[:60]]
@@ -722,7 +722,7 @@ class Dispatcher:
     def _do_run_shell(self, payload: dict[str, Any]) -> ToolOutcome:
         command = str(payload.get("command", "")).strip()
         if not command:
-            raise ToolError("run_shell için command gerekli")
+            raise ToolError("run_shell needs command")
         timeout = min(int(payload.get("timeout", 30)), 300)
 
         try:
@@ -737,7 +737,7 @@ class Dispatcher:
             )
         except subprocess.TimeoutExpired:
             raise ToolError(
-                f"Komut {timeout} saniyede bitmedi ve durduruldu. Girdi bekliyor olabilir."
+                f"The command did not finish in {timeout} s and was stopped. It may be waiting for input."
             ) from None
 
         output = (completed.stdout or "").strip()
@@ -775,12 +775,12 @@ class Dispatcher:
         _require(payload, "files")
         items = payload["files"]
         if not isinstance(items, list) or not items:
-            raise ToolError("files boş olamaz; {path, content} listesi bekleniyor")
+            raise ToolError("files cannot be empty; a list of {path, content} is expected")
 
         hazir: list[tuple[str, str]] = []
         for index, item in enumerate(items):
             if not isinstance(item, dict) or "path" not in item or "content" not in item:
-                raise ToolError(f"files[{index}] {{path, content}} olmalı")
+                raise ToolError(f"files[{index}] must be {{path, content}}")
             hazir.append((str(item["path"]), str(item["content"])))
 
         # Üzerine yazılacaklar tek seferde soruluyor. Dosya başına ayrı onay,
@@ -788,12 +788,12 @@ class Dispatcher:
         # okumadan onaylıyor.
         ustune = [p for p, _c in hazir if gate.classify_write(p).needs_confirmation]
         if ustune:
-            detay = "Üzerine yazılacak:\n" + "\n".join(f"  {p}" for p in ustune)
+            detay = "Will be overwritten:\n" + "\n".join(f"  {p}" for p in ustune)
             if not self.approve(
                 "write_files", detay,
-                str(payload.get("why") or "var olan dosyaların üzerine yazıyor"),
+                str(payload.get("why") or "overwrites existing files"),
             ):
-                raise Denied("Berkay üzerine yazmayı reddetti. Hiçbir dosya yazılmadı.")
+                raise Denied("The user declined the overwrite. No file was written.")
 
         yazilan: list[str] = []
         try:
@@ -804,14 +804,14 @@ class Dispatcher:
             # Yarım kalan yazımı gizlemek, ajanın projeyi tamamlandı
             # sanmasına yol açar.
             raise ToolError(
-                f"{len(yazilan)}/{len(hazir)} dosya yazıldıktan sonra durdu: "
-                f"{exc}. Yazılanlar: {', '.join(yazilan) or 'yok'}"
+                f"Stopped after writing {len(yazilan)}/{len(hazir)} files: "
+                f"{exc}. Written: {', '.join(yazilan) or 'none'}"
             ) from None
 
         self.last_files = yazilan
         toplam = sum(len(c) for _p, c in hazir)
         return ToolOutcome(
-            content=f"{len(yazilan)} dosya yazıldı ({toplam} karakter):\n"
+            content=f"{len(yazilan)} files written ({toplam} characters):\n"
             + "\n".join(f"  {p}" for p in yazilan)
         )
 
@@ -844,7 +844,7 @@ class Dispatcher:
     def _do_terminal_open(self, payload: dict[str, Any]) -> ToolOutcome:
         name = str(payload.get("name", "")).strip()
         if not name:
-            raise ToolError("terminal_open için name gerekli")
+            raise ToolError("terminal_open needs name")
         try:
             session = self.terminals.open(
                 name,
@@ -862,7 +862,7 @@ class Dispatcher:
         text = payload.get("text")
         key = payload.get("key")
         if text is None and key is None:
-            raise ToolError("terminal_send için text ya da key gerekli")
+            raise ToolError("terminal_send needs text or key")
 
         try:
             if text is not None:
@@ -890,7 +890,7 @@ class Dispatcher:
             self.terminals.close(name)
         except TerminalError as exc:
             raise ToolError(str(exc)) from None
-        return ToolOutcome(content=f"{name!r} oturumu kapatıldı.")
+        return ToolOutcome(content=f"Session {name!r} was closed.")
 
     def _session(self, payload: dict[str, Any]):
         try:
@@ -903,9 +903,9 @@ class Dispatcher:
         if not settled:
             # Durmadıysa bunu söylemek şart: model ekranı bitmiş sanıp yarım
             # çizilmiş bir arayüze göre karar verirse yanlış tuşa basar.
-            text += "\n[hâlâ çıktı geliyor — terminal_read ile tekrar bak]"
+            text += "\n[still producing output — read again with terminal_read]"
         if not session.alive:
-            text += "\n[oturumdaki süreç sonlandı]"
+            text += "\n[the process in this session exited]"
         return text
 
     # --- ofis -------------------------------------------------------------
@@ -966,15 +966,15 @@ class Dispatcher:
                 return ToolOutcome(content=document.add_table(payload["values"], why))
         except AttributeError:
             raise ToolError(
-                f"{operation!r} bu belge türünde yok. {document.path} bir "
-                f"{document.kind} belgesi."
+                f"{operation!r} does not exist for this document type. {document.path} is a "
+                f"{document.kind} document."
             ) from None
         except ValueError as exc:
             raise ToolError(str(exc)) from None
         except (SheetError, TextError) as exc:
             raise ToolError(str(exc)) from None
 
-        raise ToolError(f"Bilinmeyen işlem: {operation!r}")
+        raise ToolError(f"Unknown operation: {operation!r}")
 
     def _do_office_save(self, payload: dict[str, Any]) -> ToolOutcome:
         document = self._document(payload)
@@ -1011,7 +1011,7 @@ class Dispatcher:
             index = int(payload["index"])
             display = self.displays[index]
         except (KeyError, ValueError, TypeError) as exc:
-            raise ToolError(f"Geçersiz ekran indeksi: {exc}") from None
+            raise ToolError(f"Invalid display index: {exc}") from None
         except IndexError as exc:
             raise ToolError(str(exc)) from None
 
@@ -1033,9 +1033,9 @@ def _duration(value: Any) -> float:
     try:
         seconds = float(value)
     except (TypeError, ValueError):
-        raise ToolError(f"Süre sayı olmalı, gelen: {value!r}") from None
+        raise ToolError(f"The duration must be a number, got: {value!r}") from None
     if not 0 <= seconds <= 300:
-        raise ToolError(f"Süre 0-300 saniye arasında olmalı, gelen: {seconds}")
+        raise ToolError(f"The duration must be between 0 and 300 seconds, got: {seconds}")
     return seconds
 
 

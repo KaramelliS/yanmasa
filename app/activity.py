@@ -202,7 +202,7 @@ class ActivityView(QWidget):
         layout.setContentsMargins(48, 64, 48, 48)
         layout.setSpacing(10)
 
-        title = QLabel("Ajan hazır")
+        title = QLabel("Agent ready")
         title.setStyleSheet(
             f"color: {t.text}; font-family: '{t.font_display}', '{t.font_ui}';"
             f" font-size: 24px; font-weight: 600;"
@@ -210,14 +210,14 @@ class ActivityView(QWidget):
         layout.addWidget(title)
 
         body = QLabel(
-            "Köşedeki çubuğa yaz. Ajan bilgisayarı senin adına kullanır: "
-            "uygulama açar, tıklar, yazar, terminal çalıştırır, dosya ve "
-            "belge düzenler.\n\n"
-            "Yaptığı her adım burada görünür — ne yaptığı, neye yaptığı ve "
-            "ekran görüntüsü aldıysa tam olarak ne gördüğü. Bir kareye "
-            "tıklarsan büyür.\n\n"
-            "Belgeler ve terminaller ancak ajan onları açtığında ayrı panel "
-            "olarak belirir."
+            "Type into the bar in the corner. The agent uses the computer "
+            "on your behalf: it opens apps, clicks, types, runs terminals "
+            "and edits files and documents.\n\n"
+            "Every step it takes shows up here — what it did, what it did "
+            "it to, and, if it took a screenshot, exactly what it saw. "
+            "Click a frame to enlarge it.\n\n"
+            "Documents and terminals appear as their own panels only once "
+            "the agent opens them."
         )
         body.setWordWrap(True)
         body.setMaximumWidth(560)

@@ -533,7 +533,7 @@ class TestWorkbook:
     def test_olmayan_sayfa_secenekleri_listeler(self, tmp_path):
         from backend.office.sheet import SheetError, Workbook
         wb = Workbook.create(str(tmp_path / "t.xlsx"))
-        with pytest.raises(SheetError, match="Sayfa1"):
+        with pytest.raises(SheetError, match="Sheet1"):
             wb.read("A1", sheet="Yok")
 
 
@@ -1332,7 +1332,7 @@ class TestYetenekPaneli:
             '    return {"panel": {"baslik": "X", "bolumler": ['
             '        {"tur": "pasta_grafigi"}]}}\n'
         ))
-        with pytest.raises(ToolError, match="skill_write ile düzelt"):
+        with pytest.raises(ToolError, match="Fix it with skill_write"):
             d.run("bozuk", {})
 
 
@@ -1717,7 +1717,7 @@ class TestTopluYazma:
         assert (kok / "main.py").exists()
         # Klasör kendiliğinden açılmalı, yoksa ajan önce mkdir turu harcıyor.
         assert (kok / "alt" / "ayar.json").exists()
-        assert "2 dosya" in out.content
+        assert "2 files written" in out.content
 
     def test_ustune_yazma_tek_seferde_soruluyor(self, tmp_path):
         # Dosya başına ayrı onay, on dosyada okumadan onaylamaya yol açar.
@@ -2014,7 +2014,7 @@ class TestIdeGorunumu:
 
         ide = IdeView(fluent.tokens(), str(tmp_path))
         ide.open_file(str(tmp_path / "yok.py"))
-        assert "Okunamadı" in ide.tabs.currentWidget().editor.toPlainText()
+        assert "Could not read" in ide.tabs.currentWidget().editor.toPlainText()
 
     def test_arama_buyuk_kucuk_harf_ayirmiyor(self, tmp_path, qt_app):
         from app import fluent
@@ -3228,7 +3228,7 @@ class TestArayuzKusurlari:
     def test_detay_arac_adini_tekrar_etmiyor(self):
         import yanmasa as ajan
         op = ajan._describe("wait", {"duration": 2})
-        assert op.tool == "Bekliyor"
+        assert op.tool == "Waiting"
         assert op.detail == ""
 
     def test_dokum_kaydirma_alanina_sigiyor(self, qt_app):

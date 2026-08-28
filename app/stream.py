@@ -777,7 +777,7 @@ class Akis(QWidget):
         # sönen imleç, ikisinin de yazıldığını söylerdi.
         self.end_stream()
         self._son_metin = None
-        self._ekle(AdimSatiri(self.t, "__sen__", "Sen", metin))
+        self._ekle(AdimSatiri(self.t, "__sen__", "You", metin))
 
     def add_step(self, tool: str, baslik: str, detay: str) -> None:
         # Önceki anlatımın imleci sönüyor: iki yerde birden yanıp

@@ -71,7 +71,7 @@ class Workbook(OfficeDocument):
         return result
 
     @classmethod
-    def create(cls, path: str, sheet_name: str = "Sayfa1") -> Workbook:
+    def create(cls, path: str, sheet_name: str = "Sheet1") -> Workbook:
         book = openpyxl.Workbook()
         book.active.title = sheet_name
         return cls(path=path, book=book)

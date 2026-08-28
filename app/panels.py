@@ -157,7 +157,7 @@ class SheetPanel(QWidget):
         if formulas:
             # Hesaplanmamış formülü gizlemek, sonucun bilindiği yanılgısını
             # üretir. Açıkça söyleniyor.
-            warn = QLabel(f"{formulas} formül hesaplanmadı")
+            warn = QLabel(f"{formulas} formulas not calculated")
             warn.setProperty("role", "critical")
             
             bits.append(warn)
@@ -295,9 +295,9 @@ class TerminalPanel(QWidget):
         view.setPlainText(screen)
         layout.addWidget(view, 1)
 
-        bits = [meta(f"imleç {cursor[0]}:{cursor[1]}")]
+        bits = [meta(f"cursor {cursor[0]}:{cursor[1]}")]
         if not settled:
-            warn = QLabel("hâlâ çıktı geliyor")
+            warn = QLabel("still producing output")
             
             bits.append(warn)
         layout.addWidget(footer(*bits))
@@ -343,14 +343,14 @@ class TashihMargin(QWidget):
         head_layout = QHBoxLayout(head)
         head_layout.setContentsMargins(4 * 3, 4 * 2, 4 * 3, 4 * 2)
         head_layout.setSpacing(4 * 3)
-        head_layout.addWidget(meta(f"{len(corrections)} değişiklik"))
+        head_layout.addWidget(meta(f"{len(corrections)} changes"))
         head_layout.addStretch(1)
         self._layout.addWidget(head)
 
         if not corrections:
             empty = QLabel(
-                "Henüz düzeltme yok. Ajan bir belgede bir şey değiştirdiğinde,\n"
-                "ne değiştirdiği ve neden değiştirdiği buraya düşer."
+                "No corrections yet. When the agent changes something in a\n"
+                "document, what it changed and why lands here."
             )
             empty.setProperty("role", "tertiary")
             empty.setStyleSheet(f"color: {T.text_secondary}; padding: 20px 14px;")
@@ -405,14 +405,14 @@ class TashihMargin(QWidget):
         layout.addWidget(why, 1)
 
         if not c.saved:
-            tag = QLabel("Kaydedilmedi")
+            tag = QLabel("Unsaved")
             tag.setStyleSheet(
                 f"color: {T.critical}; border: 1px solid {T.critical};"
                 f" border-radius: 4px; padding: 1px 7px; font-size: 12px;"
             )
             layout.addWidget(tag)
 
-        undo = QPushButton("Geri al")
+        undo = QPushButton("Undo")
         undo.setFixedHeight(28)
         undo.setProperty("role", "subtle")
         undo.setCursor(Qt.CursorShape.PointingHandCursor)
