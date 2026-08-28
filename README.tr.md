@@ -105,7 +105,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 356 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 369 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/ajan.py                   # ajan, etkileşimli
