@@ -56,6 +56,45 @@ class TestIddiaBulma:
         ) == {"kabuk"}
 
 
+class TestIngilizceIddia:
+    """Arayüz İngilizce; ajan İngilizce cevap verirse de denetlenmeli.
+
+    Bu kalıplar Türkçeden daha dikkatli seçildi. Bare `ran` yok: "I ran
+    into an issue" bir komut çalıştırma iddiası değil. `started` yok: "I
+    started by reading the folder" bir uygulama açma iddiası değil. İkisi
+    de bu sınıfta test ediliyor, çünkü ikisi de yazarken aklıma gelen
+    değil, denerken çıkan şeydi.
+    """
+
+    @pytest.mark.parametrize("metin,beklenen", [
+        ("I wrote the file.", {"dosya"}),
+        ("I saved budget.xlsx and ran the tests.", {"dosya", "kabuk"}),
+        ("I opened Notepad and clicked Save.", {"uygulama"}),
+        ("I ran it on the server.", {"kabuk", "sunucu"}),
+    ])
+    def test_ingilizce_iddia_yakalaniyor(self, metin, beklenen):
+        assert rapor.iddialar(metin) == beklenen
+
+    @pytest.mark.parametrize("metin", [
+        "I could not save the file.",
+        "I couldn't write it, so I stopped.",
+        "Did I save the file?",
+        "I can save it if you want.",
+        "Unable to write the file.",
+        "I failed to run the command.",
+        # İkisi de gerçek yanlış alarmdı.
+        "I ran into an issue and stopped.",
+        "I started by reading the folder.",
+    ])
+    def test_ingilizce_yanlis_alarm_yok(self, metin):
+        assert rapor.iddialar(metin) == set()
+
+    def test_ingilizce_olumsuzluk_yan_cumlede_kaliyor(self):
+        assert rapor.iddialar(
+            "I could not write the file but I ran the tests."
+        ) == {"kabuk"}
+
+
 class TestDesteksizIddia:
     def test_bu_turda_destek_varsa_susuyor(self):
         assert rapor.desteksiz("Dosyayı yazdım.", {"write_file"}) == []
@@ -75,8 +114,8 @@ class TestDesteksizIddia:
         # Kalıp eşleşmesi "yalan söyledi" demeyi taşımaz; söylediği şey
         # kanıtın nerede olmadığı.
         metin = rapor.not_metni(["dosya"])
-        assert "kaydı yok" in metin
-        assert "yalan" not in metin.lower()
+        assert "No record" in metin
+        assert "lied" not in metin.lower()
 
     def test_bos_liste_bos_metin(self):
         assert rapor.not_metni([]) == ""
@@ -175,7 +214,7 @@ class TestTekrarTespiti:
 
     def test_oneri_notu_button_write_istiyor(self):
         notu = oneri_notu([("a>b", 3, "şunu yap")])
-        assert "button_write" in notu and "3 kez" in notu
+        assert "button_write" in notu and "3 times" in notu
 
     def test_tekrar_yoksa_not_bos(self):
         # Boş not talimatın sonuna eklenmemeli; her mesaja gereksiz bir

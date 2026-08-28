@@ -245,8 +245,9 @@ def oneri_notu(tekrarlar: list[tuple[str, int, str]]) -> str:
         return ""
     imza, adet, talimat = tekrarlar[0]
     return (
-        f"\n\n[Bu iş dizisini ({imza}) {adet} kez sorunsuz yaptın. "
-        f"Örnek talimat: {talimat!r}. Bu turu bitirdikten sonra "
-        f"`button_write` ile bunun için bir düğme öner — etiketi kısa "
-        f"olsun. Berkay istemezse ısrar etme ve bir daha açma.]"
+        f"\n\n[You have completed this sequence ({imza}) {adet} times "
+        f"without a problem. An example instruction: {talimat!r}. After you "
+        f"finish this turn, propose a button for it with `button_write` — "
+        f"keep the label short. If the user says no, do not insist and do "
+        f"not raise it again.]"
     )

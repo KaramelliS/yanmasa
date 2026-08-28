@@ -22,6 +22,17 @@ Dört kademe var ve hepsi yanlış alarmı kısmak için:
    göre ikisini de yazıyor ve yazıma takılan bir denetim aracı işe
    yaramaz.
 
+## İki dil
+
+Arayüz İngilizce, ajan İngilizce cevap veriyor; ama Türkçe kalıplar
+duruyor, çünkü Türkçe bir talimata Türkçe cevap vermesi hâlâ olabilir ve
+o cevabın denetimsiz kalması bu özelliğin sessizce kapanması olurdu.
+
+İngilizce kelime seçimi Türkçeden dikkatli: bare `ran` alınmadı, çünkü
+"I ran into an issue" bir komut çalıştırma iddiası değil. Onun yerine
+`ran the`, `ran it` gibi ifadeler var. Aynı sebeple `started` yok — "I
+started by reading the folder" bir uygulama açma iddiası değil.
+
 Yanlış alarm bu özelliğin tek gerçek riski. Her cevabın altında haksız
 bir uyarı çıksaydı insan uyarıyı okumayı bırakırdı — ve o noktada gerçek
 olanı da kaçırırdı.
@@ -57,26 +68,33 @@ def _kalip(*kelimeler: str) -> re.Pattern[str]:
 AILELER: dict[str, tuple[re.Pattern[str], frozenset[str]]] = {
     "dosya": (
         _kalip("yazdım", "kaydettim", "oluşturdum", "güncelledim",
-               "kaydedildi", "oluşturuldu", "yazıldı", "sildim"),
+               "kaydedildi", "oluşturuldu", "yazıldı", "sildim",
+               "wrote", "saved", "created", "updated", "deleted",
+               "was written", "was saved", "was created"),
         frozenset({
             "write_file", "write_files", "edit_file",
             "office_save", "office_edit", "remote_write",
         }),
     ),
     "kabuk": (
-        _kalip("çalıştırdım", "kurdum", "derledim", "çalıştırıldı"),
+        _kalip("çalıştırdım", "kurdum", "derledim", "çalıştırıldı",
+               "executed", "installed", "compiled",
+               "ran the", "ran it", "ran a", "ran that"),
         frozenset({"run_shell", "terminal_send", "remote_run",
                    "terminal_open"}),
     ),
     "uygulama": (
-        _kalip("açtım", "başlattım", "tıkladım", "açıldı", "tıklandı"),
+        _kalip("açtım", "başlattım", "tıkladım", "açıldı", "tıklandı",
+               "opened", "launched", "clicked"),
         frozenset({
             "launch_app", "left_click", "double_click", "right_click",
             "side_launch", "side_act", "terminal_open", "office_open",
         }),
     ),
     "sunucu": (
-        _kalip("sunucuya", "sunucuda", "sunucudan"),
+        _kalip("sunucuya", "sunucuda", "sunucudan",
+               "on the server", "to the server", "from the server",
+               "on the remote"),
         frozenset({"remote_connect", "remote_run", "remote_write",
                    "remote_read", "remote_list"}),
     ),
@@ -94,10 +112,10 @@ SORU = re.compile(r"\?|\bm[ıiuü]\b", re.IGNORECASE)
 
 #: İnsana gösterilen ad.
 ETIKET = {
-    "dosya": "dosya yazma",
-    "kabuk": "komut çalıştırma",
-    "uygulama": "uygulama açma ya da tıklama",
-    "sunucu": "sunucu işlemi",
+    "dosya": "writing a file",
+    "kabuk": "running a command",
+    "uygulama": "opening an app or clicking",
+    "sunucu": "a server operation",
 }
 
 
@@ -174,4 +192,4 @@ def not_metni(eksik: list[str]) -> str:
     if not eksik:
         return ""
     adlar = ", ".join(ETIKET.get(ad, ad) for ad in eksik)
-    return f"Bu oturumda {adlar} kaydı yok."
+    return f"No record of {adlar} in this session."

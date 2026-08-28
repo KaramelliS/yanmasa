@@ -26,12 +26,12 @@ from typing import Any
 SWITCH_DISPLAY = {
     "name": "switch_display",
     "description": (
-        "Hangi ekranda çalışılacağını değiştirir. Bundan sonraki ekran "
-        "görüntüleri ve koordinatlar o ekrana ait olur."
+        "Changes which display you work on. From then on, screenshots and "
+        "coordinates belong to that display."
     ),
     "input_schema": {
         "type": "object",
-        "properties": {"index": {"type": "integer", "description": "Ekran indeksi"}},
+        "properties": {"index": {"type": "integer", "description": "Display index"}},
         "required": ["index"],
         "additionalProperties": False,
     },
@@ -40,12 +40,12 @@ SWITCH_DISPLAY = {
 READ_UI_TREE = {
     "name": "read_ui_tree",
     "description": (
-        "Ön plandaki pencerenin denetimlerini metin olarak, her birinin "
-        "tıklama noktasıyla birlikte döndürür. Ekran görüntüsünden çok daha "
-        "ucuz ve koordinatları tahmin değil ölçüm. Bir düğmeyi, menü ögesini "
-        "ya da metin kutusunu arıyorsan ÖNCE bunu dene. Sonuç boş ya da "
-        "yüzeysel gelirse (tuval, oyun, video, bazı web sayfaları) ekran "
-        "görüntüsüne geç."
+        "Returns the foreground window's controls as text, each with its "
+        "click point. Far cheaper than a screenshot, and the coordinates "
+        "are measured rather than guessed. If you are looking for a button, "
+        "a menu item or a text box, try this FIRST. If the result comes "
+        "back empty or shallow (canvas, game, video, some web pages), fall "
+        "back to a screenshot."
     ),
     "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -53,24 +53,23 @@ READ_UI_TREE = {
 LAUNCH_APP = {
     "name": "launch_app",
     "description": (
-        "Bir uygulamayı doğrudan başlatır ve öne gelmesini bekler. Başlat "
-        "menüsünde tıklamaktan çok daha hızlı — bir uygulama açman "
-        "gerektiğinde her zaman bunu kullan. Kurulu her uygulamayı adıyla "
-        "açabilirsin ('Discord', 'Spotify', 'Hesap Makinesi'); "
-        "çalıştırılabilir adı, tam yol ya da URL de olur. Ad tutmazsa "
-        "yakın adayları söyler; hangi uygulamaların kurulu olduğunu "
-        "`list_apps` ile görebilirsin."
+        "Launches an app directly and waits for it to come to the front. "
+        "Much faster than clicking through the Start menu — always use this "
+        "when you need to open an app. You can open any installed app by "
+        "name ('Discord', 'Spotify', 'Calculator'); an executable name, a "
+        "full path or a URL also works. A name that does not match comes "
+        "back with close candidates; `list_apps` shows what is installed."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "target": {
                 "type": "string",
-                "description": "Uygulama adı, tam yol ya da URL",
+                "description": "App name, full path or URL",
             },
             "arguments": {
                 "type": "string",
-                "description": "İsteğe bağlı komut satırı argümanları",
+                "description": "Optional command-line arguments",
             },
         },
         "required": ["target"],
@@ -81,20 +80,20 @@ LAUNCH_APP = {
 RUN_SHELL = {
     "name": "run_shell",
     "description": (
-        "PowerShell komutu çalıştırır ve çıktısını döndürür. Toplu dosya "
-        "işlemleri, sorgular ve arayüzde onlarca tıklama gerektiren işler "
-        "için kullan. Geri alınamaz komutlar (silme, kapatma, kayıt defteri, "
-        "üzerine yazma) Berkay'ın onayını ister — onay gelmezse komut "
-        "çalışmaz. Etkileşimli komut çalıştırma, girdi bekleyen bir komut "
-        "zaman aşımına uğrar."
+        "Runs a PowerShell command and returns its output. Use it for bulk "
+        "file work, queries, and anything that would take dozens of clicks "
+        "in a GUI. Irreversible commands (deleting, shutting down, the "
+        "registry, overwriting) ask the user for approval — without it the "
+        "command does not run. Do not run interactive commands; one that "
+        "waits for input will time out."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "command": {"type": "string", "description": "PowerShell komutu"},
+            "command": {"type": "string", "description": "The PowerShell command"},
             "timeout": {
                 "type": "integer",
-                "description": "Saniye cinsinden zaman aşımı, varsayılan 30",
+                "description": "Timeout in seconds, default 30",
             },
         },
         "required": ["command"],
@@ -105,18 +104,19 @@ RUN_SHELL = {
 WRITE_FILE = {
     "name": "write_file",
     "description": (
-        "Bir dosyaya UTF-8 metin yazar. Klasör yoksa oluşturulur. Var olan "
-        "bir dosyanın üzerine yazmak Berkay'ın onayını ister; bir bölümünü "
-        "değiştireceksen write_file yerine edit_file kullan, o onay istemez."
+        "Writes UTF-8 text to a file. Missing folders are created. "
+        "Overwriting an existing file asks the user for approval; if you "
+        "are changing part of it, use edit_file instead of write_file — "
+        "that does not ask."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Dosya yolu"},
-            "content": {"type": "string", "description": "Yazılacak içerik"},
+            "path": {"type": "string", "description": "File path"},
+            "content": {"type": "string", "description": "The content to write"},
             "append": {
                 "type": "boolean",
-                "description": "Üzerine yazmak yerine sona ekle",
+                "description": "Append instead of overwriting",
             },
         },
         "required": ["path", "content"],
@@ -126,7 +126,7 @@ WRITE_FILE = {
 
 READ_FILE = {
     "name": "read_file",
-    "description": "Bir dosyayı UTF-8 olarak okur. Uzun dosyalar kesilir.",
+    "description": "Reads a file as UTF-8. Long files are truncated.",
     "input_schema": {
         "type": "object",
         "properties": {"path": {"type": "string"}},
@@ -138,16 +138,16 @@ READ_FILE = {
 EDIT_FILE = {
     "name": "edit_file",
     "description": (
-        "Bir dosyada birebir metin değişimi yapar. `old` dosyada tam olarak "
-        "bir kez geçmeli; sıfır ya da birden fazla geçerse hiçbir şey "
-        "yazılmaz ve hata döner. Düzenlemeden önce dosyayı oku."
+        "Replaces exact text in a file. `old` must appear in the file "
+        "exactly once; on zero or more than one match nothing is written "
+        "and an error is returned. Read the file before editing it."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {"type": "string"},
-            "old": {"type": "string", "description": "Değiştirilecek birebir metin"},
-            "new": {"type": "string", "description": "Yerine yazılacak metin"},
+            "old": {"type": "string", "description": "The exact text to replace"},
+            "new": {"type": "string", "description": "The replacement text"},
         },
         "required": ["path", "old", "new"],
         "additionalProperties": False,
@@ -156,7 +156,7 @@ EDIT_FILE = {
 
 LIST_DIR = {
     "name": "list_dir",
-    "description": "Bir klasörün içeriğini listeler.",
+    "description": "Lists the contents of a folder.",
     "input_schema": {
         "type": "object",
         "properties": {"path": {"type": "string"}},
@@ -168,20 +168,20 @@ LIST_DIR = {
 TERMINAL_OPEN = {
     "name": "terminal_open",
     "description": (
-        "Kalıcı bir terminal oturumu açar ve ekranını döndürür. `run_shell`'in "
-        "aksine oturum açık kalır, yani etkileşimli programlar çalışır: "
-        "Claude Code, opencode, REPL'ler, `git rebase -i`, sunucular. "
-        "Uzun süren ya da girdi bekleyen her şey için bunu kullan."
+        "Opens a persistent terminal session and returns its screen. Unlike "
+        "`run_shell` the session stays open, so interactive programs work: "
+        "Claude Code, opencode, REPLs, `git rebase -i`, servers. Use this "
+        "for anything long-running or waiting for input."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "name": {"type": "string", "description": "Oturuma vereceğin ad"},
+            "name": {"type": "string", "description": "The name you give the session"},
             "command": {
                 "type": "string",
-                "description": "Çalıştırılacak komut; boşsa PowerShell açılır",
+                "description": "The command to run; empty opens PowerShell",
             },
-            "cwd": {"type": "string", "description": "Çalışma klasörü"},
+            "cwd": {"type": "string", "description": "Working directory"},
         },
         "required": ["name"],
         "additionalProperties": False,
@@ -191,11 +191,11 @@ TERMINAL_OPEN = {
 TERMINAL_SEND = {
     "name": "terminal_send",
     "description": (
-        "Açık bir terminale metin ya da tuş gönderir, ekran durulunca son "
-        "halini döndürür. `text` yazılacak metin; `key` özel tuş "
-        "(enter, tab, escape, up, down, left, right, ctrl+c, ctrl+d, "
-        "page_up, page_down, backspace, shift+tab). Komut çalıştırmak için "
-        "text ver ve submit'i true bırak. TUI'de gezinmek için key kullan."
+        "Sends text or a key to an open terminal and returns the screen "
+        "once it settles. `text` is the text to type; `key` is a special "
+        "key (enter, tab, escape, up, down, left, right, ctrl+c, ctrl+d, "
+        "page_up, page_down, backspace, shift+tab). To run a command, give "
+        "text and leave submit true. Use key to navigate a TUI."
     ),
     "input_schema": {
         "type": "object",
@@ -205,11 +205,12 @@ TERMINAL_SEND = {
             "key": {"type": "string"},
             "submit": {
                 "type": "boolean",
-                "description": "Metinden sonra Enter gönder, varsayılan true",
+                "description": "Send Enter after the text, default true",
             },
             "wait": {
                 "type": "number",
-                "description": "Ekranın durulması için en fazla kaç saniye, varsayılan 15",
+                "description": "How many seconds to wait for the screen to "
+                               "settle, default 15",
             },
         },
         "required": ["name"],
@@ -220,8 +221,8 @@ TERMINAL_SEND = {
 TERMINAL_READ = {
     "name": "terminal_read",
     "description": (
-        "Bir terminalin şu anki ekranını döndürür. Uzun süren bir işin "
-        "ilerlemesine bakmak için kullan — göndermeden sadece okur."
+        "Returns a terminal's current screen. Use it to follow the progress "
+        "of a long job — it only reads, it sends nothing."
     ),
     "input_schema": {
         "type": "object",
@@ -229,7 +230,8 @@ TERMINAL_READ = {
             "name": {"type": "string"},
             "wait": {
                 "type": "number",
-                "description": "Okumadan önce durulmayı bekle, saniye",
+                "description": "Wait for the screen to settle before "
+                               "reading, in seconds",
             },
         },
         "required": ["name"],
@@ -239,7 +241,8 @@ TERMINAL_READ = {
 
 TERMINAL_CLOSE = {
     "name": "terminal_close",
-    "description": "Bir terminal oturumunu kapatır ve içindeki süreci sonlandırır.",
+    "description": "Closes a terminal session and terminates the process "
+                   "inside it.",
     "input_schema": {
         "type": "object",
         "properties": {"name": {"type": "string"}},
@@ -258,15 +261,16 @@ TERMINAL_CLOSE = {
 OFFICE_OPEN = {
     "name": "office_open",
     "description": (
-        "Bir tablo (.xlsx) ya da yazı belgesi (.docx) açar; dosya yoksa "
-        "oluşturur. Microsoft Office gerekmez, dosyalar gerçek Office "
-        "biçiminde ve Excel/Word'de açılır. Belgeye verdiğin adla erişirsin."
+        "Opens a sheet (.xlsx) or a text document (.docx), creating the "
+        "file if it does not exist. Microsoft Office is not required; the "
+        "files are in the real Office format and open in Excel or Word. You "
+        "refer to the document by the name you give it."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "name": {"type": "string", "description": "Belgeye vereceğin ad"},
-            "path": {"type": "string", "description": "Dosya yolu (.xlsx ya da .docx)"},
+            "name": {"type": "string", "description": "The name you give the document"},
+            "path": {"type": "string", "description": "File path (.xlsx or .docx)"},
         },
         "required": ["name", "path"],
         "additionalProperties": False,
@@ -276,18 +280,19 @@ OFFICE_OPEN = {
 OFFICE_READ = {
     "name": "office_read",
     "description": (
-        "Açık bir belgeyi okur. Tabloda `ref` hücre aralığı (A1, B2:D20) ve "
-        "`sheet` sayfa adı; yazı belgesinde `start` paragraf numarası. "
-        "Düzenlemeden önce her zaman oku — paragraf numaraları ve hücre "
-        "içerikleri değişmiş olabilir."
+        "Reads an open document. In a sheet, `ref` is a cell range (A1, "
+        "B2:D20) and `sheet` a sheet name; in a text document `start` is a "
+        "paragraph number. Always read before editing — paragraph numbers "
+        "and cell contents may have changed."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "name": {"type": "string"},
-            "ref": {"type": "string", "description": "Tablo için hücre aralığı"},
-            "sheet": {"type": "string", "description": "Tablo için sayfa adı"},
-            "start": {"type": "integer", "description": "Yazı için başlangıç paragrafı"},
+            "ref": {"type": "string", "description": "Cell range, for a sheet"},
+            "sheet": {"type": "string", "description": "Sheet name, for a sheet"},
+            "start": {"type": "integer", "description": "Starting paragraph, for a text "
+                                                        "document"},
         },
         "required": ["name"],
         "additionalProperties": False,
@@ -297,12 +302,12 @@ OFFICE_READ = {
 OFFICE_EDIT = {
     "name": "office_edit",
     "description": (
-        "Belgeyi düzenler. `why` zorunlu — her değişiklik neden yapıldığını "
-        "taşır ve bu kayıt Berkay'a gösterilir. "
-        "Tablo işlemleri: `write` (ref + values, values satır listesi; "
-        "'=SUM(B2:B4)' gibi formül yazabilirsin), `add_sheet` (sheet). "
-        "Yazı işlemleri: `append` (text, isteğe bağlı style: Title, "
-        "Heading 1, Heading 2, List Bullet, Quote), `replace` (index + text), "
+        "Edits the document. `why` is required — every change carries its "
+        "reason and that record is shown to the user. Sheet operations: "
+        "`write` (ref + values, values being a list of rows; you can write "
+        "formulas like '=SUM(B2:B4)'), `add_sheet` (sheet). Text "
+        "operations: `append` (text, optional style: Title, Heading 1, "
+        "Heading 2, List Bullet, Quote), `replace` (index + text), "
         "`add_table` (values)."
     ),
     "input_schema": {
@@ -315,13 +320,14 @@ OFFICE_EDIT = {
             },
             "why": {
                 "type": "string",
-                "description": "Bu değişiklik neden yapılıyor; değerin kaynağı nedir",
+                "description": "Why this change is being made; where the "
+                               "value comes from",
             },
             "ref": {"type": "string"},
             "sheet": {"type": "string"},
             "values": {
                 "type": "array",
-                "description": "Satır listesi; her satır hücre listesi",
+                "description": "A list of rows; each row a list of cells",
                 "items": {"type": "array", "items": {}},
             },
             "text": {"type": "string"},
@@ -335,7 +341,8 @@ OFFICE_EDIT = {
 
 OFFICE_SAVE = {
     "name": "office_save",
-    "description": "Belgeyi diske kaydeder. `path` verirsen farklı kaydeder.",
+    "description": "Saves the document to disk. Give `path` to save it "
+                   "elsewhere.",
     "input_schema": {
         "type": "object",
         "properties": {"name": {"type": "string"}, "path": {"type": "string"}},
@@ -347,14 +354,14 @@ OFFICE_SAVE = {
 OFFICE_HISTORY = {
     "name": "office_history",
     "description": (
-        "Belgedeki değişikliklerin gerekçeli listesini döndürür. `undo` "
-        "verirsen son o kadar değişikliği geri alır."
+        "Returns the document's changes with their reasons. Give `undo` to "
+        "revert that many recent changes."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "name": {"type": "string"},
-            "undo": {"type": "integer", "description": "Geri alınacak değişiklik sayısı"},
+            "undo": {"type": "integer", "description": "How many changes to revert"},
         },
         "required": ["name"],
         "additionalProperties": False,
@@ -364,8 +371,8 @@ OFFICE_HISTORY = {
 OFFICE_CLOSE = {
     "name": "office_close",
     "description": (
-        "Belgeyi kapatır. Kaydedilmemiş değişiklik varsa reddeder; bilerek "
-        "atıyorsan discard=true ver."
+        "Closes the document. Refuses if there are unsaved changes; pass "
+        "discard=true if you are deliberately throwing them away."
     ),
     "input_schema": {
         "type": "object",
@@ -381,15 +388,16 @@ OFFICE_CLOSE = {
 SKILL_LIST = {
     "name": "skill_list",
     "description": (
-        "Yazılmış yetenekleri ve yüklenemeyen bozuk dosyaları listeler. "
-        "Bir yeteneğin kodunu görmek için name ver."
+        "Lists the skills that have been written, including broken files "
+        "that failed to load. Give name to see a skill's code."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "name": {
                 "type": "string",
-                "description": "Kodunu okumak istediğin yeteneğin adı",
+                "description": "The name of the skill whose code you want "
+                               "to read",
             }
         },
         "required": [],
@@ -400,23 +408,26 @@ SKILL_LIST = {
 SKILL_WRITE = {
     "name": "skill_write",
     "description": (
-        "Kendine yeni bir yetenek yazar ya da var olanı düzeltir. Yetenek bir "
-        "Python dosyası: ARAC sözlüğü ile calistir(girdi, ortam) fonksiyonu. "
-        "Yazıldığı anda yüklenir ve bir sonraki adımda çağırabilirsin. "
-        "Var olan bir aracın adını kullanamazsın. Her yazma Berkay'ın onayını "
-        "ister ve kodun tamamı ona gösterilir."
+        "Writes yourself a new skill or fixes an existing one. A skill is a "
+        "Python file: an ARAC dict plus a calistir(girdi, ortam) function. "
+        "It loads the moment it is written and you can call it on the next "
+        "step. You cannot reuse an existing tool's name. Every write asks "
+        "the user for approval and the full code is shown to them."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "name": {
                 "type": "string",
-                "description": "Dosya ve araç adı: küçük harf, rakam, alt çizgi",
+                "description": "File and tool name: lower case, digits, "
+                               "underscore",
             },
-            "code": {"type": "string", "description": "Yeteneğin tam Python kodu"},
+            "code": {"type": "string", "description": "The skill's complete Python "
+                                                      "code"},
             "why": {
                 "type": "string",
-                "description": "Bu yeteneği neden yazıyorsun — Berkay onay ekranında görecek",
+                "description": "Why you are writing this skill — the user "
+                               "sees it on the approval screen",
             },
         },
         "required": ["name", "code", "why"],
@@ -426,12 +437,12 @@ SKILL_WRITE = {
 
 SKILL_REMOVE = {
     "name": "skill_remove",
-    "description": "Bir yeteneği siler.",
+    "description": "Deletes a skill.",
     "input_schema": {
         "type": "object",
         "properties": {
             "name": {"type": "string"},
-            "why": {"type": "string", "description": "Neden siliniyor"},
+            "why": {"type": "string", "description": "Why it is being removed"},
         },
         "required": ["name", "why"],
         "additionalProperties": False,
@@ -441,29 +452,32 @@ SKILL_REMOVE = {
 BUTTON_WRITE = {
     "name": "button_write",
     "description": (
-        "Berkay'ın çubuğundaki düğmelerden birini kurar ya da değiştirir. "
-        "Düğmeye tıklayınca yazdığın talimat ajana gönderilir. Tekrar eden "
-        "bir iş fark ettiğinde teklif et: 'bunu düğme yapayım mı'. "
-        "Berkay bu düğmeleri kendisi de düzenleyip silebilir."
+        "Sets up or changes one of the buttons on the user's bar. Clicking "
+        "the button sends the instruction you wrote to the agent. Offer one "
+        "when you notice a repeating job: 'shall I make this a button?'. "
+        "The user can edit and delete these buttons themselves."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "name": {"type": "string", "description": "Kimlik: küçük harf, rakam, alt çizgi"},
-            "label": {"type": "string", "description": "Düğmenin üstünde yazan, en fazla 22 karakter"},
+            "name": {"type": "string", "description": "Identifier: lower case, "
+                                                      "digits, underscore"},
+            "label": {"type": "string", "description": "The button label, 22 "
+                                                       "characters at most"},
             "instruction": {
                 "type": "string",
-                "description": "Tıklanınca sana gönderilecek talimat",
+                "description": "The instruction sent to you when it is "
+                               "clicked",
             },
             "glyph": {
                 "type": "string",
                 "description": (
-                    "Çizim: goz, mercek, imlec, surukle, klavye, tus, kaydir, "
-                    "pencere, kabuk, agac, sayfa, klasor, tablo, yazi, kaydet, "
-                    "defter, yetenek, bekle"
+                    "Icon: goz, mercek, imlec, surukle, klavye, tus, "
+                    "kaydir, pencere, kabuk, agac, sayfa, klasor, tablo, "
+                    "yazi, kaydet, defter, yetenek, bekle"
                 ),
             },
-            "why": {"type": "string", "description": "Neden bu düğme"},
+            "why": {"type": "string", "description": "Why this button"},
         },
         "required": ["name", "label", "instruction", "why"],
         "additionalProperties": False,
@@ -472,7 +486,7 @@ BUTTON_WRITE = {
 
 BUTTON_REMOVE = {
     "name": "button_remove",
-    "description": "Bir düğmeyi kaldırır.",
+    "description": "Removes a button.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -487,15 +501,15 @@ BUTTON_REMOVE = {
 REMOTE_CONNECT = {
     "name": "remote_connect",
     "description": (
-        "SSH ile bir sunucuya bağlanır. `alias` verilirse ~/.ssh/config "
-        "içindeki ayar kullanılır (Berkay'ın sunucusu: brky). Bağlandıktan "
-        "sonra remote_list, remote_read, remote_write, remote_run çalışır ve "
-        "arayüzde sunucunun klasörleri açılır."
+        "Connects to a server over SSH. With `alias`, the entry in "
+        "~/.ssh/config is used (the user's own server: brky). Once "
+        "connected, remote_list, remote_read, remote_write and remote_run "
+        "work, and the server's folders open in the interface."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "alias": {"type": "string", "description": "~/.ssh/config takma adı"},
+            "alias": {"type": "string", "description": "An alias from ~/.ssh/config"},
             "host": {"type": "string"},
             "user": {"type": "string"},
             "port": {"type": "integer"},
@@ -507,7 +521,8 @@ REMOTE_CONNECT = {
 
 REMOTE_LIST = {
     "name": "remote_list",
-    "description": "Sunucudaki bir klasörü listeler. Boş bırakırsan bulunduğun yeri.",
+    "description": "Lists a folder on the server. Leave it empty for the "
+                   "current one.",
     "input_schema": {
         "type": "object",
         "properties": {"path": {"type": "string"}},
@@ -518,7 +533,7 @@ REMOTE_LIST = {
 
 REMOTE_READ = {
     "name": "remote_read",
-    "description": "Sunucudaki bir dosyayı okur.",
+    "description": "Reads a file on the server.",
     "input_schema": {
         "type": "object",
         "properties": {"path": {"type": "string"}},
@@ -530,15 +545,15 @@ REMOTE_READ = {
 REMOTE_WRITE = {
     "name": "remote_write",
     "description": (
-        "Sunucudaki bir dosyaya yazar; varsa üzerine yazar. Her zaman onay "
-        "ister. Üzerine yazmadan önce remote_read ile mevcut hâlini oku."
+        "Writes a file on the server, overwriting it if it exists. Always "
+        "asks for approval. Read the current state with remote_read first."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {"type": "string"},
             "content": {"type": "string"},
-            "why": {"type": "string", "description": "Neden bu değişiklik"},
+            "why": {"type": "string", "description": "Why this change"},
         },
         "required": ["path", "content", "why"],
         "additionalProperties": False,
@@ -548,15 +563,15 @@ REMOTE_WRITE = {
 REMOTE_RUN = {
     "name": "remote_run",
     "description": (
-        "Sunucuda kabuk komutu çalıştırır. Okuyan komutlar (ls, cat, df, "
-        "systemctl status, journalctl) doğrudan çalışır; değiştiren her "
-        "komut Berkay'a sorulur."
+        "Runs a shell command on the server. Read-only commands (ls, cat, "
+        "df, systemctl status, journalctl) run directly; every command that "
+        "changes something is put to the user."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "command": {"type": "string"},
-            "timeout": {"type": "integer", "description": "Saniye, varsayılan 60"},
+            "timeout": {"type": "integer", "description": "Seconds, default 60"},
         },
         "required": ["command"],
         "additionalProperties": False,
@@ -566,16 +581,17 @@ REMOTE_RUN = {
 LIST_APPS = {
     "name": "list_apps",
     "description": (
-        "Kurulu uygulamaları listeler. Bir uygulamanın adından emin "
-        "değilsen önce buna bak; Başlat menüsünde ekran görüntüsüyle "
-        "aramaktan çok daha ucuz."
+        "Lists the installed apps. If you are unsure of an app's name, "
+        "check here first; much cheaper than hunting through the Start menu "
+        "with screenshots."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Arama metni. Boş bırakırsan hepsi listelenir.",
+                "description": "Search text. Leave it empty to list "
+                               "everything.",
             }
         },
         "required": [],
@@ -586,18 +602,18 @@ LIST_APPS = {
 WRITE_FILES = {
     "name": "write_files",
     "description": (
-        "Birden çok dosyayı TEK çağrıda yazar. Bir proje ya da betik "
-        "kurarken bunu kullan: dosya başına ayrı çağrı, dosya başına ayrı "
-        "model turu demek ve işi kat kat yavaşlatıyor. Klasörler "
-        "kendiliğinden açılıyor. Var olan bir dosyanın üzerine yazmak onay "
-        "ister; yeni dosya istemez."
+        "Writes several files in ONE call. Use it when you are setting up a "
+        "project or a script: one call per file means one model turn per "
+        "file, which makes the job several times slower. Missing folders "
+        "are created. Overwriting an existing file asks for approval; a new "
+        "file does not."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "files": {
                 "type": "array",
-                "description": "Yazılacak dosyalar",
+                "description": "The files to write",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -607,7 +623,7 @@ WRITE_FILES = {
                     "required": ["path", "content"],
                 },
             },
-            "why": {"type": "string", "description": "Ne kuruluyor"},
+            "why": {"type": "string", "description": "What is being set up"},
         },
         "required": ["files"],
         "additionalProperties": False,
@@ -624,12 +640,12 @@ WRITE_FILES = {
 SIDE_LAUNCH = {
     "name": "side_launch",
     "description": (
-        "Bir uygulamayı YAN ÇALIŞMA ALANINDA başlatır — görünmez bir "
-        "masaüstünde. Berkay'ın ekranında hiçbir şey açılmaz, imleci ve "
-        "odağı hiç kıpırdamaz, yani sen çalışırken o da çalışabilir. "
-        "Uzun süren tarayıcı işleri için tercih et. Sınır: Microsoft Store "
-        "uygulamaları (Win11 Not Defteri dahil) burada pencere açmıyor; "
-        "klasik .exe ve Chrome çalışıyor."
+        "Launches an app IN THE SIDE WORKSPACE — on an invisible desktop. "
+        "Nothing opens on the user's screen and their cursor and focus "
+        "never move, so they can keep working while you do. Prefer it for "
+        "long-running browser jobs. Limit: Microsoft Store apps (including "
+        "Windows 11's Notepad) open no window here; classic .exe files and "
+        "Chrome work."
     ),
     "input_schema": {
         "type": "object",
@@ -637,9 +653,10 @@ SIDE_LAUNCH = {
             "command": {
                 "type": "string",
                 "description": (
-                    "Tam komut satırı. Yolu tırnak içine al, örn: "
-                    '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" '
-                    "https://ornek.com"
+                    "The full command line. Quote the path, e.g. "
+                    '"C:\\Program '
+                    'Files\\Google\\Chrome\\Application\\chrome.exe" '
+                    "https://example.com"
                 ),
             }
         },
@@ -651,8 +668,8 @@ SIDE_LAUNCH = {
 SIDE_WINDOWS = {
     "name": "side_windows",
     "description": (
-        "Yan çalışma alanındaki pencereleri listeler: hwnd, başlık, sınıf ve "
-        "konum. Tıklamadan ve görüntü almadan önce buradan hwnd al."
+        "Lists the windows in the side workspace: hwnd, title, class and "
+        "position. Get the hwnd from here before clicking or capturing."
     ),
     "input_schema": {
         "type": "object", "properties": {}, "additionalProperties": False,
@@ -662,12 +679,12 @@ SIDE_WINDOWS = {
 SIDE_CAPTURE = {
     "name": "side_capture",
     "description": (
-        "Yan alandaki bir pencerenin görüntüsünü alır. Koordinatlar "
-        "pencerenin sol üst köşesine göre; side_act aynı uzayı kullanıyor."
+        "Captures a window in the side workspace. Coordinates are relative "
+        "to the window's top-left corner; side_act uses the same space."
     ),
     "input_schema": {
         "type": "object",
-        "properties": {"hwnd": {"type": "integer", "description": "Pencere tutamacı"}},
+        "properties": {"hwnd": {"type": "integer", "description": "Window handle"}},
         "required": ["hwnd"],
         "additionalProperties": False,
     },
@@ -676,9 +693,10 @@ SIDE_CAPTURE = {
 SIDE_ACT = {
     "name": "side_act",
     "description": (
-        "Yan alanda tıklar, yazar, tuşa basar ya da kaydırır. Ajanın kendi "
-        "imleci kullanılır; Berkay'ın faresi kıpırdamaz. Kısayol "
-        "kombinasyonları (Ctrl+S gibi) BURADA ÇALIŞMAZ — menüye tıkla."
+        "Clicks, types, presses a key or scrolls in the side workspace. The "
+        "agent's own cursor is used; the user's mouse does not move. "
+        "Modifier combinations (like Ctrl+S) DO NOT WORK HERE — click the "
+        "menu instead."
     ),
     "input_schema": {
         "type": "object",
@@ -691,13 +709,15 @@ SIDE_ACT = {
             "coordinate": {
                 "type": "array",
                 "items": {"type": "integer"},
-                "description": "[x, y], pencerenin sol üstüne göre",
+                "description": "[x, y], relative to the window's top-left "
+                               "corner",
             },
             "text": {
                 "type": "string",
-                "description": "type icin metin, key icin tus adi (enter, tab, escape, f5...)",
+                "description": "text for type, a key name for key (enter, "
+                               "tab, escape, f5...)",
             },
-            "amount": {"type": "integer", "description": "scroll adimi; pozitif yukari"},
+            "amount": {"type": "integer", "description": "scroll amount; positive is up"},
         },
         "required": ["hwnd", "action"],
         "additionalProperties": False,
@@ -707,9 +727,9 @@ SIDE_ACT = {
 SIDE_CLOSE = {
     "name": "side_close",
     "description": (
-        "Yan çalışma alanını kapatır ve orada başlattığın her uygulamayı "
-        "sonlandırır. İşin bitince çağır; yoksa süreçler görünmez şekilde "
-        "arkada yaşamaya devam eder."
+        "Closes the side workspace and terminates every app you launched "
+        "there. Call it when you are done; otherwise the processes keep "
+        "living invisibly in the background."
     ),
     "input_schema": {
         "type": "object", "properties": {}, "additionalProperties": False,

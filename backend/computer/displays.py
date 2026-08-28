@@ -112,7 +112,7 @@ class DisplayMap:
         """Sistem promptuna gömülecek insan okunur özet."""
         lines = []
         for d in self._displays:
-            tag = " (birincil)" if d.primary else ""
+            tag = " (primary)" if d.primary else ""
             lines.append(f"  {d.index}: {d.width}x{d.height}{tag}")
         return "\n".join(lines)
 
