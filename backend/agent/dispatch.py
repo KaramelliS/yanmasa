@@ -31,6 +31,7 @@ from ..computer.terminal import TerminalError, TerminalRegistry
 from ..office.sheet import SheetError, Workbook
 from ..office.store import OfficeError, OfficeStore
 from ..office.text import TextError
+from . import kuru as kuru_mod
 from ..safety import gate
 from ..safety.killswitch import KillSwitch
 from ..remote.ssh import RemoteError, SshHost, SshSession
@@ -94,6 +95,10 @@ class Dispatcher:
         # kapıyı sessizce kapatmış olurdu.
         self.approve = approve or (lambda _n, _d, _r: False)
         self.active_index = active_index
+        #: Kuru koşu. Açıkken dünyayı değiştiren her araç çalışmadan
+        #: geri dönüyor; salt okunur olanlar çalışıyor ki plan gerçek
+        #: duruma bakarak yapılsın.
+        self.kuru = False
         self.terminals = TerminalRegistry()
         self.office = OfficeStore()
         # Yerleşik araç adları rezerve: bir yetenek `run_shell` adını alıp
@@ -145,6 +150,11 @@ class Dispatcher:
     def run(self, name: str, payload: dict[str, Any]) -> ToolOutcome:
         """Tek bir araç çağrısını çalıştırır."""
         self.kill.check()
+        if self.kuru and not kuru_mod.serbest(name):
+            # Kesme noktası burası, `_do_*` içleri değil: her aracın
+            # başına bir kontrol koymak, bir tanesini unutmanın kesin
+            # yolu olurdu. Yetenekler de buradan geçiyor.
+            return ToolOutcome(content=kuru_mod.not_metni(name, payload))
         handler = getattr(self, f"_do_{name}", None)
         if handler is None:
             skill = self.skills.get(name)

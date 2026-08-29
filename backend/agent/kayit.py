@@ -94,6 +94,8 @@ class Tur:
     araclar: list[str] = field(default_factory=list)
     basarili: list[str] = field(default_factory=list)
     hatali: list[str] = field(default_factory=list)
+    #: Kuru koşu muydu.
+    kuru: bool = False
 
     @property
     def imza(self) -> str:
@@ -146,9 +148,14 @@ class Kayit:
             if self.son_hata is None:
                 self.son_hata = f"could not write the audit log: {hata}"
 
-    def tur_basladi(self, talimat: str) -> None:
-        self._tur = Tur(talimat=talimat, baslangic=time.time())
-        self._yaz({"tur": "tur", "talimat": _kisalt(talimat)})
+    def tur_basladi(self, talimat: str, kuru: bool = False) -> None:
+        # Kuru koşu kayda giriyor: geçmişte bir kuru koşuyu gerçek bir
+        # koşu sanmak, "bunu yapmıştım" diye yanlış hatırlamak demek.
+        self._tur = Tur(talimat=talimat, baslangic=time.time(), kuru=kuru)
+        satir = {"tur": "tur", "talimat": _kisalt(talimat)}
+        if kuru:
+            satir["kuru"] = True
+        self._yaz(satir)
 
     def eylem(self, arac: str, girdi: dict[str, Any], hata: bool,
               ozet: str = "") -> None:
@@ -168,6 +175,7 @@ class Kayit:
         t = self._tur
         self._yaz({
             "tur": "bitti",
+            "kuru": bool(t and t.kuru),
             "imza": t.imza if t else "",
             "adim": len(t.araclar) if t else 0,
             "hata": len(t.hatali) if t else 0,
@@ -219,7 +227,10 @@ def tekrar_bul(satirlar: list[dict[str, Any]], esik: int = TEKRAR_ESIGI,
             son_talimat = str(satir.get("talimat") or "")
         elif satir.get("tur") == "bitti":
             imza = str(satir.get("imza") or "")
-            if not imza or satir.get("hata"):
+            # Kuru koşuda hiçbir şey yapılmadı; onu "üç kez sorunsuz
+            # yapıldı" diye saymak, yapılmamış bir işi otomatikleştirmeyi
+            # önermek olurdu.
+            if not imza or satir.get("hata") or satir.get("kuru"):
                 continue
             if imza.count(">") + 1 < asgari_adim:
                 continue
@@ -282,6 +293,8 @@ class Kosu:
     metin: str = ""
     sure: float = 0.0
     desteksiz: list[str] = field(default_factory=list)
+    #: Kuru koşu: ajan planladı, hiçbir şey yapmadı.
+    kuru: bool = False
     #: `bitti` satırı hiç gelmedi: uygulama tur ortasında kapandı.
     yarim: bool = True
 
@@ -324,6 +337,7 @@ def kosulari_derle(satirlar: list[dict[str, Any]]) -> list[Kosu]:
             acik = Kosu(
                 talimat=str(satir.get("talimat") or ""),
                 baslangic=float(satir.get("t") or 0.0),
+                kuru=bool(satir.get("kuru")),
             )
         elif tur == "eylem":
             if acik is None:
@@ -341,6 +355,9 @@ def kosulari_derle(satirlar: list[dict[str, Any]]) -> list[Kosu]:
             acik.metin = str(satir.get("metin") or "")
             acik.sure = float(satir.get("sure") or 0.0)
             acik.desteksiz = list(satir.get("desteksiz") or [])
+            # `bitti` satırı da işareti taşıyor: `tur` satırı okunmayan
+            # bir günde kalmış olabiliyor ve o zaman tek kaynak bu.
+            acik.kuru = acik.kuru or bool(satir.get("kuru"))
             acik.yarim = False
             kapat()
     kapat()

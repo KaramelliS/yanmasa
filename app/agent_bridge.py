@@ -59,6 +59,11 @@ class AgentBridge(QObject):
         self._kill = None
         self._capture = None
         self._busy = False
+        #: Kuru koşu. Ajan henüz kurulmamış olabilir ve anahtar o zaman da
+        #: çevrilebiliyor; değer burada bekliyor ve ajan gelince
+        #: uygulanıyor. Beklemeseydi açılışta çevrilen anahtar sessizce
+        #: yok sayılırdı.
+        self._kuru = False
 
     @property
     def busy(self) -> bool:
@@ -80,10 +85,21 @@ class AgentBridge(QObject):
             self._agent = Agent.create(
                 cfg, displays, self._capture, self._kill, approve=self._ask_approval
             )
+            self._agent.dispatcher.kuru = self._kuru
         except Exception as exc:
             self.ready.emit(False, str(exc))
             return
         self.ready.emit(True, "")
+
+    def set_kuru(self, kuru: bool) -> None:
+        """Kuru koşuyu açar ya da kapatır."""
+        self._kuru = kuru
+        if self._agent is not None:
+            self._agent.dispatcher.kuru = kuru
+
+    @property
+    def kuru(self) -> bool:
+        return self._kuru
 
     def expand_command(self, line: str) -> str | None:
         """`/ad` kısayolunu hazır talimata çevirir."""

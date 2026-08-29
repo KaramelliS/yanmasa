@@ -242,7 +242,7 @@ class Agent:
         # yeniden başlatmadan bir daha konuşamıyorsun.
         self._close_open_tools("Durduruldu.")
 
-        self.kayit.tur_basladi(instruction)
+        self.kayit.tur_basladi(instruction, self.dispatcher.kuru)
         # Tekrarlanan iş varsa talimatın sonuna not düşüyor. Bunu sistem
         # promptuna yazmak eskiden denendi ve çalışmadı: model otuz
         # adımlık bir turun sonunda "bunu üçüncü kez yapıyorum" demiyor.
@@ -406,7 +406,9 @@ class Agent:
         return [
             {
                 "type": "text",
-                "text": build_system(self.displays, self.dispatcher.active_index),
+                "text": build_system(self.displays,
+                                     self.dispatcher.active_index,
+                                     self.dispatcher.kuru),
                 "cache_control": {"type": "ephemeral"},
             }
         ]

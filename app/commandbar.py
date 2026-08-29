@@ -38,6 +38,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
+    QFont,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -203,6 +204,84 @@ class MicDot(QWidget):
         painter.drawArc(QRectF(cx - 6.5, cy - 4, 13, 11.5), 200 * 16, 140 * 16)
         painter.drawLine(QPointF(cx, cy + 5.5), QPointF(cx, cy + 8.5))
         painter.end()
+
+
+class KuruDugmesi(QWidget):
+    """Kuru koşu anahtarı.
+
+    Riskli bir işi vermeden önce ne yapacağını görmek isteniyor ve "önce
+    anlat, sonra yap" demek işe yaramıyor: model anlatıyor, sonra aynı
+    turda yapıyor. Bu anahtar kesmeyi kod tarafına alıyor.
+
+    Anahtar **kalıcı**: bir kez açılınca kapatılana kadar açık kalıyor.
+    Tur başına sıfırlansaydı, iki turda planlamak isteyen biri ikinci
+    turda farkında olmadan gerçek koşuya girerdi.
+
+    Açıkken sessiz kalmıyor: yazı alanının alt kenarı ve ipucu metni de
+    değişiyor. Kuru sandığın gerçek bir koşu, bu özelliğin çözdüğü
+    sorundan daha kötü.
+    """
+
+    degisti = Signal(bool)
+
+    def __init__(self, t: Tokens) -> None:
+        super().__init__()
+        self.t = t
+        self.kuru = False
+        self.setFixedSize(46, MIC_SIZE)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._hover = False
+        self._ipucu()
+
+    def _ipucu(self) -> None:
+        self.setToolTip(
+            "Dry run is on — it plans and reads, but clicks, typing, "
+            "commands and files are blocked. Click to turn it off."
+            if self.kuru else
+            "Dry run: let it plan the job and list the steps without "
+            "touching anything."
+        )
+
+    def set_kuru(self, kuru: bool) -> None:
+        if kuru == self.kuru:
+            return
+        self.kuru = kuru
+        self._ipucu()
+        self.update()
+        self.degisti.emit(kuru)
+
+    def enterEvent(self, event) -> None:
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        self._hover = False
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.set_kuru(not self.kuru)
+
+    def paintEvent(self, _event) -> None:
+        t = self.t
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        kutu = QRectF(0.5, 2.5, self.width() - 1, self.height() - 5)
+        renk = QColor(t.caution if self.kuru else t.text_tertiary)
+
+        dolgu = QColor(renk)
+        dolgu.setAlpha(52 if self.kuru else (26 if self._hover else 0))
+        p.setBrush(dolgu)
+        p.setPen(QPen(renk, 1.2 if self.kuru else 1.0))
+        p.drawRoundedRect(kutu, RADIUS_CONTROL, RADIUS_CONTROL)
+
+        f = QFont(self.font())
+        f.setPointSizeF(8.0)
+        f.setWeight(QFont.Weight.DemiBold)
+        p.setFont(f)
+        p.setPen(QColor(t.caution if self.kuru else t.text_secondary))
+        p.drawText(kutu, Qt.AlignmentFlag.AlignCenter, "DRY")
+        p.end()
 
 
 class StopDot(QWidget):
@@ -473,6 +552,7 @@ class CommandBar(QWidget):
     hold_ended = Signal()
     submitted = Signal(str)
     stop_requested = Signal()
+    kuru_degisti = Signal(bool)
 
     def __init__(self, t: Tokens) -> None:
         super().__init__()
@@ -616,6 +696,10 @@ class CommandBar(QWidget):
         self.field.textChanged.connect(self._on_typing)
         row_layout.addWidget(self.field, 1)
 
+        self.kuru_dugmesi = KuruDugmesi(t)
+        self.kuru_dugmesi.degisti.connect(self._kuru_degisti)
+        row_layout.addWidget(self.kuru_dugmesi)
+
         self.stop = StopDot(t)
         self.stop.setVisible(False)
         self.stop.clicked.connect(self.stop_requested)
@@ -649,16 +733,40 @@ class CommandBar(QWidget):
             self.field.clear()
             self.submitted.emit(text)
 
+    def _kuru_degisti(self, kuru: bool) -> None:
+        self.field.setStyleSheet(
+            self._field_style(self.t, self._busy, kuru)
+        )
+        self.field.setPlaceholderText(
+            "Dry run — describe the job…" if kuru else "Type or talk…"
+        )
+        self.set_status(
+            "Dry run: it will plan and read, but not click, type, run or write."
+            if kuru else ""
+        )
+        self.kuru_degisti.emit(kuru)
+
+    @property
+    def kuru(self) -> bool:
+        return self.kuru_dugmesi.kuru
+
     def set_voice_available(self, available: bool) -> None:
         self.mic.set_available(available)
         if not available:
             self.set_status("No voice engine — you can type your commands.")
 
-    def _field_style(self, t: Tokens, live: bool = False) -> str:
-        """Yazı alanının biçimi. `live` ajan çalışırken: alt kenar vurgu
-        rengine dönüyor, yazdığın şeyin yeni bir iş değil süren işe
-        eklendiği görünür olsun."""
-        alt = t.accent if live else t.text_tertiary
+    def _field_style(self, t: Tokens, live: bool = False,
+                     kuru: bool = False) -> str:
+        """Yazı alanının biçimi.
+
+        `live` ajan çalışırken: alt kenar vurgu rengine dönüyor,
+        yazdığın şeyin yeni bir iş değil süren işe eklendiği görünsün.
+
+        `kuru` kuru koşuda: alt kenar uyarı rengine dönüyor. Küçük bir
+        düğmenin açık olduğunu fark etmemek kolay ve kuru sandığın
+        gerçek bir koşu, kuru koşunun çözdüğü sorundan kötü.
+        """
+        alt = t.caution if kuru else (t.accent if live else t.text_tertiary)
         return (
             f"QLineEdit {{ background: {t.control};"
             f" border: 1px solid {t.control_stroke};"
@@ -667,7 +775,8 @@ class CommandBar(QWidget):
             f" color: {t.text}; font-size: 14px;"
             f" selection-background-color: {t.accent};"
             f" selection-color: {t.on_accent}; }}"
-            f"QLineEdit:focus {{ border-bottom-color: {t.accent}; }}"
+            f"QLineEdit:focus {{ border-bottom-color:"
+            f" {t.caution if kuru else t.accent}; }}"
         )
 
     def submit_text(self, instruction: str) -> None:

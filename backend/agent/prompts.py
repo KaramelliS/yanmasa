@@ -308,7 +308,8 @@ swallowing bad news.
 """
 
 
-def build_system(displays: DisplayMap, active_index: int) -> str:
+def build_system(displays: DisplayMap, active_index: int,
+                 kuru: bool = False) -> str:
     """Sistem promptunu kurar.
 
     `str.format` kullanılmıyor ve bunun sebebi somut: prompt artık örnek
@@ -318,8 +319,16 @@ def build_system(displays: DisplayMap, active_index: int) -> str:
     uygulamada normal bir iş olduğu için, `format` burada kırılmayı bekleyen
     bir tuzak.
     """
-    return (
+    metin = (
         SYSTEM
         .replace("{displays}", displays.describe())
         .replace("{active}", str(active_index))
     )
+    # Kuru koşu bölümü **sona** ekleniyor: prompt önbelleğe alınıyor ve
+    # ortasına bir blok sokmak, kuru koşu her açılıp kapandığında
+    # önbelleği baştan bozardı.
+    if kuru:
+        from .kuru import PROMPT
+
+        metin += PROMPT
+    return metin

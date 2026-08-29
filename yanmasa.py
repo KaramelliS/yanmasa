@@ -350,7 +350,15 @@ def main() -> int:
         bar._fit_reply()
         window.set_phase("bitti")
         window.status.set_line(text[:120] if text else "Bitti.")
-        bildir("Done", text or "The turn finished.")
+        if bar.kuru:
+            # Kuru koşunun sonunda "peki şimdi nasıl yapacağım" sorusu
+            # cevapsız kalmasın.
+            bar.set_status(
+                "Dry run finished — nothing was done. Turn DRY off and "
+                "send it again to actually run it."
+            )
+        bildir("Dry run finished" if bar.kuru else "Done",
+               text or "The turn finished.")
 
     def on_rapor(satir: str) -> None:
         """Ajan bir iş yaptığını söyledi ama denetim kaydında yok.
@@ -401,6 +409,16 @@ def main() -> int:
     bridge.failed.connect(on_failed)
     bridge.approval.connect(on_approval)
     bar.submitted.connect(on_submit)
+
+    def kuru_degisti(acik: bool) -> None:
+        bridge.set_kuru(acik)
+        window.status.set_line(
+            "Dry run — it plans and reads; clicks, typing, commands and "
+            "files are blocked."
+            if acik else "Dry run off — actions will really run."
+        )
+
+    bar.kuru_degisti.connect(kuru_degisti)
     gecmis.tekrarla.connect(bar.submit_text)
     bar.set_commands(bridge.commands)
     window.stop_requested.connect(bridge.stop)

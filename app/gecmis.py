@@ -96,7 +96,10 @@ def _sure(saniye: float) -> str:
 
 def _ozet_satiri(kosu: Kosu) -> str:
     """Listedeki ikinci satır: saat, adım, süre, hata."""
-    parcalar = [_saat(kosu.baslangic), f"{kosu.adim_sayisi} steps"]
+    parcalar = [_saat(kosu.baslangic)]
+    if kosu.kuru:
+        parcalar.append("dry run")
+    parcalar.append(f"{kosu.adim_sayisi} steps")
     sure = _sure(kosu.sure)
     if sure:
         parcalar.append(sure)
@@ -383,6 +386,11 @@ class _Ayrinti(QWidget):
         rozetler.setSpacing(6)
         rozetler.addWidget(_rozet(
             t, f"{_gun_adi(kosu.baslangic)} {_saat(kosu.baslangic)}"))
+        if kosu.kuru:
+            # Bir kuru koşuyu gerçek bir koşu sanmak, yapılmamış bir işi
+            # yapılmış hatırlamak demek.
+            rozetler.addWidget(_rozet(t, "dry run — nothing was done",
+                                      t.caution))
         rozetler.addWidget(_rozet(t, f"{kosu.adim_sayisi} steps"))
         if _sure(kosu.sure):
             rozetler.addWidget(_rozet(t, _sure(kosu.sure)))

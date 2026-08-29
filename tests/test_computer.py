@@ -1555,6 +1555,7 @@ class TestHiz:
         class SahteDispatcher:
             skills = SahteKayit()
             active_index = 0
+            kuru = False
 
         agent.dispatcher = SahteDispatcher()
         tools = agent.tools
@@ -1590,6 +1591,7 @@ class TestHiz:
 
         class SahteDispatcher:
             active_index = 0
+            kuru = False
 
         d = SahteDispatcher()
         d.skills = SahteKayit()
@@ -1614,6 +1616,7 @@ class TestHiz:
 
         class SahteDispatcher:
             active_index = 0
+            kuru = False
 
         agent.dispatcher = SahteDispatcher()
         blocks = agent._system_blocks()
@@ -1877,6 +1880,8 @@ class TestArayaGirme:
             def check(self): pass
 
         class SahteDispatcher:
+            kuru = False
+
             def run(self, name, payload):
                 araya_yaz(agent)
                 return ToolOutcome(content="OK", is_error=False)
