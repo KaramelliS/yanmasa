@@ -209,7 +209,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 546 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 579 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -707,8 +707,6 @@ Bir README'de en işe yarayan bölüm bu.
 - **Denetim kaydı hiç budanmıyor.** `runs/` sonsuza kadar büyüyor ve
   kimse silmiyor. Tekrar tespiti son 14 güne bakıyor ama dosyalar
   duruyor.
-- **Doğrulanmış rapor yalnızca Türkçe kalıplara bakıyor.** Ajan
-  İngilizce cevap verirse hiçbir iddiayı yakalamaz.
 - **Ajanın masası salt okunur.** Canlı izleyebiliyorsun ama içine
   tıklayıp yazamıyorsun; yan alana elle müdahale hiç yazılmadı.
 - **Uygulama açılışta başlamıyor.** Kurulum paketi de yok.

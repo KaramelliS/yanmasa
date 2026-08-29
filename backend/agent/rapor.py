@@ -28,6 +28,11 @@ Arayüz İngilizce, ajan İngilizce cevap veriyor; ama Türkçe kalıplar
 duruyor, çünkü Türkçe bir talimata Türkçe cevap vermesi hâlâ olabilir ve
 o cevabın denetimsiz kalması bu özelliğin sessizce kapanması olurdu.
 
+Olumsuzlama iki dilde iki ayrı şey: Türkçede ek (`kaydetmedim`),
+İngilizcede ayrı kelime (`did not save`). İkisi ayrı kalıp; ilk sürümde
+yalnızca Türkçe eki vardı ve İngilizce cevaplarda "I have not saved the
+file yet" desteksiz iddia diye işaretleniyordu.
+
 İngilizce kelime seçimi Türkçeden dikkatli: bare `ran` alınmadı, çünkü
 "I ran into an issue" bir komut çalıştırma iddiası değil. Onun yerine
 `ran the`, `ran it` gibi ifadeler var. Aynı sebeple `started` yok — "I
@@ -106,6 +111,21 @@ OLUMSUZ = re.compile(
     re.IGNORECASE,
 )
 
+#: İngilizce olumsuzlama — **ayrı bir kelime**, ek değil.
+#:
+#: Bu eksikti ve ölçtüm: arayüz İngilizce olduğu için ajan da İngilizce
+#: cevap veriyor ve "I have not saved the file yet" desteksiz iddia
+#: sayılıyordu. Bu modülün kendi kuralına göre en kötü kusur o — yanlış
+#: alarm uyarıyı okunmaz yapıyor ve o noktada gerçek olanı da
+#: kaçırıyorsun.
+#:
+#: Liste dar tutuldu. Yalın `no` alınmadı: "no problem, I saved it"
+#: gerçek bir iddia ve onu elemek özelliği başka bir yönden köreltirdi.
+OLUMSUZ_EN = re.compile(
+    r"\b(not|never|nothing|none|cannot|unable|failed\s+to)\b|n't\b",
+    re.IGNORECASE,
+)
+
 #: Soru: ya işaret ya da ayrı yazılan soru eki. Ek ayrı bir kelime
 #: olduğu için sınırlar şart — "yazdım" içindeki harfler eşleşmemeli.
 SORU = re.compile(r"\?|\bm[ıiuü]\b", re.IGNORECASE)
@@ -136,8 +156,17 @@ def _cumleler(metin: str) -> list[str]:
 
 
 #: Cümle içi sınırlar. Olumsuzluk bunların ötesine geçmiyor.
-YAN_CUMLE = re.compile(r",|\b(ama|fakat|ancak|l[âa]kin|yaln[ıi]z)\b",
-                       re.IGNORECASE)
+#:
+#: İngilizce bağlaçlar da burada ve eksiklikleri ölçüldü: yalnızca
+#: Türkçe bağlaçlar varken "I wrote the file but could not run it"
+#: cümlesindeki **gerçek** iddia eleniyordu — ikinci yarıdaki olumsuzluk
+#: birinci yarıyı da götürüyordu. Aynı kusur Türkçe için zaten bir kez
+#: düzeltilmişti; İngilizce yarısı eksik kalmış.
+YAN_CUMLE = re.compile(
+    r",|\b(ama|fakat|ancak|l[âa]kin|yaln[ıi]z"
+    r"|but|however|although|though|whereas)\b",
+    re.IGNORECASE,
+)
 
 
 def iddialar(metin: str) -> set[str]:
@@ -156,7 +185,7 @@ def iddialar(metin: str) -> set[str]:
         if SORU.search(cumle):
             continue
         for parca in YAN_CUMLE.split(cumle):
-            if not parca or OLUMSUZ.search(parca):
+            if not parca or OLUMSUZ.search(parca) or OLUMSUZ_EN.search(parca):
                 continue
             for ad, (desen, _) in AILELER.items():
                 if desen.search(parca):
