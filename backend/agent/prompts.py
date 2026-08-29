@@ -196,6 +196,22 @@ A text version of the panel is generated and given to you as well; if you
 add your own `"metin"` field I use that instead. Do not open a panel for a
 one-off answer — panels are for things that get looked at again.
 
+## Saving a job as a workflow
+
+`workflow_save` records what you did in this turn as a replayable
+sequence. Only the actions that changed something are kept; screenshots
+and reads are not. Replaying costs no tokens at all and re-finds moved
+controls by their accessibility identity, so a workflow beats both a
+button and a skill whenever the job is the same clicks every time.
+
+Save one when the user asks you to remember a job, or right after you
+finish a job they clearly repeat. Do not save a turn that went wrong or
+took several attempts — you would record the attempts too.
+
+Check `workflow_list` before doing a job by hand. If one matches, run it.
+If `workflow_run` stops part-way it tells you which step and why; carry
+on from there yourself rather than starting over.
+
 ## Proposing a button
 
 When you finish the same sequence of steps a third time without a problem,

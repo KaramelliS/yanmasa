@@ -211,12 +211,23 @@ def main() -> int:
     window.add_fixed_page("gecmis", "History", "gecmis", gecmis,
                           basliksiz=True)
 
+    # Akışlar da sabit sayfa: kaydedilmiş bir işi çalıştırmak için ajanı
+    # uyandırmak, ücretsiz olanı ücretli yapmak olurdu.
+    from app.akislar import AkisGorunumu
+
+    akis_gorunumu = AkisGorunumu(tokens, bridge.akislar)
+    akis_gorunumu.oynat.connect(bridge.oynat)
+    window.add_fixed_page("akislar", "Workflows", "akis", akis_gorunumu,
+                          basliksiz=True)
+
     def sayfa_degisti(anahtar: str) -> None:
         # Geçmiş açıldığında tazeleniyor: kayda ajan çalışırken saniyede
         # birkaç satır düşüyor ve bakılmayan bir sayfa için sürekli
         # yeniden kurmak boşa iş.
         if anahtar == "gecmis":
             gecmis.yenile()
+        elif anahtar == "akislar":
+            akis_gorunumu.yenile()
 
     window.ray.secildi.connect(sayfa_degisti)
 
@@ -319,6 +330,8 @@ def main() -> int:
         # gerekmesin.
         if tool == "side_close" and not is_error:
             masa_gorunumu.masa_kapandi()
+        if tool.startswith("workflow_") and not is_error:
+            akis_gorunumu.yenile()
         if tool.startswith("button_") and not is_error:
             bar.buttons.reload()
             bar._grow()

@@ -348,3 +348,20 @@ QToolTip {{
 QToolBar {{ background: {t.background}; border: none; spacing: 0; padding: 0; }}
 QSplitter::handle {{ background: {t.divider}; }}
 """
+
+def sarmali(etiket, en: int):
+    """Sarılan bir etiketin yüksekliğini düzene **söyleyerek** yerleştirir.
+
+    `setWordWrap` tek başına yetmiyor: düzen etiketin sarılmış hâlinin
+    kaç piksel tuttuğunu sormuyor ve son satır kırpılıyor — çizip
+    baktım, boş durumun son paragrafı yarıda kesiliyordu.
+
+    `ensurePolished` şart: yazı boyutu stil sayfasından geliyor ve
+    cilalanmadan önce yazı ölçüleri hâlâ varsayılan yazı tipininki. O
+    ölçüyle hesaplanan yükseklik tam bir satır eksik çıkıyor.
+    """
+    etiket.setWordWrap(True)
+    etiket.setFixedWidth(en)
+    etiket.ensurePolished()
+    etiket.setMinimumHeight(etiket.heightForWidth(en))
+    return etiket

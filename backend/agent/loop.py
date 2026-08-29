@@ -243,6 +243,10 @@ class Agent:
         self._close_open_tools("Durduruldu.")
 
         self.kayit.tur_basladi(instruction, self.dispatcher.kuru)
+        # Akış kaydı tamponu da burada sıfırlanıyor: `workflow_save`
+        # "bu turda ne yaptın" diyor ve tampon turlar arası taşınsaydı
+        # iki turluk bir dizi tek akış olarak kaydedilirdi.
+        self.dispatcher.tur_basladi(instruction)
         # Tekrarlanan iş varsa talimatın sonuna not düşüyor. Bunu sistem
         # promptuna yazmak eskiden denendi ve çalışmadı: model otuz
         # adımlık bir turun sonunda "bunu üçüncü kez yapıyorum" demiyor.

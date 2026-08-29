@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from backend.agent.kayit import Kayit, Kosu, kosulari_derle
 
 from .etiketler import hedef, tool_label
-from .fluent import RADIUS_CARD, RADIUS_CONTROL, Tokens, _blend
+from .fluent import RADIUS_CARD, RADIUS_CONTROL, Tokens, _blend, sarmali
 from .glyphs import WorkGlyph
 from .stream import bicimle
 
@@ -356,13 +356,11 @@ class _Ayrinti(QWidget):
         duzen.addWidget(baslik)
         if alt:
             govde = QLabel(alt)
-            govde.setWordWrap(True)
-            govde.setMaximumWidth(520)
             govde.setStyleSheet(
                 f"color: {self.t.text_secondary}; font-size: 13px;"
                 f" line-height: 150%;"
             )
-            duzen.addWidget(govde)
+            duzen.addWidget(sarmali(govde, 520))
         self._ekle(kutu)
 
     def goster(self, kosu: Kosu) -> None:

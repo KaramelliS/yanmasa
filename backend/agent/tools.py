@@ -736,6 +736,71 @@ SIDE_CLOSE = {
     },
 }
 
+WORKFLOW_SAVE = {
+    "name": "workflow_save",
+    "description": (
+        "Saves what you did in THIS turn as a replayable workflow. Only "
+        "the actions that changed something are kept — screenshots, file "
+        "reads and window reads are not. A saved workflow replays with no "
+        "model call at all, so it is free and instant, and it re-finds "
+        "moved controls by their accessibility identity. "
+        "Save one when the user asks you to remember a job, or right after "
+        "you finish a job they clearly do often. Do not save a job that "
+        "went wrong or needed several attempts: you would be recording the "
+        "attempts too."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Identifier: lower "
+                     "case letters, digits and underscores"},
+            "label": {"type": "string", "description": "Short human label, "
+                      "up to 40 characters"},
+        },
+        "required": ["name", "label"],
+        "additionalProperties": False,
+    },
+}
+
+WORKFLOW_LIST = {
+    "name": "workflow_list",
+    "description": (
+        "Lists saved workflows with their step counts. Check here before "
+        "doing a job by hand: replaying costs nothing."
+    ),
+    "input_schema": {
+        "type": "object", "properties": {}, "additionalProperties": False,
+    },
+}
+
+WORKFLOW_RUN = {
+    "name": "workflow_run",
+    "description": (
+        "Replays a saved workflow step by step. No screenshots and no "
+        "thinking — the recorded actions run directly. It stops at the "
+        "first step that fails or whose control cannot be found any more, "
+        "and tells you which one. If it stops, carry on by hand from "
+        "there."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
+
+WORKFLOW_REMOVE = {
+    "name": "workflow_remove",
+    "description": "Deletes a saved workflow.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
+
 CUSTOM_TOOLS: list[dict[str, Any]] = [
     READ_UI_TREE,
     LAUNCH_APP,
@@ -772,6 +837,10 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
     SIDE_CAPTURE,
     SIDE_ACT,
     SIDE_CLOSE,
+    WORKFLOW_SAVE,
+    WORKFLOW_LIST,
+    WORKFLOW_RUN,
+    WORKFLOW_REMOVE,
 ]
 
 CUSTOM_TOOL_NAMES = {tool["name"] for tool in CUSTOM_TOOLS}

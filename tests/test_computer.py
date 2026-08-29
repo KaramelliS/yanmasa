@@ -1882,6 +1882,9 @@ class TestArayaGirme:
         class SahteDispatcher:
             kuru = False
 
+            def tur_basladi(self, talimat=""):
+                pass
+
             def run(self, name, payload):
                 araya_yaz(agent)
                 return ToolOutcome(content="OK", is_error=False)

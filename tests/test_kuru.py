@@ -72,6 +72,9 @@ class TestDispatcher:
         d = Dispatcher.__new__(Dispatcher)
         d.kill = SahteKill()
         d.kuru = True
+        d._oynatiyor = False
+        d._tur_adimlari = []
+        d._tur_talimati = ""
         return d
 
     def test_degistiren_arac_calismiyor(self):
@@ -83,13 +86,17 @@ class TestDispatcher:
         assert "[dry run]" in sonuc.content
 
     def test_kuru_kapaliyken_normal_yol(self, monkeypatch):
+        from backend.agent.dispatch import ToolOutcome
+
         d = self._d()
         d.kuru = False
         cagrildi = {}
-        monkeypatch.setattr(
-            type(d), "_do_wait",
-            lambda self, payload: cagrildi.setdefault("evet", True), raising=False,
-        )
+
+        def sahte(self, payload):
+            cagrildi["evet"] = True
+            return ToolOutcome(content="OK")
+
+        monkeypatch.setattr(type(d), "_do_wait", sahte, raising=False)
         monkeypatch.setattr(type(d), "_gate",
                             lambda self, n, p: None, raising=False)
         d.run("wait", {})

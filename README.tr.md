@@ -43,9 +43,11 @@ OmniParser/Qwen-VL sınıfı bir model çalışmıyor.
 
 İki pencere açılır:
 
-- **Ajan penceresi** — solda dar bir ray, sağda sayfalar. İlk iki sayfa
-  hep orada: **Akış** (ajanın adım adım ne yaptığı) ve **Masa** (ajanın
-  kendi masaüstünün canlı görüntüsü). Altına ajanın açtıkları geliyor:
+- **Ajan penceresi** — solda dar bir ray, sağda sayfalar. Dört sayfa hep
+  orada: **Akış** (ajanın adım adım ne yaptığı), **Masa** (ajanın kendi
+  masaüstünün canlı görüntüsü), **Geçmiş** (diskteki denetim kaydı, gün
+  gün) ve **Akışlar** (kaydedilmiş iş dizileri). Altına ajanın açtıkları
+  geliyor:
   tablo, yazı belgesi, kod, sunucu, yetenek panelleri. Bunlar
   `QDockWidget`'tı ve başlığa çift tıklayınca ayrı bir Windows penceresine
   çıkıyorlardı; ajan üç belge açtığında ekranda ne olduğunu kimse
@@ -118,6 +120,46 @@ Kesik bir harf sırası bozuk çizim gibi okunuyor; oysa söylenmek istenen
 kaydırma sıfırdayken hiç görünmüyor — sığan bir dökümün üstüne gölge
 koymak olmayan bir devamı ima etmek olurdu.
 
+## Geçmiş, kuru koşu, akışlar, tepsi
+
+Dördü de aynı soruya farklı yerlerden cevap veriyor: aynı işi ikinci kez
+yaptırmanın maliyeti ne olsun.
+
+**Geçmiş sayfası.** `runs/*.jsonl` zaten yazılıyordu ve okuyanı yalnızca
+`rapor.py` ile tekrar tespitiydi; bakmanın tek yolu dosyayı elle açmaktı.
+Sayfa onu geri okuyor: talimat, ajanın cevabı, adım adım araç çağrıları,
+hatalar. Kesik kayıt üç yerinden tolere ediliyor — turu okunmayan günde
+kalmış eylemler, `bitti` satırı hiç gelmemiş turlar, sahipsiz `bitti`
+satırları. Desteksiz iddialar burada rozetle görünüyor; daha önce durum
+çubuğunda bir kez parlayıp kayboluyordu.
+
+**Kuru koşu.** Çubuktaki DRY anahtarı. Kesme kod tarafında: dünyayı
+değiştiren her araç çalışmadan `[dry run]` dönüyor, ekran görüntüsü ve
+dosya okuma çalışmaya devam ediyor ki plan gerçek duruma bakarak
+yapılsın. Liste **beyaz liste** — bu depoya araç ekleniyor ve kara liste
+olsaydı yarın eklenen bir aracın kuru koşuda sessizce çalışması
+varsayılan davranış olurdu. Kuru turlar kayda işaretle giriyor ve düğme
+önerisine hiç girmiyor.
+
+**Akışlar.** Temiz biten bir işi ajana kaydettirebiliyorsun. Dünyayı
+değiştiren adımlar kaydediliyor, bakma adımları düşüyor ve oynatma modele
+hiç uğramıyor: düşünme yok, ekran görüntüsü yok, token yok. Tıklama
+gerçek bir denetimin üstüne düştüyse o denetimin kimliği de kaydediliyor
+(`AutomationId`, ad, tür, pencere) ve oynatırken denetim yeniden bulunup
+o anki yeri kullanılıyor — pencere taşınmış olsa da çalışıyor. Denetim
+bulunamıyorsa akış **duruyor**, kayıtlı koordinata tıklamıyor: denetim
+gittiyse ekran kaydedilen ekran değil demektir ve orada artık başka bir
+şey var.
+
+**Tepsi ve global kısayol.** Tepsideki simge maskotun kendisi, duruma
+göre renkli. Onay bekleyen ve durdurulmuş durumlar köşe rozetiyle
+ayrılıyor: sistem vurgu rengi kullanıcının seçtiği bir şey ve bu makinede
+`critical`'a yakın pembe — yalnızca gövde rengiyle ayırmak 16 pikselde
+"çalışıyor" ile "durduruldu"yu aynı simge yapıyordu, çizip baktım.
+Kısayol `Ctrl+Alt+Space`; doluysa sıradaki aday alınıyor (bu makinede
+Ctrl+Alt+Y'ye düştü) ve hiçbiri boş değilse sebep durum satırında
+yazıyor.
+
 ## Kurulum
 
 Proje kendi başına duruyor: dizini nereye kopyalarsan orada çalışıyor,
@@ -141,7 +183,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 409 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 499 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -643,11 +685,18 @@ Bir README'de en işe yarayan bölüm bu.
   İngilizce cevap verirse hiçbir iddiayı yakalamaz.
 - **Ajanın masası salt okunur.** Canlı izleyebiliyorsun ama içine
   tıklayıp yazamıyorsun; yan alana elle müdahale hiç yazılmadı.
-- **Sistem tepsisi ve global kısayol yok.** Uygulama açılışta başlamıyor.
-- **Workflow yok.** Kayıt/oynatma Faz 6. Yetenekler bunun bir kısmını
-  karşılıyor ama tekrar eden bir GUI dizisini otomatik kaydetmiyorlar;
-  yeteneği ajan elle yazıyor.
-- **Kuru çalıştırma modu yok.** Seçilmiş ama başlanmadı.
+- **Uygulama açılışta başlamıyor.** Kurulum paketi de yok.
+- **Akış oynatmada model yedeği yok.** Kaydedilmiş bir denetim
+  bulunamayınca akış duruyor ve hangi adımda durduğunu söylüyor. Plandaki
+  hâli o adımı modele devredip düzeltilmiş koordinatı kayda geri
+  yazmaktı; o yazılmadı. Durmak bunun güvenli yarısı.
+- **Akış imzası her zaman alınamıyor.** `ControlFromPoint` oyunlarda ve
+  yükseltilmiş pencerelerde erişim reddiyle düşüyor — ölçtüm, önde bir
+  oyun varken bütün noktalar düştü. O adımlar imzasız kaydediliyor ve
+  kayıtlı koordinatla oynanıyor; pencere taşınırsa kırılıyorlar.
+- **Geçmiş sayfası canlı takip etmiyor.** Kaydı açılışta ve "Refresh"e
+  basınca okuyor. Her satırda iki haftalık JSONL'i yeniden okumak,
+  bakılmayan bir sayfa için sürekli iş olurdu.
 - **Uygulamanın kendi penceresi ekran görüntüsünden çıkarılmıyor.** Ajan
   kendi arayüzünü görebiliyor.
 - **Ofisin arayüzü yok.** Ajan belgeyi yazıyor, sen Excel'de açıp bakıyorsun.
@@ -742,6 +791,11 @@ backend/
     gate.py             risk sınıflandırıcı
     killswitch.py       Esc x3 acil durdurma
   computer/canli.py   masanın canlı karesi
+  workflows/
+    depo.py             akış deposu, adım ve imza biçimi
+    imza.py             tıklanan denetimin kimliği; taşınınca yeniden bulma
+    oynatici.py         adımları modele uğramadan çalıştırma
+  agent/kuru.py         kuru koşu: beyaz liste ve modele dönen not
 app/
   fluent.py             Fluent token'ları; tema ve vurgu sistemden okunuyor
   window.py             ana pencere, sayfalar, durum şeridi
@@ -749,6 +803,11 @@ app/
   commandbar.py         yüzen komut çubuğu: mikrofon, yazı alanı, önizleme
   baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
   masa.py               ajanın masası: gizli masaüstünün canlı görüntüsü
+  gecmis.py             koşu geçmişi sayfası
+  akislar.py            kaydedilmiş akışlar sayfası
+  tepsi.py              tepsi simgesi ve menüsü
+  kisayol.py            global kısayol (RegisterHotKey, kendi thread'inde)
+  etiketler.py          araç adlarının insan diline karşılığı
   sheet_view.py         Excel benzeri tablo: formül çubuğu, sayfa sekmeleri
   panels.py             tablo, yazı, kod, terminal, değişiklik listesi
 yanmasa.py              masaüstü uygulaması girişi

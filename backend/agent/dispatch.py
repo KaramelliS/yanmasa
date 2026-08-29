@@ -39,6 +39,9 @@ from ..skills.api import Ortam
 from ..skills.panel import PanelError, normalise, to_text
 from ..skills.registry import SkillError, SkillRegistry
 from ..skills.shortcuts import Shortcut, ShortcutError, ShortcutStore
+from ..workflows.depo import Adim, Akis, AkisDeposu, AkisHatasi, kaydedilir
+from ..workflows.imza import noktada as imza_noktada
+from ..workflows.oynatici import KOORDINATLI, oynat
 
 #: Ekran görüntüsü döndüren üyeler — sonuçları metin değil görsel bloktur.
 VISUAL_MEMBERS = {"screenshot", "zoom"}
@@ -124,6 +127,16 @@ class Dispatcher:
         self.last_panel: tuple[str, dict] | None = None
         #: Son yazılan dosyalar — arayüz kod panelini bunlardan açıyor.
         self.last_files: list[str] = []
+        self.akislar = AkisDeposu()
+        #: Bu turda dünyayı değiştiren adımlar. `workflow_save` bunu
+        #: kaydediyor. Denetim kaydı bu iş için kullanılamıyor: oradaki
+        #: girdiler 200 karakterde kırpılıyor ve kırpılmış bir komutu
+        #: oynatmak, komutun yarısını çalıştırmak olurdu.
+        self._tur_adimlari: list[Adim] = []
+        #: Akış oynatılırken açık. Oynanan adımların yeniden
+        #: kaydedilmesini engelliyor.
+        self._oynatiyor = False
+        self._tur_talimati = ""
 
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
@@ -160,10 +173,65 @@ class Dispatcher:
             skill = self.skills.get(name)
             if skill is None:
                 raise ToolError(f"Unknown tool: {name}")
-            return self._run_skill(skill, payload)
+            sonuc = self._run_skill(skill, payload)
+            self._adimi_kaydet(name, payload, None, sonuc)
+            return sonuc
 
         self._gate(name, payload)
-        return handler(payload)
+        # İmza eylemden **önce** alınıyor: tıklamadan sonra ekran değişmiş
+        # oluyor ve o noktadaki denetim artık başka bir şey.
+        imza = self._imza(name, payload)
+        sonuc = handler(payload)
+        self._adimi_kaydet(name, payload, imza, sonuc)
+        return sonuc
+
+    # --- akış kaydı -------------------------------------------------------
+
+    def tur_basladi(self, talimat: str = "") -> None:
+        """Yeni tur: kayıt tamponu boşalıyor.
+
+        `workflow_save` "bu turda ne yaptın" diyor; tampon turlar arası
+        taşınsaydı iki turluk bir dizi tek akış olarak kaydedilirdi.
+
+        Talimat da saklanıyor: kaydedilen akışın hangi cümleden doğduğunu
+        bilmek, aylar sonra listeye bakınca onu tanımanın tek yolu.
+        """
+        self._tur_adimlari = []
+        self._tur_talimati = talimat
+
+    @property
+    def son_adimlar(self) -> list[Adim]:
+        return list(self._tur_adimlari)
+
+    def _imza(self, name: str, payload: dict[str, Any]):
+        """Tıklanan denetimin kimliği. Alınamıyorsa `None`.
+
+        Yalnızca koordinatlı araçlarda ve yalnızca kayıt açıkken. Ölçüldü:
+        `ControlFromPoint` normal bir pencerede ~6 ms, oyunda ve
+        yükseltilmiş pencerede erişim reddiyle düşüyor.
+        """
+        if self.kuru or self._oynatiyor or name not in KOORDINATLI:
+            return None
+        nokta = payload.get("coordinate")
+        if not isinstance(nokta, (list, tuple)) or len(nokta) != 2:
+            return None
+        try:
+            return imza_noktada(*self._virtual(nokta))
+        except Exception:
+            return None
+
+    def _adimi_kaydet(self, name: str, payload: dict[str, Any], imza,
+                      sonuc: ToolOutcome) -> None:
+        if self.kuru or self._oynatiyor or sonuc.is_error:
+            return
+        # Bakan araçlar kaydedilmiyor: oynatmada karar veren yok ve
+        # yirmi ekran görüntüsü almak hem yavaş hem anlamsız olurdu.
+        if not kaydedilir(name):
+            return
+        if len(self._tur_adimlari) < 500:
+            self._tur_adimlari.append(
+                Adim(arac=name, girdi=dict(payload), imza=imza)
+            )
 
     def _run_skill(self, skill, payload: dict[str, Any]) -> ToolOutcome:
         """Yeteneği çalıştırır.
@@ -210,6 +278,73 @@ class Dispatcher:
         detail = payload.get("command") or payload.get("text") or str(payload)
         if not self.approve(name, str(detail)[:400], verdict.reason):
             raise Denied(f"The user declined ({verdict.reason}). This action was not run.")
+
+
+    # --- akışlar ----------------------------------------------------------
+
+    def _do_workflow_save(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "name", "label")
+        adimlar = self.son_adimlar
+        try:
+            akis = self.akislar.kaydet(Akis(
+                ad=str(payload["name"]),
+                etiket=str(payload["label"]),
+                talimat=self._tur_talimati,
+                adimlar=adimlar,
+            ))
+        except AkisHatasi as exc:
+            raise ToolError(str(exc)) from None
+        return ToolOutcome(
+            content=(
+                f"Saved {akis.etiket!r} as {akis.ad} with "
+                f"{akis.adim_sayisi} steps. Replay it with "
+                f"workflow_run(name={akis.ad!r}) — it costs nothing."
+            )
+        )
+
+    def _do_workflow_list(self, _payload: dict[str, Any]) -> ToolOutcome:
+        akislar = self.akislar.hepsi()
+        if not akislar:
+            return ToolOutcome(
+                content="No workflows are saved yet."
+            )
+        satirlar = [
+            f"{a.ad}  {a.etiket!r}  {a.adim_sayisi} steps"
+            for a in akislar
+        ]
+        return ToolOutcome(content="\n".join(satirlar))
+
+    def _do_workflow_remove(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "name")
+        ad = str(payload["name"])
+        if not self.akislar.sil(ad):
+            raise ToolError(f"There is no workflow called {ad!r}.")
+        return ToolOutcome(content=f"The {ad} workflow was removed.")
+
+    def _do_workflow_run(self, payload: dict[str, Any]) -> ToolOutcome:
+        _require(payload, "name")
+        ad = str(payload["name"])
+        akis = self.akislar.al(ad)
+        if akis is None:
+            raise ToolError(
+                f"There is no workflow called {ad!r}. "
+                f"workflow_list shows the saved ones."
+            )
+        sonuc = self.calistir(akis)
+        if not sonuc.basarili:
+            # Hata olarak dönüyor: ajan kaldığı yerden elle devam
+            # edebilsin. Başarı gibi dönseydi yarım kalan işi bitmiş
+            # sanardı.
+            raise ToolError(sonuc.anlat())
+        return ToolOutcome(content=sonuc.anlat())
+
+    def calistir(self, akis: Akis, on_step=None, on_result=None):
+        """Akışı oynatır. Arayüz de buradan çağırıyor — modele uğramadan."""
+        self._oynatiyor = True
+        try:
+            return oynat(akis, self, on_step, on_result)
+        finally:
+            self._oynatiyor = False
 
     # --- yetenekler -------------------------------------------------------
 

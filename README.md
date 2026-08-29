@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-409%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-499%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -98,7 +98,7 @@ HTTP bridge. It sees the screen through Claude Opus 5's
 `computer_toolset_20260801`, and drives the mouse and keyboard through raw
 Win32 `SendInput`.
 
-On top of the computer toolset there are 35 custom tools, because clicking
+On top of the computer toolset there are 39 custom tools, because clicking
 through a GUI is the most expensive way to do almost anything:
 
 | tool | what for |
@@ -113,6 +113,7 @@ through a GUI is the most expensive way to do almost anything:
 | `button_write` `button_remove` | The agent proposes a button on the bar for a job you keep repeating. |
 | `remote_connect` `remote_run` `remote_read` `remote_write` `remote_list` | An SSH server as a second machine, with its own approval gate. |
 | `side_launch` `side_windows` `side_capture` `side_act` `side_close` | The invisible workspace above. |
+| `workflow_save` `workflow_list` `workflow_run` `workflow_remove` | Records a finished job and replays it with no model call at all. |
 
 The system prompt gives the model a **ladder**: file tools for file work,
 the shell for bulk work, a terminal for interactive programs,
@@ -149,6 +150,41 @@ suggesting the agent offer you a button for it. Runs that stumbled do not
 count: automating a job that fails three times out of three would be
 automating the failure.
 
+## Four more ways to not pay for the same work twice
+
+**History.** Every turn is already written to `runs/*.jsonl` as it
+happens. The History page reads it back: the instruction, what the agent
+said, every tool call and every error, day by day, and it outlives the
+process. Runs where the agent claimed something the log does not back up
+are marked — that warning used to flash once in the status bar and
+disappear. "Run again" puts the instruction back in the command bar.
+
+**Dry run.** The DRY switch on the bar makes the agent plan without
+touching anything. The interception is in code, not in the prompt: every
+tool that changes something returns `[dry run]` before it runs, while
+screenshots, file reads and window reads still work so the plan is made
+against what is really on screen. It is an allowlist, not a blocklist —
+a tool added to this repo tomorrow is blocked by default. Dry runs are
+marked in the audit log and never count towards a button suggestion.
+
+**Workflows.** When a job finishes cleanly you can tell the agent to
+remember it. It saves the actions that changed something — the looking
+around is dropped — and replaying calls no model at all: no thinking, no
+screenshots, nothing to pay for. Where a click landed on a real control,
+the control's accessibility identity (`AutomationId`, name, type, window)
+is recorded with it, so the workflow still works after the window moves.
+If the control cannot be found any more the workflow **stops** rather
+than clicking the recorded coordinate: if the control is gone, the screen
+is not the screen that was recorded, and something else is there now.
+
+**Tray icon and a global shortcut.** The tray icon is the mascot, tinted
+by state, with a corner badge when the agent wants approval or has been
+stopped — the system accent colour is user-chosen and can land close to
+the warning red, so state cannot rest on hue alone. `Ctrl+Alt+Space`
+brings the command bar to the front from anywhere; if another app already
+owns it the next candidate is taken, and if none is free the status line
+says so rather than leaving a shortcut that silently does nothing.
+
 ## Requirements
 
 - Windows 11 (this is a Win32 project, not a portable one)
@@ -178,7 +214,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 409 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 499 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -216,8 +252,20 @@ The most useful section in any README.
 - **The agent's desk is read-only.** You can watch it live, but you cannot
   click or type in it — reaching into the side workspace by hand was never
   written.
-- **No dry-run mode, no workflow record/replay, no tray icon, no global
-  hotkey.** The app does not start with Windows.
+- **The app does not start with Windows.** There is no installer either.
+- **Workflow replay has no model fallback.** When a recorded control
+  cannot be found, the workflow stops and tells you which step. The
+  original plan was to hand that step to the model and write the
+  corrected coordinate back; that was not written. Stopping is the safe
+  half of it.
+- **Workflow signatures are not always available.** `ControlFromPoint`
+  returns access-denied over games and elevated windows — measured, with
+  a game in the foreground every point failed. Those steps are recorded
+  without a signature and replay against the stored coordinate, so they
+  break if the window moves.
+- **The History page does not follow along live.** It reads the log when
+  you open it or press Refresh. Re-reading two weeks of JSONL on every
+  logged line would be constant work for a page nobody is looking at.
 - **Capture does not exclude our own window.** The agent can see its own
   interface and read its own output back.
 - **Documents are read-only in the UI.** You can look at the sheet and the
@@ -271,11 +319,14 @@ backend/
   agent/        loop, dispatch, tools, prompts, audit log, claim check
   office/       .xlsx and .docx without Office
   skills/       the agent's own tools
+  workflows/    recorded action sequences, their store and player
   safety/       risk classifier, Esc x3 kill switch
 app/            Qt interface: window, panels, floating command bar, mascot
 app/masa.py     the agent's desk, drawn as a Mint-like shell
+app/gecmis.py   the history page; app/akislar.py the workflows page
+app/tepsi.py    tray icon; app/kisayol.py the global shortcut
 scripts/        manual verification, asset and hero generation
-tests/          409 tests of the pure logic
+tests/          499 tests of the pure logic
 ```
 
 ## Contributing

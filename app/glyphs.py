@@ -364,6 +364,23 @@ def _gecmis(p: QPainter, ana: str, sap: str) -> None:
     p.drawLine(QPointF(12, 12), QPointF(15, 13.6))
 
 
+def _akis(p: QPainter, ana: str, sap: str) -> None:
+    """Kaydedilmiş dizi: birbirine bağlı üç adım, ilki vurgulu.
+
+    "Tekrar" oku değil: tekrar zaten `yenile`nin işi ve akışın anlattığı
+    şey tekrar etmek değil, **sıra**.
+    """
+    p.setPen(_pen(sap))
+    p.drawLine(QPointF(7, 6.5), QPointF(17, 6.5))
+    p.drawLine(QPointF(7, 12), QPointF(17, 12))
+    p.drawLine(QPointF(7, 17.5), QPointF(14, 17.5))
+    p.setPen(_pen(ana))
+    p.setBrush(QColor(ana))
+    for y in (6.5, 12.0, 17.5):
+        p.drawEllipse(QPointF(4, y), 1.5, 1.5)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
 #: Araç adı -> çizim. Aile bazında, araç bazında değil: on yedi tıklama
 #: aracının hepsi aynı işi yapıyor ve on yedi ayrı çizim gürültü olurdu.
 GLYPHS = {
@@ -373,7 +390,7 @@ GLYPHS = {
     "tablo": _tablo, "yazi": _yazi, "kaydet": _kaydet, "defter": _defter,
     "yetenek": _yetenek, "bekle": _bekle, "sen": _sen, "soru": _soru,
     "yukari": _yukari, "yenile": _yenile, "sunucu": _sunucu,
-    "gecmis": _gecmis,
+    "gecmis": _gecmis, "akis": _akis,
 }
 
 TOOL_GLYPH = {
@@ -400,6 +417,8 @@ TOOL_GLYPH = {
     "button_write": "yetenek", "button_remove": "yetenek",
     "side_launch": "pencere", "side_windows": "pencere",
     "side_capture": "mercek", "side_act": "imlec", "side_close": "pencere",
+    "workflow_save": "akis", "workflow_list": "akis",
+    "workflow_remove": "akis", "workflow_run": "yenile",
     "__sen__": "sen", "__onay__": "soru",
 }
 

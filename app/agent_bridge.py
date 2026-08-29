@@ -120,6 +120,41 @@ class AgentBridge(QObject):
         """
         return None if self._agent is None else self._agent.dispatcher
 
+    def akislar(self):
+        """Akış deposu. Ajan kurulamadıysa da çalışıyor: kayıtlı akışlar
+        diskte duruyor ve API anahtarı olmadan da listelenebilmeli."""
+        if self._agent is not None:
+            return self._agent.dispatcher.akislar
+        from backend.workflows.depo import AkisDeposu
+
+        return AkisDeposu()
+
+    def oynat(self, ad: str) -> None:
+        """Kaydedilmiş akışı oynatır — modele hiç uğramadan.
+
+        Ayrı bir thread'de, çünkü oynatma tıklıyor, yazıyor ve bekliyor;
+        arayüz thread'inde çalışsaydı pencere donar ve donmuş bir
+        pencerede durdurma düğmesine basılamazdı.
+
+        Sinyaller gerçek koşuyla aynı: akış sayfası, halka ve çubuk
+        oynatmayı da bir koşu gibi gösteriyor. Ayrı bir yol açmak, aynı
+        arayüzü ikinci kez yazmak olurdu.
+        """
+        if self._agent is None or self._busy:
+            return
+        akis = self._agent.dispatcher.akislar.al(ad)
+        if akis is None:
+            self.failed.emit(f"There is no workflow called {ad!r}.")
+            return
+        self._busy = True
+        self._kill.reset()
+        self._thread = QThread()
+        self._worker = _OynatIscisi(self._agent, akis, self)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.done.connect(self._on_done)
+        self._thread.start()
+
     def remote_session(self):
         """Ajanın bağlı olduğu sunucu — yoksa None."""
         if self._agent is None:
@@ -319,3 +354,41 @@ def _as_text(content: Any) -> str:
             return "(screenshot)"
         return " ".join(str(p) for p in content)
     return str(content)
+
+
+class _OynatIscisi(QObject):
+    """Akış oynatmayı ajan thread'inde süren işçi."""
+
+    done = Signal(str, str)
+
+    def __init__(self, agent, akis, bridge: AgentBridge) -> None:
+        super().__init__()
+        self._agent = agent
+        self._akis = akis
+        self._bridge = bridge
+
+    def run(self) -> None:
+        kayit = self._agent.kayit
+        # Oynatma da denetim kaydına giriyor: geçmişte "bu iş bugün
+        # yapıldı" demek, onu kimin başlattığından bağımsız.
+        kayit.tur_basladi(f"workflow: {self._akis.etiket}")
+
+        def adim(ad: str, girdi: dict) -> None:
+            self._bridge.acted.emit(ad, dict(girdi))
+
+        def sonuc(ad: str, cikti) -> None:
+            metin = cikti.content if isinstance(cikti.content, str) else "(image)"
+            kayit.eylem(ad, {}, cikti.is_error, metin)
+            self._bridge.result.emit(ad, metin, cikti.is_error, b"")
+
+        try:
+            rapor = self._agent.dispatcher.calistir(self._akis, adim, sonuc)
+        except Exception as exc:
+            kayit.tur_bitti(f"{type(exc).__name__}: {exc}")
+            self.done.emit("", f"{type(exc).__name__}: {exc}")
+            return
+        kayit.tur_bitti(rapor.anlat())
+        if rapor.basarili:
+            self.done.emit(rapor.anlat(), "")
+        else:
+            self.done.emit("", rapor.anlat())
