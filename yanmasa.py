@@ -350,6 +350,7 @@ def main() -> int:
         bar._fit_reply()
         window.set_phase("bitti")
         window.status.set_line(text[:120] if text else "Bitti.")
+        bildir("Done", text or "The turn finished.")
 
     def on_rapor(satir: str) -> None:
         """Ajan bir iş yaptığını söyledi ama denetim kaydında yok.
@@ -366,10 +367,14 @@ def main() -> int:
         bar.set_status("")
         bar.say(why)
         window.set_phase("durduruldu")
+        bildir("Stopped", why, hata=True)
 
     def on_approval(request) -> None:
         bar.ask_approval(request.tool, request.detail, request.reason)
         window.set_phase("onay")
+        # Onay bekleyen bir ajan hiçbir şey yapmıyor demek; bunun fark
+        # edilmemesi turun sessizce beş dakika durması anlamına geliyor.
+        bildir("Approval needed", f"{request.tool} — {request.reason}")
 
         def answer(approved: bool) -> None:
             request.approved = approved
@@ -401,6 +406,46 @@ def main() -> int:
     window.stop_requested.connect(bridge.stop)
     bar.stop_requested.connect(bridge.stop)
     app.aboutToQuit.connect(bridge.shutdown)
+
+    # --- tepsi ve global kısayol ------------------------------------------
+    #
+    # İkisi de aynı boşluğu dolduruyor: ajan çalışırken bakılan şey ajan
+    # penceresi değil, işin yapıldığı uygulama. Tepsi simgesi durumu
+    # oradan söylüyor, kısayol çubuğu oradan çağırıyor.
+    from app import kisayol as kisayol_mod
+    from app.tepsi import Tepsi
+
+    tepsi = None
+    if Tepsi.kullanilabilir():
+        tepsi = Tepsi(tokens, app)
+        tepsi.pencere_istendi.connect(on_woken)
+        tepsi.cubuk_istendi.connect(bar.claim_focus)
+        tepsi.durdur_istendi.connect(window.stop)
+        tepsi.cikis_istendi.connect(app.quit)
+        window.phase_changed.connect(tepsi.set_phase)
+        tepsi.goster()
+        # Pencere kapanınca uygulama ölmesin: tepsiden geri çağrılabiliyor.
+        # Tepsi yoksa bu ayarı yapmak uygulamayı kapatılamaz hâle
+        # getirirdi — kapatmanın başka bir yolu kalmazdı.
+        app.setQuitOnLastWindowClosed(False)
+        app.aboutToQuit.connect(tepsi.gizle)
+
+    def bildir(baslik: str, metin: str, hata: bool = False) -> None:
+        """Ajan penceresi öndeyken bildirim göstermiyoruz: bakılan şeyi
+        ikinci kez söylemek olurdu."""
+        if tepsi is None or window.isActiveWindow():
+            return
+        tepsi.bildir(baslik, metin, hata)
+
+    kisayol = kisayol_mod.kur()
+    if kisayol.kayitli:
+        kisayol.basildi.connect(bar.claim_focus)
+        bar.set_status(f"Press {kisayol.ad} from anywhere to come here.")
+    elif kisayol.hata:
+        # Sessizce çalışmayan bir kısayol bozuk bir klavye gibi
+        # hissettiriyor; sebebi yazılıyor.
+        window.status.set_line(kisayol.hata)
+    app.aboutToQuit.connect(kisayol.stop)
 
     bridge.start()
     return app.exec()

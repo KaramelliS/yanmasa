@@ -195,6 +195,9 @@ def _cizim(key: str) -> str:
 
 class MainWindow(QMainWindow):
     stop_requested = Signal()
+    #: Durum değişti. Tepsi simgesi buna bağlı: pencereye bakmadan da
+    #: ajanın ne yaptığı görünmeli.
+    phase_changed = Signal(str)
 
     def __init__(self, t: Tokens) -> None:
         super().__init__()
@@ -362,6 +365,7 @@ class MainWindow(QMainWindow):
     def set_phase(self, phase: str) -> None:
         self._phase = phase
         self.status.set_phase(phase)
+        self.phase_changed.emit(phase)
 
     def start_listening(self) -> None:
         self.set_phase("dinleniyor")
