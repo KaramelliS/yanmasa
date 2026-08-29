@@ -50,6 +50,8 @@ class AgentBridge(QObject):
     landed = Signal(str)         # ajan o cümleyi gördü
     rapor = Signal(str)          # ajanın iddiasının kayıtta karşılığı yok
     pulse = Signal()             # modelden bir parça düştü
+    #: Model bir dosya yazıyor: araç, yol, o ana kadarki metin, bitti mi.
+    kod = Signal(str, str, str, bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -314,6 +316,7 @@ class _Worker(QObject):
             on_interjection=self._bridge.landed.emit,
             on_pulse=self._bridge.pulse.emit,
             on_rapor=self._bridge.rapor.emit,
+            on_kod=self._bridge.kod.emit,
         )
         try:
             text = self._agent.run(self._instruction, turn)

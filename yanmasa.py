@@ -148,6 +148,7 @@ def main() -> int:
         bar.add_user(text)
         bar.set_busy(True)
         bar.set_status("Working…")
+        kod_gosterildi["tur"] = False
         window.run_instruction(text)
         bridge.run(expanded or text)
 
@@ -194,7 +195,7 @@ def main() -> int:
     # yani bakılmayan bir masa hiç işlemci yemiyor.
     from app.masa import MasaPenceresi, masa_kaynagi
 
-    masa_gorunumu = MasaPenceresi(masa_kaynagi(bridge.dispatcher))
+    masa_gorunumu = MasaPenceresi(masa_kaynagi(bridge.dispatcher), tokens)
     # Masa başlıksız: kendi paneli zaten bir başlık şeridi ve ikisini üst
     # üste koymak aynı işi yapan iki çubuk demekti.
     window.add_fixed_page("masa", "Desk", "pencere", masa_gorunumu,
@@ -202,6 +203,21 @@ def main() -> int:
 
     def show_desk() -> None:
         window.show_page("masa")
+
+    kod_gosterildi = {"tur": False}
+
+    def kod_akiyor(arac: str, yol: str, metin: str, bitti: bool) -> None:
+        """Model bir dosya yazıyor — masadaki Code penceresine düşüyor.
+
+        Tur başına bir kez masaya geçiliyor. Her parçada geçmek, başka
+        bir sayfaya bakarken sürekli geri fırlatılmak olurdu.
+        """
+        masa_gorunumu.kod_akiyor(arac, yol, metin, bitti)
+        if not kod_gosterildi["tur"]:
+            kod_gosterildi["tur"] = True
+            show_desk()
+
+    bridge.kod.connect(kod_akiyor)
 
     # Geçmiş de sabit bir sayfa. Diskteki kayıt uygulamadan uzun yaşıyor
     # ve ona bakmanın tek yolu şimdiye kadar dosyayı elle açmaktı.
@@ -252,6 +268,7 @@ def main() -> int:
         gecerli = [p for p in paths if Path(p).is_file()]
         if not gecerli:
             return
+        masa_gorunumu.kod.dosyalari_ekle(gecerli)
         kok = _ortak_klasor(gecerli)
         if ide["view"] is None:
             from app.ide import IdeView
@@ -312,6 +329,15 @@ def main() -> int:
             show_desk()
             if tool == "side_launch":
                 masa_gorunumu.masa_acildi()
+        if tool == "edit_file":
+            # `old` ve `new` eylem anında elimizde; sonucu beklemeye
+            # gerek yok ve beklemek değişikliği iş bittikten sonra
+            # göstermek olurdu.
+            masa_gorunumu.kod.degisiklik(
+                str(payload.get("path") or ""),
+                str(payload.get("old") or ""),
+                str(payload.get("new") or ""),
+            )
         op = _describe(tool, payload)
         bar.ring.step(tool)
         bar.set_tool(op.tool, op.target or op.detail)
@@ -328,6 +354,10 @@ def main() -> int:
         bar.settle_step(is_error)
         # Ajan bir düğme kurduysa çubuk hemen göstersin; yeniden başlatmak
         # gerekmesin.
+        if tool.startswith("terminal_") and not is_error and text:
+            # Kodun yanında çalıştığını görmek: `pip install`,
+            # `python bot.py`, hata izleri.
+            masa_gorunumu.kod.terminal_ciktisi("terminal", text)
         if tool == "side_close" and not is_error:
             masa_gorunumu.masa_kapandi()
         if tool.startswith("workflow_") and not is_error:

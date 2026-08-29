@@ -56,6 +56,22 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 
 from backend.computer.canli import MasaKaresi, masayi_oku
+from .fluent import Tokens
+from .kod_penceresi import KodPenceresi
+from .mint import (  # noqa: F401  (masa'nın paleti; testler buradan okuyor)
+    BASLIK_ETKIN,
+    BASLIK_H,
+    BASLIK_PASIF,
+    CERCEVE,
+    DUVAR_ALT,
+    DUVAR_UST,
+    PANEL,
+    PANEL_UST,
+    YARICAP,
+    YAZI,
+    YAZI_SOLUK,
+    YESIL,
+)
 from backend.computer.masaustu import IMLEC_BOY, IMLEC_OYUK, IMLEC_RENK
 
 #: Panel yüksekliği. Mint'in Cinnamon paneli varsayılan 40; burada 38,
@@ -68,34 +84,31 @@ from backend.computer.masaustu import IMLEC_BOY, IMLEC_OYUK, IMLEC_RENK
 #: var olan bir düzen.
 PANEL_H = 38
 
-#: Başlık çubuğu yüksekliği — masaüstü ölçeğinden bağımsız, kendi
-#: çerçevemiz olduğu için hep okunaklı kalıyor.
-BASLIK_H = 26
 
-#: Pencere köşe yarıçapı. Mint-Y üstü yuvarlatıyor; burada tamamı hafif
-#: yuvarlak, çünkü pencere bir masaüstünün içinde yüzüyor ve alt köşeleri
-#: keskin bırakmak onu kesilmiş gibi gösteriyordu.
-YARICAP = 8.0
+#: Kod penceresi açıkken masadan aldığı pay. Kalanı yakalanan gerçek
+#: pencerelere gidiyor.
+#:
+#: 0.58 ölçüldü: 1100 piksellik bir sayfada kod penceresine 620 piksel
+#: kalıyor ve 80 sütunluk bir satır tam sığıyor. 0.5'te satır sonları
+#: kaydırma çubuğuna dayanıyor, 0.7'te tarayıcı okunmaz oluyor.
+KOD_ORAN = 0.58
+
+#: Kod penceresinin masa kenarından payı.
+KOD_PAY = 18
+
+#: Kod bölmesinin okunabilir sayılan en dar hâli. 340'ın altında tek
+#: aralıklı yazıyla 40 sütun bile sığmıyor ve kod satır sonlarından
+#: ibaret kalıyor.
+#:
+#: Pencerenin en küçük hâli 480 piksel ve orada bölüşüm 260 veriyor —
+#: yani dar masada bölünmek gerçekten oluyor, kuramsal bir durum değil.
+KOD_ASGARI = 340
 
 #: Saniyede kaç kare. Ölçüm: tek pencere yakalaması 54 ms, yani tavan
 #: ~18. Sekizde kalmak bilinçli — bu döngü ajanın kendi işiyle aynı
 #: makinede dönüyor ve öncelik onun.
 FPS = 8
 
-# --- Mint'e yakın palet ----------------------------------------------------
-#
-# Kendi değerlerimiz. Mint-Y karanlık temasının izlenimini veriyor:
-# nötr griler, tek bir yeşil vurgu, kontrastı düşük tutulmuş kenarlar.
-PANEL = "#2b2b2b"
-PANEL_UST = "#1d1d1d"
-BASLIK_ETKIN = "#3c3c3c"
-BASLIK_PASIF = "#333333"
-CERCEVE = "#212121"
-YAZI = "#dcdcdc"
-YAZI_SOLUK = "#98a09a"
-YESIL = "#7fb24a"
-DUVAR_UST = "#1a2b1e"
-DUVAR_ALT = "#0b110d"
 
 
 #: Gren karosu. Bir kez üretilip her duvar kâğıdında döşeniyor.
@@ -198,8 +211,17 @@ class _Akis(QObject):
 class MasaPenceresi(QWidget):
     """Ajanın masaüstü — Mint görünümlü kabuk, içinde gerçek pencereler."""
 
-    def __init__(self, kaynak) -> None:
+    def __init__(self, kaynak, t: Tokens | None = None) -> None:
         super().__init__()
+        # Tema verilmezse sistemden okunuyor: masa kendi başına da
+        # açılabiliyor (`scripts/masa_dogrula.py`) ve orada bir `Tokens`
+        # taşımak zorunda kalmak, doğrulama betiğini uygulamaya
+        # bağlardı.
+        if t is None:
+            from . import fluent
+
+            t = fluent.tokens()
+        self.t = t
         # Ayrı bir pencere değil, sayfa. Kendi başına da açılabilsin diye
         # başlığı duruyor; asgari boy küçük tutuluyor, yoksa gömüldüğü
         # pencerenin en küçük boyunu o belirliyor.
@@ -216,6 +238,15 @@ class MasaPenceresi(QWidget):
         self._yakin_kutusu = QRect()
         self._duvar_kare: QPixmap | None = None
         self._kapali = False
+
+        # Kod penceresi masanın **içinde** duran gerçek bir arayüz;
+        # yakalanan pencereler gibi ölçeklenmiş bir fotoğraf değil. Kodu
+        # okunmayacak kadar küçültmek, onu göstermenin bütün sebebini
+        # ortadan kaldırırdı.
+        self.kod = KodPenceresi(t)
+        self.kod.setParent(self)
+        self.kod.hide()
+        self._kod_kutusu = QRect()
 
         # Saat panelde gerçek saati gösteriyor. Duran bir saat, canlı
         # olduğunu iddia eden bir ekranda ilk fark edilen yalan olurdu.
@@ -276,16 +307,94 @@ class MasaPenceresi(QWidget):
         masa = QRect(0, PANEL_H, self.width(), self.height() - PANEL_H)
         self._duvar(p, masa)
 
-        olcek, ofset = self._olcek(masa)
-        if self._kare.bos:
-            self._bos_masa(p, masa)
-        else:
-            for pencere in self._kare.pencereler:
-                self._pencere_ciz(p, pencere, olcek, ofset)
-            self._imlec_ciz(p, olcek, ofset)
+        kod_kutusu, alan = self._bolgeler()
+        if self.kod.isVisible() and kod_kutusu.isValid():
+            # Gölge burada çiziliyor, çocuğun kendi boyamasında değil:
+            # bir widget kendi dışına çizemiyor ve gölge çerçevenin
+            # dışında. Masadaki gerçek pencerelerin gölgesiyle aynı
+            # katmanlı yöntem.
+            self._golge(p, QRectF(kod_kutusu), YARICAP)
+        if alan.isValid():
+            olcek, ofset = self._olcek(alan)
+            if self._kare.bos:
+                # Kod penceresi açıkken boş masa metnini yazmıyoruz:
+                # ajan hiçbir şey yapmıyormuş gibi görünürdü, oysa tam o
+                # sırada kod yazıyor.
+                if not self.kod.aktif:
+                    self._bos_masa(p, alan)
+            else:
+                for pencere in self._kare.pencereler:
+                    self._pencere_ciz(p, pencere, olcek, ofset)
+                self._imlec_ciz(p, olcek, ofset)
 
         self._panel(p)
         p.end()
+
+    def _bolgeler(self) -> tuple[QRect, QRect]:
+        """(kod penceresi, yakalanan pencereler) alanları.
+
+        Kod yokken masanın tamamı yakalanan pencerelerin. Kod varken ve
+        yakalanacak pencere yokken tersi. İkisi birden varsa masa
+        bölünüyor — ajan hem kod yazarken hem tarayıcıya bakarken ikisini
+        de görmek gerekiyor ve üst üste bindirmek birini gizlerdi.
+        """
+        masa = QRect(0, PANEL_H, self.width(), self.height() - PANEL_H)
+        if not self.kod.aktif:
+            return QRect(), masa
+        ic = masa.adjusted(KOD_PAY, KOD_PAY, -KOD_PAY, -KOD_PAY)
+        if self._kare.bos:
+            return ic, QRect()
+        en = int(masa.width() * KOD_ORAN) - KOD_PAY
+        if en < KOD_ASGARI:
+            # Bölünecek kadar geniş değil ve iki okunmaz bölme, bir
+            # okunur bölmeden kötü. Yazılırken kod öne alınıyor —
+            # bakılmak istenen o. Yazma bitince masa pencerelere
+            # dönüyor, yoksa küçük bir pencerede kod ekranı kalıcı
+            # olarak kaplardı.
+            return (ic, QRect()) if self.kod.yaziliyor else (QRect(), masa)
+        return (QRect(ic.left(), ic.top(), en, ic.height()),
+                QRect(masa.left() + int(masa.width() * KOD_ORAN), masa.top(),
+                      masa.width() - int(masa.width() * KOD_ORAN),
+                      masa.height()))
+
+    def _golge(self, p: QPainter, kutu: QRectF, yaricap: float) -> None:
+        """Katmanlı yumuşak gölge. Tek bir yarı saydam dikdörtgen
+        gölge değil bir çerçeve gibi duruyordu; altı geçiş katmanı
+        yumuşaklığı bedavaya yakın veriyor."""
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(6, 0, -1):
+            renk = QColor(0, 0, 0, 10 + i * 3)
+            p.setBrush(renk)
+            p.drawRoundedRect(
+                kutu.adjusted(-i, -i + 2, i, i + 3),
+                yaricap + i, yaricap + i,
+            )
+
+    def _yerlestir(self) -> None:
+        """Kod penceresini yerine koyar. Değişmediyse dokunmuyor —
+        aynı geometriyi saniyede sekiz kez atamak boşuna düzen işi."""
+        kutu, _kalan = self._bolgeler()
+        gorunur = self.kod.aktif and kutu.isValid() and kutu.width() > 220
+        if gorunur and kutu != self._kod_kutusu:
+            self._kod_kutusu = kutu
+            self.kod.setGeometry(kutu)
+        # `isHidden` soruluyor, `isVisible` değil: masa sayfası ekranda
+        # değilken `isVisible` her zaman `False` dönüyor ve karşılaştırma
+        # saniyede sekiz kez `setVisible` çağırırdı.
+        if gorunur == self.kod.isHidden():
+            self.kod.setVisible(gorunur)
+            if gorunur:
+                self.kod.raise_()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._yerlestir()
+
+    def kod_akiyor(self, arac: str, yol: str, metin: str, bitti: bool) -> None:
+        """Model bir dosya yazıyor."""
+        self.kod.kod_akiyor(arac, yol, metin, bitti)
+        self._yerlestir()
+        self.update()
 
     def _kapsam(self) -> tuple[int, int, int, int]:
         """Çizilecek masaüstü bölgesi: ya tamamı ya pencerelerin kutusu.

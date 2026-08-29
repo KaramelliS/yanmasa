@@ -120,6 +120,32 @@ Kesik bir harf sırası bozuk çizim gibi okunuyor; oysa söylenmek istenen
 kaydırma sıfırdayken hiç görünmüyor — sığan bir dökümün üstüne gölge
 koymak olmayan bir devamı ima etmek olurdu.
 
+## Kod yazarken izlemek
+
+Ajan bir dosya yazdığında masanın **içinde** bir Code penceresi açılıyor:
+dosya listesi, sekme, satır numarası, gerçek sözdizimi renklendirmesi,
+altında terminal ve değişiklik çekmecesi. Ekran görüntüsü değil —
+etrafındaki yakalanan pencereler ölçeklenmiş fotoğraf, bu pencere 1:1
+canlı arayüz. Okunmayan bir kodu göstermenin bir anlamı yok.
+
+Kod **model üretirken** beliriyor. Araç girdileri akıyor
+(`input_json_delta`) ve `backend/agent/akankod.py` o yarım JSON'dan dosya
+içeriğini çıkarıyor: yarım bir dize, ortasından kesilmiş bir kaçış,
+son basamağı gelmemiş bir `ç`. `json.loads` bunların hepsini
+reddediyor; tarayıcı nesneyi anahtar anahtar geziyor ve gelen kadarını
+veriyor. Yani ekrandaki yazılma bir animasyon değil, modelin o anki
+üretimi. Dosya diske hâlâ tek seferde yazılıyor ve durum satırı bunu
+böyle söylüyor.
+
+İkisi birden varsa masa bölünüyor: solda düzenleyici, sağda yakalanan
+gerçek pencereler. Okunabilir enin altında bölünmüyor — iki okunmaz
+bölme, bir okunur bölmeden kötü — ve dosya yazılırken masa kodun oluyor,
+yazma bitince pencerelere dönüyor.
+
+Alt çekmecede terminal ve değişiklik var, sekmeli. Sekme yalnızca
+içeriği olan için çiziliyor: boş bir "Changes" sekmesi, bakılacak bir şey
+varmış gibi duruyor.
+
 ## Geçmiş, kuru koşu, akışlar, tepsi
 
 Dördü de aynı soruya farklı yerlerden cevap veriyor: aynı işi ikinci kez
@@ -183,7 +209,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 499 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 546 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -694,6 +720,13 @@ Bir README'de en işe yarayan bölüm bu.
   yükseltilmiş pencerelerde erişim reddiyle düşüyor — ölçtüm, önde bir
   oyun varken bütün noktalar düştü. O adımlar imzasız kaydediliyor ve
   kayıtlı koordinatla oynanıyor; pencere taşınırsa kırılıyorlar.
+- **`write_files` akmıyor.** Bir dizi taşıyor ve dizinin içinde hangi
+  dosyanın yazıldığını anlamak tarayıcıyı iki kat karmaşık yapardı. O
+  araç tek seferde küçük dosyalar yazıyor; kod sayfası sonrasında
+  hepsini gösteriyor.
+- **Masadaki Code penceresinde geriye kaydırma yok.** Dosya yazılırken
+  imleci takip ediyor. Sonradan düzgün okumak için raydaki Code sayfası
+  var.
 - **Geçmiş sayfası canlı takip etmiyor.** Kaydı açılışta ve "Refresh"e
   basınca okuyor. Her satırda iki haftalık JSONL'i yeniden okumak,
   bakılmayan bir sayfa için sürekli iş olurdu.
@@ -796,6 +829,7 @@ backend/
     imza.py             tıklanan denetimin kimliği; taşınınca yeniden bulma
     oynatici.py         adımları modele uğramadan çalıştırma
   agent/kuru.py         kuru koşu: beyaz liste ve modele dönen not
+  agent/akankod.py      akan araç girdisinden yazılan dosyayı çıkarma
 app/
   fluent.py             Fluent token'ları; tema ve vurgu sistemden okunuyor
   window.py             ana pencere, sayfalar, durum şeridi
@@ -803,6 +837,8 @@ app/
   commandbar.py         yüzen komut çubuğu: mikrofon, yazı alanı, önizleme
   baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
   masa.py               ajanın masası: gizli masaüstünün canlı görüntüsü
+  kod_penceresi.py      masanın içindeki Code penceresi
+  mint.py               masanın ortak paleti ve ölçüleri
   gecmis.py             koşu geçmişi sayfası
   akislar.py            kaydedilmiş akışlar sayfası
   tepsi.py              tepsi simgesi ve menüsü

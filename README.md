@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-499%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-546%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -90,6 +90,34 @@ regression can be caught by comparing them.
 writes the frame to `varliklar/onizleme/masa.png`.
 
 ![The agent's desk: two real windows on the hidden desktop, the agent's cursor and its trail, a Mint-like panel](varliklar/onizleme/masa.png)
+
+### Watching it write code
+
+When the agent writes a file, a **Code** window opens inside the desk —
+file list, tabs, line numbers, real syntax colouring, a terminal drawer
+and a diff drawer. It is not a screenshot: the captured windows around it
+are scaled photographs, this one is live interface at 1:1, because code
+you cannot read is code there was no point showing.
+
+The code appears **as the model produces it**. Tool inputs stream
+(`input_json_delta`) and `backend/agent/akankod.py` decodes the file
+content out of that half-finished JSON: a partial string, escapes cut in
+half, a `ç` missing its last digit. `json.loads` rejects all of it,
+so the scanner walks the object key by key and hands back as much of the
+value as has arrived. What you see on screen is therefore what the model
+is writing at that moment, not a replayed animation. The file itself is
+still written to disk in one go; what is live is the writing, and the
+status line says exactly that.
+
+The desk splits when both are in play: the editor on the left, the real
+captured windows on the right. Below a readable width it stops splitting
+— two unreadable panes are worse than one readable one — and while a file
+is being written the editor takes the desk, handing it back when the
+writing ends.
+
+The bottom drawer holds the terminal and the diff, tabbed, and a tab is
+only drawn for content that exists: an empty "Changes" tab looks like
+there is something to look at.
 
 ## What it is
 
@@ -214,7 +242,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 499 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 546 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -263,6 +291,12 @@ The most useful section in any README.
   a game in the foreground every point failed. Those steps are recorded
   without a signature and replay against the stored coordinate, so they
   break if the window moves.
+- **`write_files` is not streamed.** It carries an array of files and
+  working out which one is being written would double the scanner. It
+  writes small files in one call and the Code page shows them after.
+- **The Code window in the desk does not scroll back.** It follows the
+  caret while the file is written. The Code page (the rail) is where you
+  read a file properly afterwards.
 - **The History page does not follow along live.** It reads the log when
   you open it or press Refresh. Re-reading two weeks of JSONL on every
   logged line would be constant work for a page nobody is looking at.
@@ -317,16 +351,18 @@ backend/
   computer/masaustu.py, mesaj.py   the second desktop and its input
   computer/canli.py                the desk's live frame
   agent/        loop, dispatch, tools, prompts, audit log, claim check
+  agent/akankod.py   decodes the file being written out of the model stream
   office/       .xlsx and .docx without Office
   skills/       the agent's own tools
   workflows/    recorded action sequences, their store and player
   safety/       risk classifier, Esc x3 kill switch
 app/            Qt interface: window, panels, floating command bar, mascot
 app/masa.py     the agent's desk, drawn as a Mint-like shell
+app/kod_penceresi.py  the Code window inside the desk
 app/gecmis.py   the history page; app/akislar.py the workflows page
 app/tepsi.py    tray icon; app/kisayol.py the global shortcut
 scripts/        manual verification, asset and hero generation
-tests/          499 tests of the pure logic
+tests/          546 tests of the pure logic
 ```
 
 ## Contributing

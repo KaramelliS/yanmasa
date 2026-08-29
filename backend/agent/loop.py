@@ -20,6 +20,7 @@ from ..computer.capture import ScreenCapture
 from ..computer.displays import DisplayMap
 from ..safety.killswitch import Aborted, KillSwitch
 from . import rapor as rapor_mod
+from .akankod import AkanKod
 from .kayit import Kayit, oneri_notu, tekrar_bul
 from .dispatch import Dispatcher, ToolError, ToolOutcome
 from .prompts import build_system
@@ -68,6 +69,10 @@ class Turn:
     #: Boş dizeyle çağrılmıyor — arayüz yalnızca söyleyecek bir şey
     #: olduğunda haber alıyor.
     on_rapor: Callable[[str], None] = lambda _t: None
+    #: Model bir dosya yazarken: (araç, yol, o ana kadarki metin, bitti mi).
+    #: Dosya diske hâlâ tek seferde yazılıyor; canlı olan modelin
+    #: üretimi ve gösterilen de tam olarak o.
+    on_kod: Callable[[str, str, str, bool], None] = lambda _a, _y, _m, _b: None
 
 
 #: Reddedilme mesajı. Computer-use çağrılarında Anthropic bir güvenlik
@@ -368,6 +373,7 @@ class Agent:
         da — metin ve düşünce özeti tur bitmeden görünüyor.
         """
         thinking_buffer: list[str] = []
+        akan = AkanKod()
 
         with self.client.messages.stream(
             model=config.MODEL,
@@ -382,7 +388,11 @@ class Agent:
             # birini arayüze taşımak, çizilenden çok sinyal göndermek olurdu.
             son_nabiz = 0.0
             for event in stream:
-                if event.type == "content_block_delta":
+                if event.type == "content_block_start":
+                    blok = getattr(event, "content_block", None)
+                    if getattr(blok, "type", "") == "tool_use":
+                        akan.basla(getattr(blok, "name", ""))
+                elif event.type == "content_block_delta":
                     delta = event.delta
                     simdi = time.monotonic()
                     if simdi - son_nabiz > PULSE_MIN_GAP:
@@ -392,11 +402,24 @@ class Agent:
                         turn.on_text(delta.text)
                     elif delta.type == "thinking_delta":
                         thinking_buffer.append(delta.thinking)
-                elif event.type == "content_block_stop" and thinking_buffer:
-                    # Düşünce parça parça geliyor; bloğu tamamlanınca tek
-                    # seferde bildiriyoruz, yoksa arayüz kelime kelime titrer.
-                    turn.on_thinking("".join(thinking_buffer))
-                    thinking_buffer.clear()
+                    elif delta.type == "input_json_delta":
+                        # Araç girdisi de akıyor. `write_file`'ın içeriği
+                        # buradan geçiyor ve arayüz onu yazılırken
+                        # gösterebiliyor; eskiden dosya araç çalıştıktan
+                        # sonra bir anda beliriyordu.
+                        if akan.besle(delta.partial_json):
+                            turn.on_kod(akan.arac, akan.yol, akan.metin,
+                                        False)
+                elif event.type == "content_block_stop":
+                    if akan.etkin:
+                        turn.on_kod(akan.arac, akan.yol, akan.metin, True)
+                        akan.dur()
+                    if thinking_buffer:
+                        # Düşünce parça parça geliyor; bloğu tamamlanınca
+                        # tek seferde bildiriyoruz, yoksa arayüz kelime
+                        # kelime titrer.
+                        turn.on_thinking("".join(thinking_buffer))
+                        thinking_buffer.clear()
 
             return stream.get_final_message()
 
