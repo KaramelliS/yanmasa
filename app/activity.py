@@ -164,6 +164,58 @@ class Step(QWidget):
             self.frame_clicked.emit(self._pixmap, self._label)
 
 
+class Note(QWidget):
+    """Ajanın "buna dikkat" notu.
+
+    Adımdan ayrı çiziliyor çünkü ayrı bir şey: adım ne yaptığını
+    söylüyor, not neyin ters gidebileceğini. Ton uyarı, hata değil —
+    kırmızı bir satır "bir şey bozuldu" derdi, oysa burada hiçbir şey
+    bozulmadı.
+    """
+
+    def __init__(self, t: Tokens, notu: str, hakkinda: str) -> None:
+        super().__init__()
+        self.t = t
+        self.setStyleSheet(f"border-bottom: 1px solid {t.divider};")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(14)
+
+        from .fluent import _blend
+        from .glyphs import WorkGlyph
+
+        cizim = WorkGlyph(t, "heads_up", 38)
+        cizim.set_tone("onay")
+        cizim.setStyleSheet("border: none;")
+        layout.addWidget(cizim, 0, Qt.AlignmentFlag.AlignTop)
+
+        kutu = QWidget()
+        kutu.setStyleSheet(
+            f"background: {_blend(t.caution, 0.09, t.background)};"
+            f" border: none; border-left: 3px solid {t.caution};"
+            f" border-radius: {RADIUS_CONTROL}px;"
+        )
+        ic = QVBoxLayout(kutu)
+        ic.setContentsMargins(12, 9, 12, 10)
+        ic.setSpacing(2)
+
+        if hakkinda:
+            ust = QLabel(hakkinda.upper())
+            ust.setStyleSheet(
+                f"color: {t.caution}; font-size: 10px; font-weight: 700;"
+                f" border: none; letter-spacing: 0.5px;"
+            )
+            ic.addWidget(ust)
+
+        govde = QLabel(_breakable(notu))
+        govde.setWordWrap(True)
+        govde.setStyleSheet(
+            f"color: {t.text}; font-size: 13px; border: none;"
+        )
+        ic.addWidget(govde)
+        layout.addWidget(kutu, 1)
+
+
 class ActivityView(QWidget):
     """Adımların akışı. Yeni adım eklendikçe sona kayıyor."""
 
@@ -228,18 +280,36 @@ class ActivityView(QWidget):
         layout.addStretch(1)
         return box
 
+    #: "Sondayım" sayılmak için kalan pay, piksel.
+    TAKIP_PAYI = 8
+
     def add_step(self, label: str, target: str, detail: str,
                  tool: str = "") -> Step:
+        cubuk = self._scroll.verticalScrollBar()
+        takip = cubuk.value() >= cubuk.maximum() - self.TAKIP_PAYI
         self._empty.setVisible(False)
         step = Step(self.t, label, target, detail, tool)
         step.frame_clicked.connect(self._show_frame)
         self._layout.insertWidget(self._layout.count() - 1, step)
         self._last = step
-        # Yeni adım eklenince sona kaydır: uzun bir koşuda kullanıcının
-        # elle takip etmesi gerekmesin.
+        # Sona kaydırma **koşullu**: sondaysan yeni adım geldikçe
+        # seninle birlikte iniyor, yukarı kaydırıp bir şeyi okuyorsan
+        # olduğun yerde kalıyorsun. Koşulsuz hâli okumayı imkânsız
+        # yapıyordu — ajan saniyede bir adım atıyor.
         bar = self._scroll.verticalScrollBar()
-        bar.setValue(bar.maximum())
+        if takip:
+            bar.setValue(bar.maximum())
         return step
+
+    def add_note(self, notu: str, hakkinda: str = "") -> None:
+        """Ajanın uyarısı — adım değil, o yüzden `_last` değişmiyor."""
+        cubuk = self._scroll.verticalScrollBar()
+        takip = cubuk.value() >= cubuk.maximum() - self.TAKIP_PAYI
+        self._empty.setVisible(False)
+        self._layout.insertWidget(self._layout.count() - 1,
+                                  Note(self.t, notu, hakkinda))
+        if takip:
+            cubuk.setValue(cubuk.maximum())
 
     def annotate_last(self, text: str, error: bool = False,
                       tool: str = "") -> None:

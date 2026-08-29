@@ -294,6 +294,20 @@ class Dispatcher:
 
 
 
+
+    def _do_heads_up(self, payload: dict[str, Any]) -> ToolOutcome:
+        """Kullanıcıya not. Makinede hiçbir şey yapmıyor.
+
+        Notun kendisi arayüze `on_action` üzerinden gidiyor — girdi
+        eylemden **önce** yayılıyor ve bir uyarının uyardığı işten sonra
+        görünmesi anlamsız olurdu. Burada yapılan tek şey modele notun
+        yerine ulaştığını söylemek.
+        """
+        _require(payload, "note")
+        return ToolOutcome(
+            content="The note is on the user's screen. Carry on."
+        )
+
     # --- MCP --------------------------------------------------------------
 
     def _run_mcp(self, name: str, payload: dict[str, Any]) -> ToolOutcome:

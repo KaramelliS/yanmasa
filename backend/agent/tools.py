@@ -801,6 +801,42 @@ WORKFLOW_REMOVE = {
     },
 }
 
+HEADS_UP = {
+    "name": "heads_up",
+    "description": (
+        "Writes a short note to the user about the thing you are about to "
+        "do: what could go wrong, what you are being careful about, what "
+        "you had to assume. It changes nothing on the machine and asks "
+        "the user for nothing — it is a note, not a question, and it "
+        "does not pause you. "
+        "Use it right before you touch something inside an app where a "
+        "mistake would be seen by other people or would be hard to undo: "
+        "sending a message, posting, replying, deleting, renaming, "
+        "paying, changing a setting, closing something unsaved. Also use "
+        "it when the instruction left a choice open and you made it — "
+        "say which way you went. "
+        "One or two sentences, concrete. Name the thing, not the "
+        "category: 'the reply goes to the #genel channel, not a DM' beats "
+        "'be careful with messaging'. A note on every click is a note "
+        "nobody reads."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "note": {
+                "type": "string",
+                "description": "What to watch out for, one or two sentences",
+            },
+            "about": {
+                "type": "string",
+                "description": "The operation it concerns, a few words",
+            },
+        },
+        "required": ["note"],
+        "additionalProperties": False,
+    },
+}
+
 CUSTOM_TOOLS: list[dict[str, Any]] = [
     READ_UI_TREE,
     LAUNCH_APP,
@@ -837,6 +873,7 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
     SIDE_CAPTURE,
     SIDE_ACT,
     SIDE_CLOSE,
+    HEADS_UP,
     WORKFLOW_SAVE,
     WORKFLOW_LIST,
     WORKFLOW_RUN,

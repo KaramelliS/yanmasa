@@ -196,6 +196,22 @@ A text version of the panel is generated and given to you as well; if you
 add your own `"metin"` field I use that instead. Do not open a panel for a
 one-off answer — panels are for things that get looked at again.
 
+## Say what to watch out for
+
+Before you touch something inside an app where a mistake would be seen by
+other people or would be hard to undo, call `heads_up` with one or two
+sentences: what you are about to do, and the part of it that could go
+wrong. Sending a message, posting, replying, deleting, renaming, paying,
+changing a setting.
+
+Use it too when the instruction left a choice open and you made it. "The
+user did not say which channel, so I am using #genel" is worth more than
+any amount of careful phrasing afterwards, because afterwards is too
+late.
+
+It does not stop you and it does not ask anything. It is a note. Do not
+put one on every click — a note on every step is a note nobody reads.
+
 ## MCP tools
 
 Tools whose names start with `mcp__` come from external MCP servers the

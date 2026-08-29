@@ -120,6 +120,27 @@ Kesik bir harf sırası bozuk çizim gibi okunuyor; oysa söylenmek istenen
 kaydırma sıfırdayken hiç görünmüyor — sığan bir dökümün üstüne gölge
 koymak olmayan bir devamı ima etmek olurdu.
 
+## Neye dikkat ettiğini söylüyor
+
+Ajan bir uygulamanın içinde, hatası başkalarına görünecek ya da geri
+alınması zor olacak bir şeye dokunmadan önce bir iki cümlelik not
+yazıyor: *ileti #genel kanalına gidiyor, özel mesaja değil*. Talimat bir
+seçimi açık bıraktıysa ve o seçmek zorunda kaldıysa da yazıyor: *hangi
+hesap olduğunu söylemedin, daha önce konuştuğun olanı aldım.*
+
+Not sadece not. Koşuyu durdurmuyor ve sana bir şey sormuyor, yani bir
+karara mal olmuyor — asıl mesele de bu: durduran şey okunmadan
+tıklanıyor, soran şey okunmadan cevaplanıyor. Adım satırından ayrı
+çiziliyor: adım *ne yaptığını* söylüyor, not *neyin ters gidebileceğini*,
+ve ikisini aynı biçimde çizmek notu otuz satırlık bir listede kaybetmek
+olurdu.
+
+Bu, ölçülen en büyük kusurun ucuz yarısı. 20.574 gerçek oturumda en
+büyük iki kalem, ajanın konulan kuralı çiğnemesi (%38,33 ve artıyor) ve
+niyeti yanlış okuması (%26,95) — ve bunların yalnızca %2,99'unu ajan
+kendi yakalıyor. Varsayımı eylemden **önce** söylemek, sonradan ne kadar
+dikkatli anlatıldığından daha değerli; sonrası zaten geç.
+
 ## MCP sunucuları
 
 Dış MCP sunucuları ajana bu uygulamada olmayan araçlar veriyor: yapısal
@@ -249,7 +270,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 631 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 654 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası

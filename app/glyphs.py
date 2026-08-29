@@ -398,6 +398,26 @@ def _fis(p: QPainter, ana: str, sap: str) -> None:
     p.drawPath(yol)
 
 
+def _uyari(p: QPainter, ana: str, sap: str) -> None:
+    """Dikkat notu: üçgen ve ünlem.
+
+    Ünlem vurgu renginde, üçgen çerçeve renginde. Tersi denendi ve
+    yanlıştı: dolu kırmızı bir üçgen "bir şey bozuldu" diyor, oysa bu
+    satır bir hata değil, ajanın kendi uyarısı.
+    """
+    p.setPen(_pen(sap))
+    yol = QPainterPath(QPointF(12, 4.2))
+    yol.lineTo(21, 19.4)
+    yol.lineTo(3, 19.4)
+    yol.closeSubpath()
+    p.drawPath(yol)
+    p.setPen(_pen(ana, 2.0))
+    p.drawLine(QPointF(12, 10), QPointF(12, 14.4))
+    p.setBrush(QColor(ana))
+    p.drawEllipse(QPointF(12, 17.2), 0.9, 0.9)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
 #: Araç adı -> çizim. Aile bazında, araç bazında değil: on yedi tıklama
 #: aracının hepsi aynı işi yapıyor ve on yedi ayrı çizim gürültü olurdu.
 GLYPHS = {
@@ -408,6 +428,7 @@ GLYPHS = {
     "yetenek": _yetenek, "bekle": _bekle, "sen": _sen, "soru": _soru,
     "yukari": _yukari, "yenile": _yenile, "sunucu": _sunucu,
     "gecmis": _gecmis, "akis": _akis, "fis": _fis,
+    "uyari": _uyari,
 }
 
 TOOL_GLYPH = {
@@ -436,6 +457,7 @@ TOOL_GLYPH = {
     "side_capture": "mercek", "side_act": "imlec", "side_close": "pencere",
     "workflow_save": "akis", "workflow_list": "akis",
     "workflow_remove": "akis", "workflow_run": "yenile",
+    "heads_up": "uyari",
     "__sen__": "sen", "__onay__": "soru",
 }
 

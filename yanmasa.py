@@ -148,6 +148,7 @@ def main() -> int:
         bar.add_user(text)
         bar.set_busy(True)
         bar.set_status("Working…")
+        bar.sona_kaydir()
         kod_gosterildi["tur"] = False
         window.run_instruction(text)
         bridge.run(expanded or text)
@@ -348,6 +349,19 @@ def main() -> int:
                 str(payload.get("old") or ""),
                 str(payload.get("new") or ""),
             )
+        if tool == "heads_up":
+            # Not bir adım değil: ne yaptığını değil, neyin ters
+            # gidebileceğini söylüyor. Adım satırı gibi çizilseydi otuz
+            # satırlık bir dökümün içinde kaybolurdu.
+            notu = str(payload.get("note") or "").strip()
+            hakkinda = str(payload.get("about") or "").strip()
+            if notu:
+                bar.add_note(notu, hakkinda)
+                window.activity.add_note(notu, hakkinda)
+                bar.set_tool("A note", hakkinda or notu[:60])
+            bar.ring.step(tool)
+            return
+
         op = _describe(tool, payload)
         bar.ring.step(tool)
         bar.set_tool(op.tool, op.target or op.detail)

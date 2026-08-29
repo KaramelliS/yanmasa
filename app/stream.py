@@ -25,10 +25,11 @@ import math
 import re
 import time
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QFontMetrics,
     QGuiApplication,
     QKeySequence,
     QPainter,
@@ -846,6 +847,139 @@ class AdimSatiri(QWidget):
         painter.end()
 
 
+class NotSatiri(QWidget):
+    """Ajanın "buna dikkat" notu.
+
+    Adım satırından ayrı bir şey ve ayrı görünüyor: adım *ne yaptığını*
+    söylüyor, not *neyin ters gidebileceğini*. İkisini aynı biçimde
+    çizmek, notu otuz adımlık bir listenin içinde kaybetmek olurdu.
+
+    Sabit yükseklikli değil. Bir not bir cümle de olabilir üç de; tek
+    satıra sıkıştırılan bir uyarı, okunmadan geçilen bir uyarı.
+
+    Ton **uyarı**, hata değil. Kırmızı bir satır "bir şey bozuldu"
+    diyor; oysa burada hiçbir şey bozulmadı, ajan bozulabilecek bir şeyi
+    söylüyor.
+    """
+
+    #: İç boşluklar ve metnin başladığı yer — adım satırıyla hizalı.
+    PAY_Y = 7
+    METIN_X = 38
+    SAG_PAY = 14
+    #: `about` verildiğinde üstteki küçük etiketin yüksekliği.
+    ETIKET_H = 13
+
+    def __init__(self, t: Tokens, notu: str, hakkinda: str = "") -> None:
+        super().__init__()
+        self.t = t
+        self._not = (notu or "").strip()
+        self._hakkinda = (hakkinda or "").strip()
+        self._giris: Giris | None = None
+        self.setSizePolicy(QSizePolicy.Policy.Preferred,
+                           QSizePolicy.Policy.Minimum)
+
+    # --- ölçü -------------------------------------------------------------
+
+    def _yazi(self) -> QFont:
+        font = QFont(self.t.font_ui)
+        font.setPixelSize(12)
+        return font
+
+    def _etiket_yazisi(self) -> QFont:
+        font = QFont(self.t.font_ui)
+        font.setPixelSize(9)
+        font.setWeight(QFont.Weight.DemiBold)
+        font.setCapitalization(QFont.Capitalization.AllUppercase)
+        return font
+
+    def _metin_kutusu(self, width: int) -> QRect:
+        kalan = max(40, width - self.METIN_X - self.SAG_PAY)
+        return QRect(0, 0, kalan, 10000)
+
+    def heightForWidth(self, width: int) -> int:
+        olcu = QFontMetrics(self._yazi())
+        kutu = olcu.boundingRect(
+            self._metin_kutusu(width),
+            int(Qt.TextFlag.TextWordWrap), self._not,
+        )
+        yukseklik = kutu.height() + self.PAY_Y * 2
+        if self._hakkinda:
+            yukseklik += self.ETIKET_H
+        return max(ROW_H + 6, yukseklik)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def sizeHint(self) -> QSize:
+        return QSize(220, self.heightForWidth(max(220, self.width())))
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(160, ROW_H + 6)
+
+    # --- animasyon ---------------------------------------------------------
+
+    def anime_et(self) -> None:
+        self._giris = Giris()
+        clock().subscribe(self._tick)
+
+    def _tick(self, dt: float) -> None:
+        if self._giris is not None:
+            self._giris.step(dt)
+            if self._giris.done:
+                self._giris = None
+                clock().unsubscribe(self._tick)
+        self.update()
+
+    def hideEvent(self, event) -> None:
+        clock().unsubscribe(self._tick)
+        super().hideEvent(event)
+
+    # --- çizim -------------------------------------------------------------
+
+    def paintEvent(self, _event) -> None:
+        t = self.t
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if self._giris is not None:
+            p.setOpacity(self._giris.opacity)
+            p.translate(0, self._giris.offset)
+
+        # Zemin: uyarı renginin çok kısılmış hâli. Dolu bir sarı şerit
+        # notu okunur değil bağırır yapardı.
+        zemin = QRectF(8, 1, max(0, self.width() - 16), self.height() - 2)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(_blend(t.caution, 0.10, t.card)))
+        p.drawRoundedRect(zemin, 5, 5)
+        p.setBrush(QColor(t.caution))
+        p.drawRoundedRect(QRectF(8, 1, 2.5, self.height() - 2), 1.2, 1.2)
+
+        paint_glyph(p, "uyari", 15, t.caution, t.text_tertiary,
+                    QPointF(16, self.PAY_Y))
+
+        y = self.PAY_Y
+        if self._hakkinda:
+            p.setFont(self._etiket_yazisi())
+            p.setPen(QColor(t.caution))
+            p.drawText(
+                QRect(self.METIN_X, y - 1,
+                      self.width() - self.METIN_X - self.SAG_PAY,
+                      self.ETIKET_H),
+                int(Qt.AlignmentFlag.AlignVCenter), self._hakkinda,
+            )
+            y += self.ETIKET_H
+
+        p.setFont(self._yazi())
+        p.setPen(QColor(t.text_secondary))
+        p.drawText(
+            QRect(self.METIN_X, y,
+                  max(40, self.width() - self.METIN_X - self.SAG_PAY),
+                  self.height() - y - self.PAY_Y),
+            int(Qt.TextFlag.TextWordWrap) | int(Qt.AlignmentFlag.AlignTop),
+            self._not,
+        )
+        p.end()
+
+
 class Giris:
     """Bir satırın geliş animasyonu.
 
@@ -927,6 +1061,22 @@ class Akis(QWidget):
         self._son_metin = None
         self._son_adim = AdimSatiri(self.t, tool, baslik, detay)
         self._ekle(self._son_adim)
+
+    def add_note(self, notu: str, hakkinda: str = "") -> None:
+        """Ajanın "buna dikkat" notu.
+
+        `_son_adim` güncellenmiyor: not bir adım değil ve bir sonraki
+        hata onu kırmızıya çevirmemeli.
+
+        Boş not hiç çizilmiyor: boş bir uyarı şeridi, bakılacak bir şey
+        varmış gibi durur. Denetim burada, çağıranda değil — bir gün
+        başka bir çağıran eklendiğinde aynı kusur yeniden doğmasın.
+        """
+        if not (notu or "").strip():
+            return
+        self.end_stream()
+        self._son_metin = None
+        self._ekle(NotSatiri(self.t, notu, hakkinda))
 
     def mark_last(self, is_error: bool) -> None:
         if self._son_adim is not None and is_error:

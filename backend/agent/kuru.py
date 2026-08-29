@@ -41,6 +41,10 @@ SALT_OKUNUR = frozenset({
     # Bakmak
     "screenshot", "zoom", "cursor_position", "read_ui_tree",
     "switch_display", "list_apps", "wait",
+    # Kullanıcıya not yazmak. Makinede hiçbir şey değiştirmiyor ve kuru
+    # koşuda tam da istenen şey: ne yapacağını değil, neye dikkat
+    # edeceğini söylüyor.
+    "heads_up",
     # Dosya sistemi — okuma tarafı
     "read_file", "list_dir",
     # Belgeler — okuma tarafı

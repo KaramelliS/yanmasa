@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-631%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-654%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -142,6 +142,7 @@ through a GUI is the most expensive way to do almost anything:
 | `remote_connect` `remote_run` `remote_read` `remote_write` `remote_list` | An SSH server as a second machine, with its own approval gate. |
 | `side_launch` `side_windows` `side_capture` `side_act` `side_close` | The invisible workspace above. |
 | `workflow_save` `workflow_list` `workflow_run` `workflow_remove` | Records a finished job and replays it with no model call at all. |
+| `heads_up` | Writes a note about what could go wrong in the thing it is about to do. Changes nothing, asks nothing. |
 
 The system prompt gives the model a **ladder**: file tools for file work,
 the shell for bulk work, a terminal for interactive programs,
@@ -177,6 +178,30 @@ three times without a single error, the next instruction carries a note
 suggesting the agent offer you a button for it. Runs that stumbled do not
 count: automating a job that fails three times out of three would be
 automating the failure.
+
+### It says what to watch out for
+
+Before the agent touches something inside an app where a mistake would be
+seen by other people or would be hard to undo — sending a message,
+posting, replying, deleting, renaming, paying — it writes a one or two
+sentence note: *the reply goes to the #genel channel, not a direct
+message*. It also writes one when your instruction left a choice open and
+it had to pick: *you did not say which of the two accounts, so I used the
+one you have talked to before.*
+
+The note is a note. It does not pause the run and it does not ask you
+anything, so it costs no decision — which is the point, because a thing
+that stops you gets clicked through, and a thing that asks gets answered
+without reading. It is drawn differently from a step row: a step says
+what it did, a note says what could go wrong, and rendering them the same
+way would lose the note inside a thirty-line list.
+
+This is the cheap half of the biggest measured failure mode. In 20,574
+real sessions the two largest categories were the agent breaking a stated
+constraint (38.33%, and rising) and misreading intent (26.95%) — and only
+2.99% of those were caught by the agent itself. Saying the assumption out
+loud *before* acting is worth more than any amount of careful phrasing
+afterwards, because afterwards is too late.
 
 ## MCP servers
 
@@ -284,7 +309,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 631 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 654 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -418,7 +443,7 @@ app/mcp_view.py the MCP page: servers, their tools, their warnings
 app/gecmis.py   the history page; app/akislar.py the workflows page
 app/tepsi.py    tray icon; app/kisayol.py the global shortcut
 scripts/        manual verification, asset and hero generation
-tests/          631 tests of the pure logic
+tests/          654 tests of the pure logic
 ```
 
 ## Contributing

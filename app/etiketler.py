@@ -64,6 +64,7 @@ TOOL_LABEL = {
     "side_capture": "Looking at the side desk",
     "side_act": "Working in the side desk",
     "side_close": "Closing the side desk",
+    "heads_up": "A note",
     "workflow_save": "Saving a workflow",
     "workflow_list": "Listing workflows",
     "workflow_run": "Replaying a workflow",
@@ -87,9 +88,26 @@ def tool_label(name: str) -> str:
 
 
 def hedef(payload: dict, sinir: int = 46) -> str:
-    """Çağrının üstünde çalıştığı şey: yol, ad, komut ya da koordinat."""
+    """Çağrının üstünde çalıştığı şey: yol, ad, komut ya da koordinat.
+
+    Bilinen alanlardan hiçbiri yoksa ilk kısa değere düşülüyor. Sebebi
+    yetenekler: girdi adlarını ajan kendi seçiyor ve hiçbiri bu listede
+    olmuyor. Boş bırakıldığında dökümde arka arkaya dört tane aynı satır
+    çıkıyordu — hangisinin ne yaptığı okunmuyordu.
+    """
     for key in TARGET_KEYS:
         if payload.get(key) is not None:
-            metin = str(payload[key])
-            return metin if len(metin) <= sinir else metin[:sinir - 3] + "…"
+            return _kisalt(str(payload[key]), sinir)
+    for anahtar, deger in payload.items():
+        if anahtar == "why" or deger is None:
+            continue
+        metin = str(deger)
+        # Uzun bir gövde hedef değil içerik: satıra sığmaz ve zaten
+        # anlatmaz.
+        if 0 < len(metin) <= sinir * 2:
+            return _kisalt(f"{anahtar}={metin}", sinir)
     return ""
+
+
+def _kisalt(metin: str, sinir: int) -> str:
+    return metin if len(metin) <= sinir else metin[:sinir - 3] + "…"

@@ -69,6 +69,11 @@ DETAIL_MAX_HEIGHT = 190
 #: Cevap alanının tavanı. Bunun üstünde çubuk büyümüyor, içerik kayıyor.
 REPLY_MAX_HEIGHT = 148
 
+#: "Sondayım" sayılmak için kaydırma çubuğunun sona olan payı,
+#: piksel. Sıfır olsaydı bir piksellik yuvarlama farkı takibi
+#: kapatırdı.
+TAKIP_PAYI = 6
+
 #: Sürüklerken çubuğun ekranda kalması gereken en küçük payı. Tamamen
 #: dışarı çıkarılamamalı: geri getirmenin tek yolu ayar dosyasını elle
 #: silmek olurdu.
@@ -858,6 +863,11 @@ class CommandBar(QWidget):
         self.reply.add_step(tool, baslik, detay)
         self._fit_reply()
 
+    def add_note(self, notu: str, hakkinda: str = "") -> None:
+        """Ajanın uyarısı. Adım değil, o yüzden ayrı görünüyor."""
+        self.reply.add_note(notu, hakkinda)
+        self._fit_reply()
+
     def settle_step(self, is_error: bool) -> None:
         self.reply.mark_last(is_error)
 
@@ -887,6 +897,13 @@ class CommandBar(QWidget):
         self.baloncuk.soyle(metin)
         self.bakisi_tazele()
         self._fit_reply()
+
+    def sona_kaydir(self) -> None:
+        """Dökümü sona alır. Yeni tur başlarken çağrılıyor: eski turda
+        yukarıda kalmış olmak, yeni turu hiç görmemek anlamına gelmemeli."""
+        cubuk = self._reply_scroll.verticalScrollBar()
+        cubuk.setValue(cubuk.maximum())
+        self._solmayi_tazele()
 
     def clear_run(self) -> None:
         """Yeni talimat: önceki turun şekli ve dökümü gidiyor."""
@@ -923,6 +940,17 @@ class CommandBar(QWidget):
         return max(60, REPLY_MAX_HEIGHT - pay - 6)
 
     def _fit_reply(self) -> None:
+        # Takip kararı **değişiklikten önce** veriliyor: sondaysan yeni
+        # satır geldikçe seninle birlikte iniyor, yukarı kaydırdıysan
+        # olduğun yerde kalıyorsun.
+        #
+        # Eskiden koşulsuzdu ve okunmayı imkânsız yapıyordu: ajan
+        # saniyede bir adım atıyor, sen yukarı kaydırıyorsun, bir sonraki
+        # adım seni sona geri fırlatıyordu. "Yukarıdaki mesajları
+        # göremiyorum" tam olarak buydu.
+        cubuk = self._reply_scroll.verticalScrollBar()
+        takip = cubuk.value() >= cubuk.maximum() - TAKIP_PAYI
+
         dolu = not self.reply.is_empty()
         self._reply_scroll.setVisible(dolu)
         # Kaydırma alanının yüksekliğini metne göre elle veriyoruz.
@@ -949,8 +977,8 @@ class CommandBar(QWidget):
             min(self._dokum_tavani(), max(0, needed) + 14)
         )
         self._grow()
-        bar = self._reply_scroll.verticalScrollBar()
-        bar.setValue(bar.maximum())
+        if takip:
+            cubuk.setValue(cubuk.maximum())
         self._solmayi_tazele()
 
     def _solmayi_tazele(self) -> None:
