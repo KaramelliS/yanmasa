@@ -251,3 +251,98 @@ def oneri_notu(tekrarlar: list[tuple[str, int, str]]) -> str:
         f"keep the label short. If the user says no, do not insist and do "
         f"not raise it again.]"
     )
+
+
+# --- koşuları derleme ---------------------------------------------------
+#
+# JSONL düz bir olay akışı: `tur`, ardından `eylem`ler, sonunda `bitti`.
+# Arayüzün istediği şey ise koşu: bir talimat ve onun adımları. Derleme
+# burada, arayüzde değil — kaydın biçimini bilen taraf burası ve aynı
+# derlemeye rapor/analiz tarafının da ihtiyacı olacak.
+
+
+@dataclass
+class Adim:
+    """Bir araç çağrısı."""
+
+    arac: str
+    girdi: dict[str, Any]
+    hata: bool
+    ozet: str
+    t: float
+
+
+@dataclass
+class Kosu:
+    """Bir talimat ve onun adımları."""
+
+    talimat: str
+    baslangic: float
+    adimlar: list[Adim] = field(default_factory=list)
+    metin: str = ""
+    sure: float = 0.0
+    desteksiz: list[str] = field(default_factory=list)
+    #: `bitti` satırı hiç gelmedi: uygulama tur ortasında kapandı.
+    yarim: bool = True
+
+    @property
+    def hata_sayisi(self) -> int:
+        return sum(1 for a in self.adimlar if a.hata)
+
+    @property
+    def adim_sayisi(self) -> int:
+        return len(self.adimlar)
+
+
+def kosulari_derle(satirlar: list[dict[str, Any]]) -> list[Kosu]:
+    """Olay akışını koşulara böler — **yeniden eskiye**.
+
+    Üç bozuk durum kasten tolere ediliyor, çünkü üçü de gerçekten oluyor:
+
+    - **Başlıksız eylem.** Kaydın ilk günü kesilmişse (`satirlar` son on
+      dört günü veriyor) turun `tur` satırı okunmayan bir dosyada kalmış
+      olabiliyor. O eylemler atılmıyor; talimatı bilinmeyen bir koşuya
+      giriyor.
+    - **Kapanmamış tur.** Uygulama tur ortasında kapanınca `bitti`
+      yazılmıyor. Koşu `yarim` kalıyor ve arayüz bunu söylüyor —
+      "0 adımda bitti" demek yalan olurdu.
+    - **Bittisi olan ama turu olmayan.** Aynı kesilme, ters yönden.
+    """
+    kosular: list[Kosu] = []
+    acik: Kosu | None = None
+
+    def kapat() -> None:
+        nonlocal acik
+        if acik is not None:
+            kosular.append(acik)
+            acik = None
+
+    for satir in satirlar:
+        tur = satir.get("tur")
+        if tur == "tur":
+            kapat()
+            acik = Kosu(
+                talimat=str(satir.get("talimat") or ""),
+                baslangic=float(satir.get("t") or 0.0),
+            )
+        elif tur == "eylem":
+            if acik is None:
+                acik = Kosu(talimat="", baslangic=float(satir.get("t") or 0.0))
+            acik.adimlar.append(Adim(
+                arac=str(satir.get("arac") or ""),
+                girdi=dict(satir.get("girdi") or {}),
+                hata=bool(satir.get("hata")),
+                ozet=str(satir.get("ozet") or ""),
+                t=float(satir.get("t") or 0.0),
+            ))
+        elif tur == "bitti":
+            if acik is None:
+                continue
+            acik.metin = str(satir.get("metin") or "")
+            acik.sure = float(satir.get("sure") or 0.0)
+            acik.desteksiz = list(satir.get("desteksiz") or [])
+            acik.yarim = False
+            kapat()
+    kapat()
+    kosular.reverse()
+    return kosular

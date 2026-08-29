@@ -1,0 +1,84 @@
+"""Araç adlarının insan diline karşılığı.
+
+Bu tablo iki yerden okunuyor: canlı koşuda önizleme karesi ve komut
+çubuğu, geçmiş sayfasında ise diskteki kayıt. Aynı çağrının iki yerde
+iki farklı adla görünmesi — "run_shell" ile "Running a command" — aynı
+şeyin iki ayrı iş olduğunu düşündürürdü. Tek kaynak burası.
+"""
+
+from __future__ import annotations
+
+#: Önizleme karesinde hedef olarak gösterilecek alan, araç bazında.
+TARGET_KEYS = ("path", "name", "target", "ref", "command", "text", "coordinate")
+
+TOOL_LABEL = {
+    "screenshot": "Looking at the screen",
+    "zoom": "Zooming in",
+    "left_click": "Clicking",
+    "double_click": "Double-clicking",
+    "type": "Typing",
+    "key": "Pressing a key",
+    "scroll": "Scrolling",
+    "read_ui_tree": "Reading the window",
+    "launch_app": "Launching an app",
+    "run_shell": "Running a command",
+    "write_file": "Writing a file",
+    "read_file": "Reading a file",
+    "edit_file": "Editing a file",
+    "list_dir": "Listing a folder",
+    "terminal_open": "Opening a terminal",
+    "terminal_send": "Typing in the terminal",
+    "terminal_read": "Reading the terminal",
+    "office_open": "Opening a document",
+    "office_read": "Reading the document",
+    "office_edit": "Editing the document",
+    "office_save": "Saving the document",
+    "office_history": "Reviewing the changes",
+    "office_close": "Closing the document",
+    "cursor_position": "Locating the cursor",
+    "right_click": "Right-clicking",
+    "middle_click": "Middle-clicking",
+    "triple_click": "Triple-clicking",
+    "mouse_move": "Moving the cursor",
+    "left_mouse_down": "Holding the button",
+    "left_mouse_up": "Releasing",
+    "left_click_drag": "Dragging",
+    "hold_key": "Holding a key",
+    "wait": "Waiting",
+    "switch_display": "Switching display",
+    "list_apps": "Listing apps",
+    "write_files": "Writing files",
+    "terminal_close": "Closing the terminal",
+    "skill_list": "Listing skills",
+    "skill_write": "Writing a skill",
+    "skill_remove": "Removing a skill",
+    "button_write": "Adding a button",
+    "button_remove": "Removing a button",
+    "remote_connect": "Connecting to the server",
+    "remote_list": "Listing the server",
+    "remote_read": "Reading from the server",
+    "remote_write": "Writing to the server",
+    "remote_run": "Running on the server",
+    "side_launch": "Launching in the side desk",
+    "side_windows": "Listing the side desk",
+    "side_capture": "Looking at the side desk",
+    "side_act": "Working in the side desk",
+    "side_close": "Closing the side desk",
+}
+
+
+
+
+def tool_label(name: str) -> str:
+    """Araç adının okunur hâli. Bilinmeyen araç — yetenekler — kendi adıyla
+    görünüyor: uydurulmuş bir etiket, adını bilmediğin bir işi anlatmaz."""
+    return TOOL_LABEL.get(name, name)
+
+
+def hedef(payload: dict, sinir: int = 46) -> str:
+    """Çağrının üstünde çalıştığı şey: yol, ad, komut ya da koordinat."""
+    for key in TARGET_KEYS:
+        if payload.get(key) is not None:
+            metin = str(payload[key])
+            return metin if len(metin) <= sinir else metin[:sinir - 3] + "…"
+    return ""

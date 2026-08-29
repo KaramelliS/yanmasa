@@ -670,11 +670,25 @@ class CommandBar(QWidget):
             f"QLineEdit:focus {{ border-bottom-color: {t.accent}; }}"
         )
 
+    def submit_text(self, instruction: str) -> None:
+        """Hazır bir talimatı çubuktan geçirmeden gönderir.
+
+        İki çağıranı var: düğmeler ve geçmiş sayfasındaki "Run again".
+        Metni alana yazıp Enter'a basmıyoruz; alanda yazılı bir şey varsa
+        o kaybolmamalı.
+
+        Çubuk öne geliyor: iş başladıktan sonra ne olduğunu gösteren yer
+        orası ve arkada kalmış bir çubuk, işin başlamadığı izlenimi
+        veriyordu.
+        """
+        if not self.field.isEnabled():
+            return
+        self.submitted.emit(instruction)
+        self.show()
+        self.raise_()
+
     def _run_shortcut(self, instruction: str) -> None:
-        """Düğmeye basıldı. Metni alana yazıp göndermek yerine doğrudan
-        gönderiyoruz; alanda yazılı bir şey varsa o kaybolmamalı."""
-        if self.field.isEnabled():
-            self.submitted.emit(instruction)
+        self.submit_text(instruction)
 
     def attach_buttons(self, store, extra_source=None) -> None:
         self.buttons.attach(store, extra_source)

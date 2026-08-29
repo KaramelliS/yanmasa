@@ -342,6 +342,28 @@ def _soru(p: QPainter, ana: str, sap: str) -> None:
     p.drawEllipse(QPointF(12, 17.6), 0.7, 0.7)
 
 
+def _gecmis(p: QPainter, ana: str, sap: str) -> None:
+    """Geçmiş: saat kadranı ve geriye dönen ok.
+
+    Kadran çerçeve rengiyle, akrep-yelkovan vurguyla: geçmişte aranan şey
+    "ne zaman"dan çok "hangi an" oluyor.
+    """
+    p.setPen(_pen(sap))
+    yay = QPainterPath()
+    # Ok için üstte bir boşluk bırakılıyor; tam daire çizip üstüne ok
+    # koymak iki çizgiyi üst üste bindiriyor ve leke yapıyor.
+    yay.arcMoveTo(QRectF(4, 4, 16, 16), 110)
+    yay.arcTo(QRectF(4, 4, 16, 16), 110, -320)
+    p.drawPath(yay)
+    ok = QPainterPath(QPointF(5.6, 4.6))
+    ok.lineTo(6.9, 8.2)
+    ok.lineTo(10.5, 6.9)
+    p.drawPath(ok)
+    p.setPen(_pen(ana))
+    p.drawLine(QPointF(12, 8.5), QPointF(12, 12))
+    p.drawLine(QPointF(12, 12), QPointF(15, 13.6))
+
+
 #: Araç adı -> çizim. Aile bazında, araç bazında değil: on yedi tıklama
 #: aracının hepsi aynı işi yapıyor ve on yedi ayrı çizim gürültü olurdu.
 GLYPHS = {
@@ -351,6 +373,7 @@ GLYPHS = {
     "tablo": _tablo, "yazi": _yazi, "kaydet": _kaydet, "defter": _defter,
     "yetenek": _yetenek, "bekle": _bekle, "sen": _sen, "soru": _soru,
     "yukari": _yukari, "yenile": _yenile, "sunucu": _sunucu,
+    "gecmis": _gecmis,
 }
 
 TOOL_GLYPH = {
