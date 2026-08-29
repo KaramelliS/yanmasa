@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-406%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-409%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -78,6 +78,13 @@ views are true; the panel says which one you are looking at.
 The panel sits at the **top**, where Mint puts it at the bottom. The desk
 is a page inside the app now and the app has its own status strip at the
 bottom; two bars stacked on each other were two bars doing the same job.
+
+The wallpaper is cached into a pixmap and only rebuilt on resize. That is
+what pays for it being more than a flat gradient: two light sources, four
+soft bands, a vignette, and film grain — a large dark gradient bands badly
+in an 8-bit channel and grain is what breaks it up. The grain is
+deterministic, so two screenshots of the same state are identical and a
+regression can be caught by comparing them.
 
 `python scripts/masa_dogrula.py` opens real apps on the hidden desktop and
 writes the frame to `varliklar/onizleme/masa.png`.
@@ -171,7 +178,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 406 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 409 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -268,7 +275,7 @@ backend/
 app/            Qt interface: window, panels, floating command bar, mascot
 app/masa.py     the agent's desk, drawn as a Mint-like shell
 scripts/        manual verification, asset and hero generation
-tests/          406 tests of the pure logic
+tests/          409 tests of the pure logic
 ```
 
 ## Contributing

@@ -141,7 +141,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 406 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 409 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -450,6 +450,14 @@ panelde yazıyor.
 Panel **üstte**, Mint'te altta duruyor. Masa artık uygulamanın bir sayfası
 ve altta uygulamanın kendi durum şeridi var; ikisi alt alta gelince aynı
 işi yapan iki çubuk oluyordu.
+
+Duvar kâğıdı bir pixmap'e önbelleklenip yalnızca boyut değişince yeniden
+çiziliyor. Düz bir geçişten fazlası olmasını ödeyen şey bu: iki ışık
+kaynağı, dört yumuşak bant, vinyet ve gren. Büyük ve karanlık bir geçiş 8
+bitlik kanalda bantlaşıyor ve o şeritleri kıran şey gren; ekranda
+"kaliteli" görünen şeyin çoğu aslında o. Gren deterministik, yani aynı
+durumun iki ekran görüntüsü birebir aynı çıkıyor ve bir gerileme
+karşılaştırılarak yakalanabiliyor.
 
 `python scripts/masa_dogrula.py` gizli masaüstünde gerçek uygulamalar açıp
 kareyi `varliklar/onizleme/masa.png` dosyasına yazıyor.

@@ -186,6 +186,63 @@ class TestPencere:
         assert w._akis._duraklat
 
 
+class TestDuvar:
+    """Duvar kâğıdı önbelleklenmeli ve gren şerit üretmemeli."""
+
+    def _p(self, qt_app):
+        from app.masa import MasaPenceresi
+
+        w = MasaPenceresi(lambda: MasaKaresi())
+        w.resize(400, 300)
+        return w
+
+    def test_duvar_onbellekleniyor(self, qt_app):
+        from PySide6.QtCore import QRect
+        from PySide6.QtGui import QImage, QPainter
+
+        w = self._p(qt_app)
+        hedef = QImage(400, 300, QImage.Format.Format_ARGB32)
+        p = QPainter(hedef)
+        w._duvar(p, QRect(0, 0, 400, 260))
+        ilk = w._duvar_kare
+        w._duvar(p, QRect(0, 0, 400, 260))
+        assert w._duvar_kare is ilk, "aynı boyutta yeniden çizilmemeli"
+        w._duvar(p, QRect(0, 0, 500, 260))
+        assert w._duvar_kare is not ilk, "boyut değişince yenilenmeli"
+        p.end()
+
+    def test_gren_dikey_serit_degil(self):
+        # İlk karma `(x * A) ^ (y * B)` idi ve sütun başına periyodik bir
+        # doku verdi: ekranda gren değil dikey şeritler göründü.
+        from app.masa import _gren
+
+        g = _gren()
+        sutunlar = []
+        for x in range(0, 16):
+            sutunlar.append(tuple(g.pixelColor(x, y).alpha()
+                                  for y in range(16)))
+        assert len(set(sutunlar)) > 12, "sütunlar birbirinin aynısı"
+
+    def test_gren_simetrik(self):
+        # Ortalaması 128 olan gri bir gren, ortalaması 25 olan bir zemini
+        # açıyordu. Yarısı beyaz yarısı siyah olunca parlaklık kaymıyor.
+        from app.masa import _gren
+
+        g = _gren()
+        beyaz = siyah = 0
+        for y in range(0, g.height(), 4):
+            for x in range(0, g.width(), 4):
+                renk = g.pixelColor(x, y)
+                if renk.alpha() == 0:
+                    continue
+                if renk.red() > 128:
+                    beyaz += 1
+                else:
+                    siyah += 1
+        oran = beyaz / max(1, beyaz + siyah)
+        assert 0.4 < oran < 0.6, oran
+
+
 class TestKaynak:
     """Masa, ajanı sonradan bulmak zorunda.
 
