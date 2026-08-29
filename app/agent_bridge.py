@@ -122,6 +122,26 @@ class AgentBridge(QObject):
         """
         return None if self._agent is None else self._agent.dispatcher
 
+    def mcp_durumlari(self) -> list:
+        """MCP sunucularının hâli.
+
+        Ajan kurulmadan da çalışıyor: yapılandırma diskte duruyor ve
+        API anahtarı olmadan da sunucu eklenip düzenlenebilmeli. O
+        durumda hepsi "kapalı" görünüyor, ki doğrusu da bu — bağlanan
+        bir şey yok.
+        """
+        if self._agent is not None:
+            return self._agent.dispatcher.mcp.durumlar()
+        from backend.mcp import ayar as ayar_mod
+        from backend.mcp.istemci import Baglanti
+
+        return [Baglanti(sunucu=s) for s in ayar_mod.oku()]
+
+    def mcp_yenile(self) -> None:
+        """Yapılandırma değişti — açılanları bağla, kapananları kapat."""
+        if self._agent is not None:
+            self._agent.dispatcher.mcp.yenile()
+
     def akislar(self):
         """Akış deposu. Ajan kurulamadıysa da çalışıyor: kayıtlı akışlar
         diskte duruyor ve API anahtarı olmadan da listelenebilmeli."""

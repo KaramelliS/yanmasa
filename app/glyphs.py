@@ -381,6 +381,23 @@ def _akis(p: QPainter, ana: str, sap: str) -> None:
     p.setBrush(Qt.BrushStyle.NoBrush)
 
 
+def _fis(p: QPainter, ana: str, sap: str) -> None:
+    """Dış sunucu: fiş. İki uç, gövde, ve aşağı inen kablo.
+
+    Vurgu uçlarda: bağlantıyı yapan şey onlar ve bu çizimin anlattığı
+    şey de bağlanmak — aracın ne yaptığı değil, **nereden geldiği**.
+    """
+    p.setPen(_pen(ana))
+    p.drawLine(QPointF(9, 3.5), QPointF(9, 8))
+    p.drawLine(QPointF(15, 3.5), QPointF(15, 8))
+    p.setPen(_pen(sap))
+    p.drawRoundedRect(QRectF(6.5, 8, 11, 7), 2, 2)
+    yol = QPainterPath(QPointF(12, 15))
+    yol.lineTo(12, 17.5)
+    yol.cubicTo(12, 20.5, 8.5, 19.5, 8.5, 21.5)
+    p.drawPath(yol)
+
+
 #: Araç adı -> çizim. Aile bazında, araç bazında değil: on yedi tıklama
 #: aracının hepsi aynı işi yapıyor ve on yedi ayrı çizim gürültü olurdu.
 GLYPHS = {
@@ -390,7 +407,7 @@ GLYPHS = {
     "tablo": _tablo, "yazi": _yazi, "kaydet": _kaydet, "defter": _defter,
     "yetenek": _yetenek, "bekle": _bekle, "sen": _sen, "soru": _soru,
     "yukari": _yukari, "yenile": _yenile, "sunucu": _sunucu,
-    "gecmis": _gecmis, "akis": _akis,
+    "gecmis": _gecmis, "akis": _akis, "fis": _fis,
 }
 
 TOOL_GLYPH = {
@@ -425,6 +442,11 @@ TOOL_GLYPH = {
 
 def glyph_for(tool: str) -> str:
     """Bilinmeyen araç — yetenekler dâhil — kıvılcımla gösteriliyor."""
+    if tool.startswith("mcp__"):
+        # Dış sunucudan gelen araç: fiş çizimi. Yeteneklerle aynı
+        # görünseydi ajanın kendi yazdığı kodla üçüncü tarafın kodu
+        # akışta ayırt edilemezdi.
+        return "fis"
     return TOOL_GLYPH.get(tool, "yetenek")
 
 

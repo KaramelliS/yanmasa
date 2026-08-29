@@ -76,6 +76,13 @@ TOOL_LABEL = {
 def tool_label(name: str) -> str:
     """Araç adının okunur hâli. Bilinmeyen araç — yetenekler — kendi adıyla
     görünüyor: uydurulmuş bir etiket, adını bilmediğin bir işi anlatmaz."""
+    if name.startswith("mcp__"):
+        # `mcp__playwright__browser_click` -> "playwright · browser_click".
+        # Ham ad okunmuyor ve hangi sunucudan geldiği tam da bakan kişinin
+        # sorduğu şey.
+        parcalar = name.split("__", 2)
+        if len(parcalar) == 3:
+            return f"{parcalar[1]} · {parcalar[2]}"
     return TOOL_LABEL.get(name, name)
 
 

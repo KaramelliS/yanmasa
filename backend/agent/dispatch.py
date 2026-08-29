@@ -18,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from ..mcp.istemci import McpHatasi, McpYonetici
 from ..computer import apps
 from ..computer import files
 from ..computer import input as kb
@@ -128,6 +129,11 @@ class Dispatcher:
         #: Son yazılan dosyalar — arayüz kod panelini bunlardan açıyor.
         self.last_files: list[str] = []
         self.akislar = AkisDeposu()
+        #: Dış MCP sunucuları. Kurulmuş oluyor ama **başlatılmıyor**:
+        #: `Agent` başlatıyor, çünkü bir MCP sunucusu senin makinende
+        #: senin haklarınla çalışan bir süreç ve testlerde bir
+        #: `Dispatcher` kurmanın yan etkisi olmamalı.
+        self.mcp = McpYonetici()
         #: Bu turda dünyayı değiştiren adımlar. `workflow_save` bunu
         #: kaydediyor. Denetim kaydı bu iş için kullanılamıyor: oradaki
         #: girdiler 200 karakterde kırpılıyor ve kırpılmış bir komutu
@@ -141,6 +147,9 @@ class Dispatcher:
     def shutdown(self) -> None:
         """Açık PTY'leri kapatır. Yoksa süreçler ajan bittikten sonra yaşar."""
         self.terminals.close_all()
+        # MCP sunucuları da süreç: kapatılmazlarsa uygulama kapandıktan
+        # sonra arkada `node` süreçleri kalıyor.
+        self.mcp.durdur()
         if self.side is not None:
             # Yan alandaki süreçler görünmez; kapatılmazlarsa hiç kimsenin
             # fark etmediği bir Chrome bellekte yaşamaya devam ediyor.
@@ -171,11 +180,15 @@ class Dispatcher:
         handler = getattr(self, f"_do_{name}", None)
         if handler is None:
             skill = self.skills.get(name)
-            if skill is None:
-                raise ToolError(f"Unknown tool: {name}")
-            sonuc = self._run_skill(skill, payload)
-            self._adimi_kaydet(name, payload, None, sonuc)
-            return sonuc
+            if skill is not None:
+                sonuc = self._run_skill(skill, payload)
+                self._adimi_kaydet(name, payload, None, sonuc)
+                return sonuc
+            if self.mcp.bilir(name):
+                sonuc = self._run_mcp(name, payload)
+                self._adimi_kaydet(name, payload, None, sonuc)
+                return sonuc
+            raise ToolError(f"Unknown tool: {name}")
 
         self._gate(name, payload)
         # İmza eylemden **önce** alınıyor: tıklamadan sonra ekran değişmiş
@@ -279,6 +292,35 @@ class Dispatcher:
         if not self.approve(name, str(detail)[:400], verdict.reason):
             raise Denied(f"The user declined ({verdict.reason}). This action was not run.")
 
+
+
+    # --- MCP --------------------------------------------------------------
+
+    def _run_mcp(self, name: str, payload: dict[str, Any]) -> ToolOutcome:
+        """Bir MCP aracını çalıştırır — **her çağrıda onay isteyerek**.
+
+        Berkay böyle seçti ve gerekçesi sağlam: MCP sunucusu üçüncü
+        tarafın kodu, araç tanımı modelin promptuna giriyor ve taranan
+        sunucuların üçte birinde kritik açık bulundu. Yerleşik araçlarda
+        kapı yalnızca riskli görünen çağrılarda açılıyor; burada her
+        çağrıda.
+
+        Bedeli onay yorgunluğu ve o gerçek bir risk: bir noktada okumadan
+        onaylanır. Buna karşı onay metni **bilgilendirici**: hangi
+        sunucu, aracın kendi tanımı, ve tanımda talimat gibi duran bir
+        şey varsa uyarısı.
+        """
+        gerekce = self.mcp.anlat(name)
+        uyarilar = self.mcp.uyarilar(name)
+        if uyarilar:
+            gerekce += "  [warning: " + "; ".join(uyarilar) + "]"
+        if not self.approve(name, str(payload)[:400], gerekce):
+            raise Denied(f"The user did not approve {name}.")
+        try:
+            icerik, hatali = self.mcp.cagir(name, payload)
+        except McpHatasi as exc:
+            raise ToolError(str(exc)) from None
+        return ToolOutcome(content=icerik, is_error=hatali)
 
     # --- akışlar ----------------------------------------------------------
 

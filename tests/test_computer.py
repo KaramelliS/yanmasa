@@ -17,6 +17,14 @@ PRIMARY = Display(index=0, left=0, top=0, width=1920, height=1080, primary=True)
 SECONDARY = Display(index=1, left=1920, top=0, width=1920, height=1080, primary=False)
 
 
+class _McpYok:
+    """MCP bağlı değilken yönetici böyle davranıyor."""
+
+    @staticmethod
+    def tools():
+        return []
+
+
 class TestDisplay:
     def test_primary_koordinati_degismez(self):
         assert PRIMARY.to_virtual(100, 200) == (100, 200)
@@ -1556,6 +1564,7 @@ class TestHiz:
             skills = SahteKayit()
             active_index = 0
             kuru = False
+            mcp = _McpYok()
 
         agent.dispatcher = SahteDispatcher()
         tools = agent.tools
@@ -1592,6 +1601,7 @@ class TestHiz:
         class SahteDispatcher:
             active_index = 0
             kuru = False
+            mcp = _McpYok()
 
         d = SahteDispatcher()
         d.skills = SahteKayit()
@@ -1617,6 +1627,7 @@ class TestHiz:
         class SahteDispatcher:
             active_index = 0
             kuru = False
+            mcp = _McpYok()
 
         agent.dispatcher = SahteDispatcher()
         blocks = agent._system_blocks()

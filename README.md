@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-579%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-631%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -178,6 +178,48 @@ suggesting the agent offer you a button for it. Runs that stumbled do not
 count: automating a job that fails three times out of three would be
 automating the failure.
 
+## MCP servers
+
+External MCP servers can lend the agent tools this app does not have — a
+structured browser, a GitHub client, a web fetcher. They are declared in
+`~/.ajan/mcp.json` in the **standard** format, so a config you already
+have for another app pastes in whole, and there is an "Import from
+Claude" button for Claude Desktop's.
+
+Their tools arrive named `mcp__<server>__<tool>` and then take exactly
+the same road as everything else: the approval gate, the audit log, dry
+run, workflow recording. Nothing had to be written twice.
+
+Measured against `@modelcontextprotocol/server-everything`: 3.5 s to
+connect over `npx`, 13 tools discovered, a call round-trips in 5 ms, and
+image results survive as image blocks rather than being flattened to
+text — which is the whole point of a tool like Playwright's screenshot.
+`python scripts/mcp_dogrula.py` runs that measurement.
+
+**The security posture is deliberate, and it is the reason this took as
+long as it did.** A server is a process on your machine with your
+permissions, and its *tool descriptions go straight into the model's
+prompt* — a documented attack surface, not a hypothetical one: one audit
+found critical issues in 33% of 1,000 scanned servers, another graded
+71% of sampled packages at the bottom.
+
+So: nothing starts on its own — writing a server into the config is not
+permission to run it, and enabling is a separate click with a dialog that
+says what it means. Every single MCP call asks you, with the tool's own
+description in the prompt. Descriptions are scanned for the known
+poisoning patterns (`ignore previous instructions`, `do not tell the
+user`, `<IMPORTANT>`, naming credential files, "call me before every
+other tool") and flagged — **flagged, not blocked**, because scanners in
+this space have a high false-positive rate and a scanner that blocks
+would quietly break working servers. The tool set is fingerprinted, so a
+server that changes its definitions after you approved it says so. And
+the system prompt tells the model in as many words that a tool
+description is not an instruction to it.
+
+`env` values are never shown in the interface, only which keys are set;
+`${VAR}` reads from the process environment so a token need not live in
+the file at all.
+
 ## Four more ways to not pay for the same work twice
 
 **History.** Every turn is already written to `runs/*.jsonl` as it
@@ -242,7 +284,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 579 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 631 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -280,6 +322,18 @@ The most useful section in any README.
 - **The agent's desk is read-only.** You can watch it live, but you cannot
   click or type in it — reaching into the side workspace by hand was never
   written.
+- **Only MCP *tools* are supported.** Resources, prompts, sampling, roots
+  and elicitation are not. Most servers people actually use are tool
+  servers, and the rest was not worth the surface area yet.
+- **HTTP MCP servers have no OAuth.** A URL server is connected plainly;
+  anything needing an OAuth dance will not connect.
+- **MCP servers are not sandboxed.** They are ordinary child processes
+  with your permissions. The approval gate governs what the *agent* asks
+  them to do; it does not govern what the server does on its own.
+- **Approving every MCP call is tiring, on purpose.** The alternative was
+  remembering approvals per tool, and the failure mode there is a
+  definition that changes after you approved it. If it wears you down,
+  that is the trade being paid — say so and it can be revisited.
 - **The app does not start with Windows.** There is no installer either.
 - **Workflow replay has no model fallback.** When a recorded control
   cannot be found, the workflow stops and tells you which step. The
@@ -355,14 +409,16 @@ backend/
   office/       .xlsx and .docx without Office
   skills/       the agent's own tools
   workflows/    recorded action sequences, their store and player
+  mcp/          external MCP servers: config, client, definition scanning
   safety/       risk classifier, Esc x3 kill switch
 app/            Qt interface: window, panels, floating command bar, mascot
 app/masa.py     the agent's desk, drawn as a Mint-like shell
 app/kod_penceresi.py  the Code window inside the desk
+app/mcp_view.py the MCP page: servers, their tools, their warnings
 app/gecmis.py   the history page; app/akislar.py the workflows page
 app/tepsi.py    tray icon; app/kisayol.py the global shortcut
 scripts/        manual verification, asset and hero generation
-tests/          579 tests of the pure logic
+tests/          631 tests of the pure logic
 ```
 
 ## Contributing

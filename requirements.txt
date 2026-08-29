@@ -6,6 +6,10 @@ pillow==12.3.0
 anthropic==1.0.0
 python-dotenv==1.1.1
 
+# MCP: dış sunucuların araçlarını ajana bağlayan istemci. Sunucular ayrı
+# süreçler ve çoğu npx ile geliyor; bu paket yalnızca istemci tarafı.
+mcp==2.1.1
+
 # UI Automation yan kanalı
 uiautomation==2.0.29
 

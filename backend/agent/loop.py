@@ -157,6 +157,11 @@ class Agent:
         self.dispatcher = Dispatcher(
             self.displays, self.capture, self.kill, approve=self.approve
         )
+        # Açık MCP sunucuları arka planda bağlanıyor. Beklenmiyor: bir
+        # `npx` indirmesi dakikalar sürebiliyor ve o süre boyunca ajanın
+        # açılmaması kabul edilemez. Araçlar hazır olunca listeye
+        # giriyor; liste zaten her model çağrısında yeniden kuruluyor.
+        self.dispatcher.mcp.basla()
 
     @classmethod
     def create(cls, cfg: config.Config, displays: DisplayMap, capture: ScreenCapture,
@@ -189,7 +194,8 @@ class Agent:
             *CUSTOM_TOOLS[:-1],
             {**CUSTOM_TOOLS[-1], "cache_control": {"type": "ephemeral"}},
         ]
-        return [*static, *self.dispatcher.skills.tools()]
+        return [*static, *self.dispatcher.skills.tools(),
+                *self.dispatcher.mcp.tools()]
 
     def interject(self, text: str) -> None:
         """Ajan çalışırken araya bir cümle sıkıştırır.

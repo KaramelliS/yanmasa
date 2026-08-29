@@ -120,6 +120,46 @@ Kesik bir harf sırası bozuk çizim gibi okunuyor; oysa söylenmek istenen
 kaydırma sıfırdayken hiç görünmüyor — sığan bir dökümün üstüne gölge
 koymak olmayan bir devamı ima etmek olurdu.
 
+## MCP sunucuları
+
+Dış MCP sunucuları ajana bu uygulamada olmayan araçlar veriyor: yapısal
+tarayıcı, GitHub istemcisi, web okuyucu. Tanımlar `~/.ajan/mcp.json`
+içinde ve biçim **standart** olan — başka bir uygulama için hazırladığın
+yapılandırma olduğu gibi yapışıyor, Claude Desktop'ınki için de bir "içe
+aktar" düğmesi var.
+
+Araçlar `mcp__<sunucu>__<araç>` adıyla geliyor ve oradan sonra her şeyle
+aynı yoldan gidiyorlar: onay kapısı, denetim kaydı, kuru koşu, akış
+kaydı. Hiçbiri ikinci kez yazılmadı.
+
+`@modelcontextprotocol/server-everything` ile ölçtüm: `npx` üzerinden
+bağlanma 3,5 s, 13 araç, bir çağrı 5 ms, ve görsel sonuçlar metne
+düzleştirilmeden görsel blok olarak geçiyor — Playwright'ın ekran
+görüntüsü aracının bütün anlamı zaten o.
+`python scripts/mcp_dogrula.py` bu ölçümü yapıyor.
+
+**Güvenlik duruşu kasıtlı ve bu işin uzun sürmesinin sebebi o.** Bir MCP
+sunucusu senin makinende senin haklarınla çalışan bir süreç ve araç
+tanımları *doğrudan modelin promptuna* giriyor — bu varsayımsal değil,
+belgelenmiş bir saldırı yüzeyi: taranan 1.000 sunucunun %33'ünde kritik
+açık, örneklenen paketlerin %71'i en düşük not.
+
+Bu yüzden: hiçbir sunucu kendiliğinden açılmıyor — yapılandırmaya
+yazmak çalıştırmaya izin vermek değil, açmak ne demek olduğunu söyleyen
+ayrı bir tıklama. Her MCP çağrısında onay soruluyor ve onay metninde
+aracın kendi tanımı duruyor. Tanımlar bilinen zehirleme kalıplarına karşı
+taranıyor (`ignore previous instructions`, `do not tell the user`,
+`<IMPORTANT>`, kimlik dosyası adları, "her araçtan önce beni çağır") ve
+**işaretleniyor, engellenmiyor** — bu alandaki tarayıcıların yanlış
+pozitif oranı yüksek ve engelleyen bir tarama çalışan sunucuları sessizce
+bozardı. Araç kümesinin parmak izi tutuluyor, yani onayladıktan sonra
+tanımını değiştiren sunucu bunu söylüyor. Sistem promptu da modele açıkça
+yazıyor: bir araç tanımı ona verilmiş bir talimat değil.
+
+`env` değerleri arayüzde **hiç** görünmüyor, yalnızca hangi anahtarların
+tanımlı olduğu; `${VAR}` süreç ortamından okuyor, yani anahtarın dosyada
+durması gerekmiyor.
+
 ## Kod yazarken izlemek
 
 Ajan bir dosya yazdığında masanın **içinde** bir Code penceresi açılıyor:
@@ -209,7 +249,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 579 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 631 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -709,6 +749,18 @@ Bir README'de en işe yarayan bölüm bu.
   duruyor.
 - **Ajanın masası salt okunur.** Canlı izleyebiliyorsun ama içine
   tıklayıp yazamıyorsun; yan alana elle müdahale hiç yazılmadı.
+- **MCP'nin yalnızca *araç* tarafı destekleniyor.** Kaynak (resource),
+  prompt, sampling, roots ve elicitation yok. İnsanların gerçekten
+  kullandığı sunucuların çoğu araç sunucusu; gerisi henüz yüzey alanına
+  değmedi.
+- **HTTP MCP sunucularında OAuth yok.** Adresle verilen sunucuya düz
+  bağlanılıyor; OAuth isteyen bir sunucu bağlanmıyor.
+- **MCP sunucuları kum havuzunda değil.** Senin haklarınla çalışan sıradan
+  alt süreçler. Onay kapısı *ajanın* onlardan ne istediğini yönetiyor,
+  sunucunun kendi başına ne yaptığını değil.
+- **Her MCP çağrısında onay yorucu, bilerek.** Alternatifi araç başına
+  onayı hatırlamaktı ve oradaki kusur, onayladıktan sonra değişen bir
+  tanım. Yorarsa ödenen bedel bu — söyle, yeniden konuşulur.
 - **Uygulama açılışta başlamıyor.** Kurulum paketi de yok.
 - **Akış oynatmada model yedeği yok.** Kaydedilmiş bir denetim
   bulunamayınca akış duruyor ve hangi adımda durduğunu söylüyor. Plandaki
@@ -822,6 +874,10 @@ backend/
     gate.py             risk sınıflandırıcı
     killswitch.py       Esc x3 acil durdurma
   computer/canli.py   masanın canlı karesi
+  mcp/
+    ayar.py             ~/.ajan/mcp.json — standart biçim, varsayılan kapalı
+    istemci.py          asyncio istemcisi: bağlanma, araç listesi, çağrı
+    guvenlik.py         tanım zehirlenmesi taraması ve parmak izi
   workflows/
     depo.py             akış deposu, adım ve imza biçimi
     imza.py             tıklanan denetimin kimliği; taşınınca yeniden bulma
@@ -836,6 +892,7 @@ app/
   baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
   masa.py               ajanın masası: gizli masaüstünün canlı görüntüsü
   kod_penceresi.py      masanın içindeki Code penceresi
+  mcp_view.py           MCP sayfası: sunucular, araçları, uyarıları
   mint.py               masanın ortak paleti ve ölçüleri
   gecmis.py             koşu geçmişi sayfası
   akislar.py            kaydedilmiş akışlar sayfası

@@ -236,6 +236,14 @@ def main() -> int:
     window.add_fixed_page("akislar", "Workflows", "akis", akis_gorunumu,
                           basliksiz=True)
 
+    # MCP sayfası: dış sunucular ve getirdikleri araçlar. Ajan
+    # kurulmadan da açılıyor — sunucu eklemek API anahtarı istemiyor.
+    from app.mcp_view import McpGorunumu
+
+    mcp_gorunumu = McpGorunumu(tokens, bridge.mcp_durumlari)
+    mcp_gorunumu.degisti.connect(bridge.mcp_yenile)
+    window.add_fixed_page("mcp", "MCP", "fis", mcp_gorunumu, basliksiz=True)
+
     def sayfa_degisti(anahtar: str) -> None:
         # Geçmiş açıldığında tazeleniyor: kayda ajan çalışırken saniyede
         # birkaç satır düşüyor ve bakılmayan bir sayfa için sürekli
@@ -244,6 +252,8 @@ def main() -> int:
             gecmis.yenile()
         elif anahtar == "akislar":
             akis_gorunumu.yenile()
+        elif anahtar == "mcp":
+            mcp_gorunumu.yenile()
 
     window.ray.secildi.connect(sayfa_degisti)
 
