@@ -43,10 +43,14 @@ OmniParser/Qwen-VL sınıfı bir model çalışmıyor.
 
 İki pencere açılır:
 
-- **Ajan penceresi** — panelleri barındırır: tablo, yazı belgesi, kod,
-  terminal ve değişiklik listesi. Her panel bir `QDockWidget`; başlığına çift
-  tıklayınca gerçek, ayrı bir Windows penceresine çıkar ve ikinci ekrana
-  atılabilir. Bu Qt'nin kendi davranışı, taklit edilmiş bir sürükleme değil.
+- **Ajan penceresi** — solda dar bir ray, sağda sayfalar. İlk iki sayfa
+  hep orada: **Akış** (ajanın adım adım ne yaptığı) ve **Masa** (ajanın
+  kendi masaüstünün canlı görüntüsü). Altına ajanın açtıkları geliyor:
+  tablo, yazı belgesi, kod, sunucu, yetenek panelleri. Bunlar
+  `QDockWidget`'tı ve başlığa çift tıklayınca ayrı bir Windows penceresine
+  çıkıyorlardı; ajan üç belge açtığında ekranda ne olduğunu kimse
+  söyleyemediği için sayfalara geçildi. Gerekçe ve kaybedilen `app/ray.py`
+  içinde yazılı.
 - **Komut çubuğu** — ajanla konuşulan yer burası, ana pencere değil.
   Çerçevesiz, hep üstte, ekranın köşesinde yüzen bir çubuk. Dört parçası var:
   mikrofon, **yazı alanı** (ses kullanılamıyorsa tek çalışan giriş yolu),
@@ -137,7 +141,7 @@ bir güncelleme onları silmemeli. `AJAN_STATE_DIR` ile taşınabiliyor.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                          # uygulama
-.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 389 test
+.venv/Scripts/python.exe -m pytest tests -q                # saf mantık, 406 test
 .venv/Scripts/python.exe scripts/check_phase1.py           # yakalama, ekrana dokunmaz
 .venv/Scripts/python.exe scripts/check_phase1.py --input   # Notepad'e Türkçe yazar
 .venv/Scripts/python.exe scripts/masa_dogrula.py           # ajanın masası
@@ -435,9 +439,17 @@ onların ve bu depoda yok.
 
 Başlık çubuklarında kapat/küçült düğmesi yok. Salt okunur bir görüntüde
 çalışmayan bir düğme yalan; yerine başlık ajanın hangi pencerede olduğunu
-söylüyor, ki insanın gerçekten merak ettiği bu. Paneldeki tek gerçek
-düğme duraklatma ve gerçek bir iş yapıyor: yakalama kare başına 54 ms ve
-sen bakmıyorken o payı ajana bırakmak doğru.
+söylüyor, ki insanın gerçekten merak ettiği bu. Panelde iki gerçek düğme
+var. **Duraklatma** gerçek bir iş yapıyor: yakalama kare başına 54 ms ve
+sen bakmıyorken o payı ajana bırakmak doğru. **Yakınlaşma** masaüstünün
+tamamı ile pencerelerin ortak kutusu arasında geçiyor — 1920x1080'i bir
+sayfaya sığdırmak 0.57 ölçek demek ve 980 piksellik bir tarayıcı 560'a
+inince içindeki yazı okunmuyor. İkisi de doğru; hangisine baktığın
+panelde yazıyor.
+
+Panel **üstte**, Mint'te altta duruyor. Masa artık uygulamanın bir sayfası
+ve altta uygulamanın kendi durum şeridi var; ikisi alt alta gelince aynı
+işi yapan iki çubuk oluyordu.
 
 `python scripts/masa_dogrula.py` gizli masaüstünde gerçek uygulamalar açıp
 kareyi `varliklar/onizleme/masa.png` dosyasına yazıyor.
@@ -724,7 +736,8 @@ backend/
   computer/canli.py   masanın canlı karesi
 app/
   fluent.py             Fluent token'ları; tema ve vurgu sistemden okunuyor
-  window.py             ana pencere, dock panelleri, durum şeridi
+  window.py             ana pencere, sayfalar, durum şeridi
+  ray.py                sol ray ve sayfa başlığı
   commandbar.py         yüzen komut çubuğu: mikrofon, yazı alanı, önizleme
   baloncuk.py           maskotun konuşma baloncuğu; yazı harf harf akıyor
   masa.py               ajanın masası: gizli masaüstünün canlı görüntüsü

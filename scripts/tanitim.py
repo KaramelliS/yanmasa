@@ -92,13 +92,31 @@ ADIMLAR = [
 
 def _kur(t):
     pencere = MainWindow(t)
-    pencere.resize(1500, 940)
-    pencere.open_panel("sheet", "budget.xlsx",
-                       SheetView(SATIRLAR, t, ["Sheet1"], "budget.xlsx"))
-    pencere.open_panel("fix", "Corrections", TashihMargin(DUZELTMELER))
-    pencere.open_panel("doc", "summary.docx", DocPanel(PARAGRAFLAR))
-    # Panels tabify by design; the hero shows that, with the sheet on top.
-    pencere._panels["sheet"].raise_()
+    # 940 yüksekti: beş adımlık bir koşuda alt yarı boş kalıyor ve tanıtım
+    # karesi uygulamayı boş gösteriyordu. Kare gerçek bir koşunun gerçek
+    # boyu kadar.
+    pencere.resize(1500, 760)
+
+    # Masa sayfası rayda duruyor: bu projenin ayırt edici şeyi o ve
+    # tanıtımda hiç görünmemesi tuhaf olurdu. İçi burada boş — dolu hâli
+    # `masa_dogrula.py` ile gerçek pencerelerden çekiliyor.
+    from app.masa import MasaPenceresi  # noqa: PLC0415
+    from backend.computer.canli import MasaKaresi  # noqa: PLC0415
+
+    pencere.add_fixed_page("masa", "Desk", "pencere",
+                           MasaPenceresi(lambda: MasaKaresi()),
+                           basliksiz=True)
+    pencere.open_panel("budget.xlsx", "budget.xlsx · sheet  (1 unsaved)",
+                       SheetView(SATIRLAR, t, ["Sheet1"], "budget.xlsx"),
+                       glyph="tablo", label="budget.xlsx")
+    pencere.open_panel("summary.docx", "summary.docx · text",
+                       DocPanel(PARAGRAFLAR), glyph="yazi",
+                       label="summary.docx")
+    pencere.open_panel("fix", "Corrections", TashihMargin(DUZELTMELER),
+                       glyph="kaydet", label="Fixes")
+    # The hero shows the activity page: the run's own record is the thing
+    # this app is about, and the pages beside it say what it produced.
+    pencere.show_page("akis")
     # The activity view is the run's own record; leaving it on its empty
     # state while the status bar says "Working" would be a lie about the
     # app, not just a worse picture.

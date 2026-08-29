@@ -8,7 +8,7 @@ cursor**, so it can work while you keep using yours.
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](#requirements)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Claude Opus 5](https://img.shields.io/badge/Model-Claude%20Opus%205-D97757)](https://docs.anthropic.com/)
-[![Tests](https://img.shields.io/badge/tests-389%20passing-brightgreen)](tests/test_computer.py)
+[![Tests](https://img.shields.io/badge/tests-406%20passing-brightgreen)](tests/test_computer.py)
 
 ![Yan Masa running a job: the instruction, every step with its real result, the sheet the agent produced, and the floating command bar](varliklar/onizleme/hero.png)
 
@@ -67,10 +67,17 @@ this repo.
 
 The titlebars have no close or minimise buttons. In a read-only view a
 button that does nothing is a lie; instead the titlebar says which window
-the agent is working in, which is what you actually want to know. The one
-real control in the panel is pause, and it does a real job: capture costs
-54 ms a frame and giving that back to the agent while you are not looking
-is the right trade.
+the agent is working in, which is what you actually want to know. The
+panel has two real controls. **Pause** does a real job: capture costs 54 ms
+a frame and giving that back to the agent while you are not looking is the
+right trade. **Zoom** switches between the whole 1920x1080 desktop and the
+bounding box of the open windows — fitting a full desktop into a page means
+a 0.57 scale, and a 980-pixel browser rendered at 560 is not readable. Both
+views are true; the panel says which one you are looking at.
+
+The panel sits at the **top**, where Mint puts it at the bottom. The desk
+is a page inside the app now and the app has its own status strip at the
+bottom; two bars stacked on each other were two bars doing the same job.
 
 `python scripts/masa_dogrula.py` opens real apps on the hidden desktop and
 writes the frame to `varliklar/onizleme/masa.png`.
@@ -164,7 +171,7 @@ source and an update should not delete it. `AJAN_STATE_DIR` moves that.
 
 ```
 .venv/Scripts/pythonw.exe yanmasa.py                        # the app
-.venv/Scripts/python.exe -m pytest tests -q                 # 389 tests
+.venv/Scripts/python.exe -m pytest tests -q                 # 406 tests
 .venv/Scripts/python.exe scripts/check_phase1.py            # capture only
 .venv/Scripts/python.exe scripts/check_phase1.py --input    # really types
 .venv/Scripts/python.exe scripts/ikinci_imlec_dogrula.py    # second cursor
@@ -209,6 +216,9 @@ The most useful section in any README.
 - **Documents are read-only in the UI.** You can look at the sheet and the
   document, select cells, and the formula bar shows real content — but only
   the agent can edit.
+- **A page cannot be torn off into its own window.** Panels used to be
+  `QDockWidget`s and Qt gave that for free; pages do not. Nothing replaces
+  it yet.
 - **Undo cannot remove an inserted paragraph.** Deleting a paragraph in
   python-docx means going down into the XML tree; a half-working undo would
   be dangerous, so it does not exist and says so.
@@ -258,7 +268,7 @@ backend/
 app/            Qt interface: window, panels, floating command bar, mascot
 app/masa.py     the agent's desk, drawn as a Mint-like shell
 scripts/        manual verification, asset and hero generation
-tests/          389 tests of the pure logic
+tests/          406 tests of the pure logic
 ```
 
 ## Contributing

@@ -59,6 +59,12 @@ from backend.computer.masaustu import IMLEC_BOY, IMLEC_OYUK, IMLEC_RENK
 
 #: Panel yüksekliği. Mint'in Cinnamon paneli varsayılan 40; burada 38,
 #: çünkü bizim pencere bir ekran değil ve panel oranı büyük görünüyor.
+#:
+#: Panel **üstte**. Mint'te altta duruyor ama masa artık uygulamanın bir
+#: sayfası ve altta uygulamanın kendi durum şeridi var; ikisi alt alta
+#: gelince aynı işi yapan iki çubuk oluyordu. Üste alınca panel sayfanın
+#: başlık şeridi hâline geliyor ve Cinnamon'un üst panel düzeni de zaten
+#: var olan bir düzen.
 PANEL_H = 38
 
 #: Başlık çubuğu yüksekliği — masaüstü ölçeğinden bağımsız, kendi
@@ -144,9 +150,11 @@ class MasaPenceresi(QWidget):
 
     def __init__(self, kaynak) -> None:
         super().__init__()
+        # Ayrı bir pencere değil, sayfa. Kendi başına da açılabilsin diye
+        # başlığı duruyor; asgari boy küçük tutuluyor, yoksa gömüldüğü
+        # pencerenin en küçük boyunu o belirliyor.
         self.setWindowTitle("Yan Masa — the agent's desk")
-        self.resize(1180, 740)
-        self.setMinimumSize(720, 460)
+        self.setMinimumSize(480, 300)
         self.setAutoFillBackground(False)
 
         self._kare = MasaKaresi()
@@ -154,6 +162,8 @@ class MasaPenceresi(QWidget):
         self._akis.kare.connect(self._kare_geldi)
         self._duraklat = False
         self._duraklat_kutusu = QRect()
+        self._yakin = True
+        self._yakin_kutusu = QRect()
         self._kapali = False
 
         # Saat panelde gerçek saati gösteriyor. Duran bir saat, canlı
@@ -196,9 +206,13 @@ class MasaPenceresi(QWidget):
     # --- etkileşim --------------------------------------------------------
 
     def mousePressEvent(self, event) -> None:
-        if self._duraklat_kutusu.contains(event.position().toPoint()):
+        nokta = event.position().toPoint()
+        if self._duraklat_kutusu.contains(nokta):
             self._duraklat = not self._duraklat
             self._akis.duraklat(self._duraklat)
+            self.update()
+        elif self._yakin_kutusu.contains(nokta):
+            self._yakin = not self._yakin
             self.update()
 
     # --- çizim ------------------------------------------------------------
@@ -208,7 +222,7 @@ class MasaPenceresi(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-        masa = QRect(0, 0, self.width(), self.height() - PANEL_H)
+        masa = QRect(0, PANEL_H, self.width(), self.height() - PANEL_H)
         self._duvar(p, masa)
 
         olcek, ofset = self._olcek(masa)
@@ -222,15 +236,36 @@ class MasaPenceresi(QWidget):
         self._panel(p)
         p.end()
 
-    def _olcek(self, masa: QRect) -> tuple[float, QPointF]:
-        """Masaüstünü pencereye sığdıran ölçek ve ortalama kayması."""
+    def _kapsam(self) -> tuple[int, int, int, int]:
+        """Çizilecek masaüstü bölgesi: ya tamamı ya pencerelerin kutusu.
+
+        1920x1080'i 1100 piksellik bir sayfaya sığdırmak 0.57 ölçek demek
+        ve 980 piksellik bir tarayıcı 560 piksele iniyor — içindeki yazı
+        okunmuyor. "Yakınlaş" kipinde pencerelerin ortak kutusuna
+        sığdırılıyor ve aynı tarayıcı neredeyse gerçek boyunda çıkıyor.
+        İkisi de doğru; hangisine baktığın panelde yazıyor.
+        """
         en, boy = self._kare.alan
+        if not self._yakin or self._kare.bos:
+            return 0, 0, en, boy
+        sol = min(p.x for p in self._kare.pencereler)
+        ust = min(p.y for p in self._kare.pencereler)
+        sag = max(p.x + p.en for p in self._kare.pencereler)
+        alt = max(p.y + p.boy for p in self._kare.pencereler)
+        pay = 28
+        # Başlık çubuğu pencerenin üstünde çiziliyor; kapsam onu da almalı.
+        return (sol - pay, ust - BASLIK_H - pay,
+                (sag - sol) + pay * 2, (alt - ust) + BASLIK_H + pay * 2)
+
+    def _olcek(self, masa: QRect) -> tuple[float, QPointF]:
+        """Kapsamı sayfaya sığdıran ölçek ve ortalama kayması."""
+        kx, ky, en, boy = self._kapsam()
         if en <= 0 or boy <= 0:
             return 1.0, QPointF(0, 0)
         olcek = min(masa.width() / en, masa.height() / boy)
         return olcek, QPointF(
-            (masa.width() - en * olcek) / 2,
-            (masa.height() - boy * olcek) / 2,
+            masa.left() + (masa.width() - en * olcek) / 2 - kx * olcek,
+            masa.top() + (masa.height() - boy * olcek) / 2 - ky * olcek,
         )
 
     def _duvar(self, p: QPainter, masa: QRect) -> None:
@@ -433,10 +468,10 @@ class MasaPenceresi(QWidget):
     # --- panel ------------------------------------------------------------
 
     def _panel(self, p: QPainter) -> None:
-        kutu = QRect(0, self.height() - PANEL_H, self.width(), PANEL_H)
+        kutu = QRect(0, 0, self.width(), PANEL_H)
         p.fillRect(kutu, QColor(PANEL))
         p.setPen(QPen(QColor(PANEL_UST), 1))
-        p.drawLine(kutu.topLeft(), kutu.topRight())
+        p.drawLine(kutu.bottomLeft(), kutu.bottomRight())
 
         x = self._panel_mark(p, kutu)
         sag = self._panel_sag(p, kutu)
@@ -513,7 +548,22 @@ class MasaPenceresi(QWidget):
             for dx in (-3.5, 1.5):
                 p.drawRect(QRectF(dugme.center().x() + dx,
                                   dugme.center().y() - 5, 2.6, 10))
-        return int(dugme.left() - 12)
+        x = dugme.left() - 8
+
+        # Yakınlaşma anahtarı. İki kip de doğru: biri masaüstünün gerçek
+        # geometrisini, öbürü pencerelerin okunur hâlini gösteriyor.
+        # Hangisine baktığın yazıyor, çünkü ölçek değişince pencerelerin
+        # birbirine göre yeri aynı kalıyor ve fark ancak yazıyla anlaşılıyor.
+        etiket = "zoom" if self._yakin else "desk"
+        w3 = olcum.horizontalAdvance(etiket) + 18
+        kip = QRectF(x - w3, kutu.center().y() - 11, w3, 22)
+        self._yakin_kutusu = kip.toRect()
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#383838"))
+        p.drawRoundedRect(kip, 5, 5)
+        p.setPen(QColor(YESIL if self._yakin else YAZI_SOLUK))
+        p.drawText(kip, Qt.AlignmentFlag.AlignCenter, etiket)
+        return int(kip.left() - 12)
 
     def _panel_pencereler(self, p: QPainter, kutu: QRect, sol: int,
                           sag: int) -> None:
@@ -556,13 +606,18 @@ class MasaPenceresi(QWidget):
             x += genislik
 
 
-def masa_kaynagi(dispatcher):
+def masa_kaynagi(dispatcher_ver):
     """Arayüzün her karede çağıracağı okuyucu.
 
-    Dispatcher'a doğrudan bağlanmak yerine bir kapanış veriliyor: ajan
-    kurulamamışsa da pencere açılabiliyor ve boş masayı gösteriyor.
+    Aldığı şey dispatcher'ın kendisi **değil**, onu veren bir çağrı. Fark
+    şurada: masa sayfası uygulama açılırken kuruluyor, ajan ise saniyeler
+    sonra. Dispatcher'ı o an alıp saklasaydım masa ömrü boyunca `None`
+    tutar ve ajan çalışsa bile hep boş masa gösterirdi — yazarken tam
+    olarak bunu yaptım, sonra sıralamaya bakınca çıktı.
     """
     def oku() -> MasaKaresi:
+        dispatcher = (dispatcher_ver() if callable(dispatcher_ver)
+                      else dispatcher_ver)
         alan = (1920, 1080)
         try:
             ekran = dispatcher.active

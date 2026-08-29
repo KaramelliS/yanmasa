@@ -224,7 +224,8 @@ def main() -> int:
 
         view = RemoteView(tokens, session)
         view.show_path(session.cwd)
-        window.open_panel("__uzak__", f"{session.host.label} · server", view)
+        window.open_panel("__uzak__", f"{session.host.label} · server", view,
+                          glyph="sunucu", label=session.host.label)
 
     def connect_remote() -> None:
         """Berkay 'Sunucu' düğmesine bastı."""
@@ -251,35 +252,27 @@ def main() -> int:
 
     window.status.connect_remote.clicked.connect(connect_remote)
 
-    masa: dict = {"pencere": None}
+    # Masa sabit bir sayfa: ajan yan alanı hiç kullanmasa da rayda duruyor
+    # ve boş masayı gösteriyor. Yakalama yalnızca sayfa görünürken dönüyor,
+    # yani bakılmayan bir masa hiç işlemci yemiyor.
+    from app.masa import MasaPenceresi, masa_kaynagi
+
+    masa_gorunumu = MasaPenceresi(masa_kaynagi(bridge.dispatcher))
+    # Masa başlıksız: kendi paneli zaten bir başlık şeridi ve ikisini üst
+    # üste koymak aynı işi yapan iki çubuk demekti.
+    window.add_fixed_page("masa", "Desk", "pencere", masa_gorunumu,
+                          basliksiz=True)
 
     def show_desk() -> None:
-        """Ajanın masasını açar ya da öne getirir.
-
-        Pencere gecikmeli kuruluyor: yakalama thread'i ancak gösterildiğinde
-        başlıyor ve yan alanı hiç kullanmayan bir oturumda hiç başlamıyor.
-        """
-        from app.masa import MasaPenceresi, masa_kaynagi
-
-        w = masa["pencere"]
-        if w is None:
-            w = MasaPenceresi(masa_kaynagi(bridge.dispatcher()))
-            # Ana pencere kapanınca uygulama kapansın: açık kalan bir
-            # masa penceresi uygulamayı görünmez şekilde ayakta tutardı.
-            w.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
-            masa["pencere"] = w
-        w.show()
-        w.raise_()
-        w.activateWindow()
-
-    window.status.open_desk.clicked.connect(show_desk)
+        window.show_page("masa")
 
     def on_panel(skill: str, panel: dict) -> None:
         """Bir yetenek panel üretti — arayüzde yeni bir özellik."""
         from app.panel_view import SkillPanel
 
         window.open_panel(f"__yetenek__{skill}", panel["baslik"],
-                          SkillPanel(tokens, panel))
+                          SkillPanel(tokens, panel),
+                          glyph="yetenek", label=skill)
 
     def on_wrote(paths: list) -> None:
         """Ajan dosya yazdı — kodu göster.
@@ -302,7 +295,8 @@ def main() -> int:
         else:
             ide["view"].set_root(kok)
             ide["view"].reload()
-        window.open_panel("__kod__", f"Kod · {Path(kok).name}", ide["view"])
+        window.open_panel("__kod__", f"Code · {Path(kok).name}", ide["view"],
+                          glyph="sayfa", label="Code")
         for path in gecerli[-3:]:
             ide["view"].open_file(path)
 
@@ -312,7 +306,9 @@ def main() -> int:
         title = f"{shot.name} · {shot.kind}"
         if shot.unsaved:
             title += f"  ({shot.unsaved} unsaved)"
-        window.open_panel(shot.name, title, _panel_for(shot, tokens))
+        window.open_panel(shot.name, title, _panel_for(shot, tokens),
+                          glyph="tablo" if shot.kind == "sheet" else "yazi",
+                          label=shot.name)
         window.set_counters(steps["n"], sum(unsaved.values()), 0)
 
     def _bakis(payload: dict) -> None:
@@ -350,7 +346,7 @@ def main() -> int:
         if tool.startswith("side_"):
             show_desk()
             if tool == "side_launch":
-                masa["pencere"].masa_acildi()
+                masa_gorunumu.masa_acildi()
         op = _describe(tool, payload)
         bar.ring.step(tool)
         bar.set_tool(op.tool, op.target or op.detail)
@@ -367,8 +363,8 @@ def main() -> int:
         bar.settle_step(is_error)
         # Ajan bir düğme kurduysa çubuk hemen göstersin; yeniden başlatmak
         # gerekmesin.
-        if tool == "side_close" and not is_error and masa["pencere"]:
-            masa["pencere"].masa_kapandi()
+        if tool == "side_close" and not is_error:
+            masa_gorunumu.masa_kapandi()
         if tool.startswith("button_") and not is_error:
             bar.buttons.reload()
             bar._grow()

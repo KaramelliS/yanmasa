@@ -9,9 +9,11 @@ Mikrofon burada değil. O her şeyden bağımsız, kendi penceresinde, ekranın
 köşesinde duruyor (`mic.py`) — Berkay ajan penceresine bakmadan da basıp
 konuşabilsin diye.
 
-Paneller `QDockWidget`. Başlığına çift tıklayınca panel gerçek, ayrı bir
-Windows penceresine çıkıyor ve ikinci ekrana atılabiliyor — Qt'nin kendi
-davranışı, taklit edilmiş bir sürükleme değil.
+Pencere solda bir ray, sağda sayfalardan ibaret. Önce her şey
+`QDockWidget`'tı ve ajan üç belge açtığında ekranda ne olduğunu kimse
+söyleyemiyordu: dock'lar birbiriyle sekmeleniyor, yüzüyor, pencere kendi
+kendine yeniden düzenleniyordu. Gerekçe `ray.py` içinde, kaybedilenle
+birlikte.
 """
 
 from __future__ import annotations
@@ -22,11 +24,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QDockWidget,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -34,6 +36,7 @@ from PySide6.QtWidgets import (
 from . import panels
 from .fluent import GAP, RADIUS_CARD, RADIUS_CONTROL, Tokens
 from .activity import ActivityView
+from .ray import Oge, Ray, Sayfa
 
 PHASE_LABEL = {
     "bos": "Ready",
@@ -132,14 +135,6 @@ class StatusBar(QWidget):
         for counter in (self.steps, self.unsaved, self.terminals):
             layout.addWidget(counter)
 
-        self.open_desk = QPushButton("Desk")
-        self.open_desk.setToolTip(
-            "Watch the agent's own desktop — live, read-only"
-        )
-        self.open_desk.setFixedHeight(32)
-        self.open_desk.setCursor(Qt.CursorShape.PointingHandCursor)
-        layout.addWidget(self.open_desk)
-
         self.connect_remote = QPushButton("Server")
         self.connect_remote.setToolTip("Connect to a server over SSH")
         self.connect_remote.setFixedHeight(32)
@@ -167,6 +162,37 @@ class StatusBar(QWidget):
         self._line.setText(text)
 
 
+def _kisa_etiket(baslik: str) -> str:
+    """Ray etiketi başlığın ilk parçası.
+
+    Başlıklar `butce.xlsx · sheet  (1 unsaved)` gibi geliyor ve 76
+    piksellik bir raya sığmıyor. İlk parça neredeyse her zaman doğru adı
+    taşıyor; tamamı sayfanın kendi başlığında duruyor.
+    """
+    return baslik.split("·")[0].strip() or baslik
+
+
+#: Sayfa anahtarından çizim. Ajanın açtığı her sayfa türü kendi işaretini
+#: alıyor; hepsi aynı simgeyle gelseydi ray okunmaz bir liste olurdu.
+CIZIMLER = {
+    "__uzak__": "sunucu",
+    "__kod__": "sayfa",
+    "__terminal__": "kabuk",
+}
+
+
+def _cizim(key: str) -> str:
+    if key in CIZIMLER:
+        return CIZIMLER[key]
+    if key.startswith("__yetenek__"):
+        return "yetenek"
+    if key.endswith(".xlsx") or key.endswith(".csv"):
+        return "tablo"
+    if key.endswith(".docx") or key.endswith(".md"):
+        return "yazi"
+    return "sayfa"
+
+
 class MainWindow(QMainWindow):
     stop_requested = Signal()
 
@@ -177,22 +203,33 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Yan Masa")
         self.resize(1500, 940)
-        self.setDockNestingEnabled(True)
-        self.setDockOptions(
-            QMainWindow.DockOption.AnimatedDocks
-            | QMainWindow.DockOption.AllowNestedDocks
-        )
 
         self._phase = "bos"
         self._bar = None
         self._esc_hits: list[float] = []
 
-        # Merkezde etkinlik görünümü: ajanın bilgisayarda ne yaptığı.
-        # Qt artan alanı merkeze verdiği için asıl içerik burada olmalı;
-        # belgeler ve terminaller ancak açıldıklarında dock olarak gelir.
+        # Solda ray, sağda sayfalar. Önce her şey `QDockWidget`'tı ve ajan
+        # üç belge açtığında ekranda ne olduğunu kimse söyleyemiyordu:
+        # dock'lar birbiriyle sekmeleniyor, yüzüyor, kendi kendine yeniden
+        # düzenleniyordu. Sayfa hep aynı yerde ve hep tam genişlikte.
+        self.ray = Ray(t)
+        self.ray.secildi.connect(self.show_page)
+        self.stack = QStackedWidget()
+        self._pages: dict[str, Sayfa] = {}
+
+        merkez = QWidget()
+        yatay = QHBoxLayout(merkez)
+        yatay.setContentsMargins(0, 0, 0, 0)
+        yatay.setSpacing(0)
+        yatay.addWidget(self.ray)
+        yatay.addWidget(self.stack, 1)
+        self.setCentralWidget(merkez)
+
+        # Akış her zaman ilk sayfa: ajanın ne yaptığı asıl içerik, belgeler
+        # onun sonucu.
         self.activity = ActivityView(t)
-        self.setCentralWidget(self.activity)
-        self._panels: dict[str, QDockWidget] = {}
+        self.add_fixed_page("akis", "Activity", "defter", self.activity,
+                            "Every step the agent takes")
 
         self.status = StatusBar(t)
         self.status.stop_requested.connect(self.stop)
@@ -236,69 +273,75 @@ class MainWindow(QMainWindow):
 
     # --- paneller ---------------------------------------------------------
 
-    def open_panel(self, key: str, title: str, body: QWidget) -> None:
-        """Ajan bir belge ya da terminal açtığında panel belirir.
+    def add_fixed_page(self, key: str, label: str, glyph: str,
+                       body: QWidget, title: str = "",
+                       basliksiz: bool = False) -> None:
+        """Kapatılamayan sayfa — akış ve masa.
 
-        Uygulama açılışta boş: ortada hiç dosya yokken bir tablo paneli
-        göstermek, ajanın tablo üstünde çalıştığını sanmana yol açardı.
+        Ajanın açtıklarından ayrı tutuluyorlar: onlar gelip gidiyor,
+        bunlar hep orada. Ray ikisinin arasına bir ayraç çiziyor.
         """
-        existing = self._panels.get(key)
-        if existing is not None:
-            # Aynı gövde tekrar geliyorsa dokunma: `setWidget` onu bir an
-            # için düzenden çıkarıyor ve kod panelinde kaydırma konumu
-            # başa dönüyordu.
-            if existing.widget() is not body:
-                existing.setWidget(body)
-            existing.setWindowTitle(title)
-            existing.show()
-            existing.raise_()
-            return
+        self._sayfa_kur(key, label, glyph, title or label, body,
+                        kapatilabilir=False, basliksiz=basliksiz)
 
-        dock = QDockWidget(title, self)
-        dock.setWidget(body)
-        dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-            | QDockWidget.DockWidgetFeature.DockWidgetClosable
-        )
-        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+    def open_panel(self, key: str, title: str, body: QWidget,
+                   glyph: str = "", label: str = "") -> None:
+        """Ajan bir belge, terminal ya da panel açtığında sayfa belirir.
 
-        # İlk panel sağa, sonrakiler onunla sekmeleniyor: her yeni panel
-        # ekranı bölmesin.
-        if self._panels:
-            self.tabifyDockWidget(next(iter(self._panels.values())), dock)
-        else:
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-            self.resizeDocks([dock], [720], Qt.Orientation.Horizontal)
-        self._panels[key] = dock
-        dock.raise_()
-        self._fit_to_screen()
-
-    def _fit_to_screen(self) -> None:
-        """Pencereyi ekranın içinde tutar.
-
-        720 piksellik bir panel eklendiğinde Qt pencereyi büyütüyor ve
-        pencere ekranın soluna taşıp içeriğini kırpıyordu: etkinlik
-        listesinin sol kenarı ekranın dışında kalıyor, adımlar yarım
-        okunuyordu.
+        Uygulama açılışta yalnızca akış ve masa ile geliyor: ortada hiç
+        dosya yokken bir tablo sayfası göstermek, ajanın tablo üstünde
+        çalıştığını sanmana yol açardı.
         """
-        screen = self.screen() or QApplication.primaryScreen()
-        if screen is None:
+        self._sayfa_kur(key, label or _kisa_etiket(title), glyph or _cizim(key),
+                        title, body, kapatilabilir=True)
+        self.show_page(key)
+
+    def _sayfa_kur(self, key: str, label: str, glyph: str, title: str,
+                   body: QWidget, kapatilabilir: bool,
+                   basliksiz: bool = False) -> None:
+        var = self._pages.get(key)
+        if var is not None:
+            # Aynı gövde tekrar geliyorsa dokunma: yerinden alıp geri
+            # koymak kod sayfasında kaydırma konumunu başa döndürüyordu.
+            var.set_govde(body)
+            if var.baslik is not None:
+                var.baslik.set_baslik(title)
+            self.ray.etiketle(key, label)
             return
-        area = screen.availableGeometry()
-        size = self.size().boundedTo(area.size())
-        if size != self.size():
-            self.resize(size)
-        x = max(area.left(), min(self.x(), area.right() - self.width() + 1))
-        y = max(area.top(), min(self.y(), area.bottom() - self.height() + 1))
-        if (x, y) != (self.x(), self.y()):
-            self.move(x, y)
+        sayfa = Sayfa(self.t, title, body, kapatilabilir, basliksiz)
+        if kapatilabilir and sayfa.baslik is not None:
+            sayfa.baslik.kapatildi.connect(
+                lambda k=key: self.close_panel(k)
+            )
+        self.stack.addWidget(sayfa)
+        self._pages[key] = sayfa
+        self.ray.ekle(Oge(key, label, glyph, kapatilabilir))
+        if len(self._pages) == 1:
+            self.show_page(key)
+
+    def show_page(self, key: str) -> None:
+        sayfa = self._pages.get(key)
+        if sayfa is None:
+            return
+        self.stack.setCurrentWidget(sayfa)
+        self.ray.sec(key)
 
     def close_panel(self, key: str) -> None:
-        dock = self._panels.pop(key, None)
-        if dock is not None:
-            dock.close()
-            dock.deleteLater()
+        sayfa = self._pages.pop(key, None)
+        if sayfa is None:
+            return
+        komsu = self.ray.anahtarlar()
+        self.stack.removeWidget(sayfa)
+        sayfa.deleteLater()
+        self.ray.cikar(key)
+        if self.ray.etkin == key:
+            # Kapanan sayfadan sonra boş bir yığın kalmamalı: bir önceki
+            # sayfaya düşülüyor, o da yoksa akışa.
+            i = komsu.index(key) if key in komsu else 0
+            kalan = self.ray.anahtarlar()
+            hedef = kalan[min(max(0, i - 1), len(kalan) - 1)] if kalan else ""
+            if hedef:
+                self.show_page(hedef)
 
     # --- kısayollar -------------------------------------------------------
 

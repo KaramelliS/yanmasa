@@ -152,12 +152,66 @@ class TestPencere:
         assert ofset.x() == pytest.approx(100.0)
         assert ofset.y() == pytest.approx(0.0)
 
+    def test_yakinlasma_olcegi_buyutuyor(self, qt_app):
+        # 1920x1080'i 1100 piksele sığdırmak 0.57 ölçek demek ve 980
+        # piksellik bir tarayıcı 560'a inince içindeki yazı okunmuyor.
+        from PySide6.QtCore import QRect
+
+        from backend.computer.canli import PencereKaresi
+
+        pencere = PencereKaresi(hwnd=1, baslik="p", sinif="S",
+                                x=600, y=400, en=400, boy=300, ham=b"")
+        kare = MasaKaresi(pencereler=[pencere], alan=(1920, 1080))
+        w = self._p(qt_app, kare)
+        alan = QRect(0, 0, 1000, 700)
+
+        w._yakin = False
+        genis, _ = w._olcek(alan)
+        w._yakin = True
+        yakin, _ = w._olcek(alan)
+        assert yakin > genis
+
+    def test_yakinlasma_bos_masada_tamami_gosteriyor(self, qt_app):
+        # Pencere yokken yakınlaşacak bir şey yok; kapsam masaüstünün
+        # tamamı kalıyor, yoksa ölçek sıfıra bölünürdü.
+        w = self._p(qt_app, MasaKaresi(alan=(1920, 1080)))
+        w._yakin = True
+        assert w._kapsam() == (0, 0, 1920, 1080)
+
     def test_duraklatma_akisi_durduruyor(self, qt_app):
         w = self._p(qt_app)
         assert not w._akis._duraklat
         w._duraklat = True
         w._akis.duraklat(True)
         assert w._akis._duraklat
+
+
+class TestKaynak:
+    """Masa, ajanı sonradan bulmak zorunda.
+
+    Masa sayfası uygulama açılırken kuruluyor, ajan saniyeler sonra.
+    Dispatcher o an alınıp saklansaydı masa ömrü boyunca boş kalırdı.
+    """
+
+    def test_dispatcher_her_karede_yeniden_soruluyor(self, kutu):
+        from app.masa import masa_kaynagi
+
+        kutu_icinde = {"d": None}
+        oku = masa_kaynagi(lambda: kutu_icinde["d"])
+        assert oku().bos, "ajan yokken boş masa"
+
+        class Sahte:
+            side = _SahteCalisma([_SahtePencere(1)])
+            side_input = None
+            last_side_hwnd = 0
+
+            class active:
+                width, height = 1280, 720
+
+        kutu_icinde["d"] = Sahte()
+        kare = oku()
+        assert not kare.bos, "ajan gelince masa dolmalı"
+        assert kare.alan == (1280, 720)
 
 
 class TestSaltOkunur:
