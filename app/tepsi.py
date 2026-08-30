@@ -9,8 +9,9 @@ Tepsideki simge bunu üç yerden çözüyor:
 - **Renk durumu söylüyor.** Çalışırken vurgu rengi, onay beklerken uyarı
   rengi, durdurulduğunda kırmızı, boştayken sönük. Simgeye bakmak
   pencereye bakmakla aynı bilgiyi veriyor.
-- **Menü kısa.** Pencere, komut çubuğu, durdur, çık. Bir tepsi menüsü
-  ayarlar paneli değil.
+- **Menü kısa.** Pencere, komut çubuğu, açılışta başlat, durdur, çık.
+  Bir tepsi menüsü ayarlar paneli değil; "Start with Windows" buraya
+  girdi çünkü tek bir kutucuk ve kendi ayar paneline değmiyor.
 - **Bildirim yalnızca bakmıyorken.** Ajan penceresi öndeyken balon
   göstermek, bakılan şeyi ikinci kez söylemek olurdu.
 
@@ -28,6 +29,7 @@ from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from . import baslangic
 from .fluent import Tokens
 
 #: Simgenin üretildiği boyutlar. Windows tepsiyi ölçek ayarına göre
@@ -195,6 +197,15 @@ class Tepsi(QObject):
         cubuk = menu.addAction("Show the command bar")
         cubuk.triggered.connect(self.cubuk_istendi.emit)
         menu.addSeparator()
+        self._baslangic = menu.addAction("Start with Windows")
+        self._baslangic.setCheckable(True)
+        self._baslangic.setToolTip("Runs Yan Masa when you sign in")
+        self._baslangic.toggled.connect(self._baslangic_degisti)
+        # Kutu menü her açıldığında gerçeğe göre tazeleniyor: kayıt
+        # defterini başka bir şey değiştirmiş olabilir ve bayat bir
+        # işaret, ayarın kendisinden daha kötü.
+        menu.aboutToShow.connect(self._baslangic_tazele)
+        menu.addSeparator()
         self._durdur = menu.addAction("Stop the agent")
         self._durdur.setToolTip("Esc ×3 does the same from anywhere")
         self._durdur.triggered.connect(self.durdur_istendi.emit)
@@ -207,6 +218,7 @@ class Tepsi(QObject):
         self._menu = menu
         self.icon.setContextMenu(menu)
         self.icon.activated.connect(self._tiklandi)
+        self._baslangic_tazele()
 
     @staticmethod
     def kullanilabilir() -> bool:
@@ -236,6 +248,29 @@ class Tepsi(QObject):
         if len(kisa) > 180:
             kisa = kisa[:177].rstrip() + "…"
         self.icon.showMessage(baslik, kisa, tur, 6000)
+
+    def _baslangic_degisti(self, isaretli: bool) -> None:
+        """Kutu değişti — kaydı yaz ya da sil, sonra gerçeğe geri dön.
+
+        Yazma düşerse (ilkeler kayıt defterini kilitlemiş olabiliyor)
+        kutu işaretli kalmıyor: yapılmamış bir şeyi yapılmış göstermek,
+        açılışta hiçbir şeyin başlamadığını haftalarca gizler.
+        """
+        try:
+            baslangic.ac() if isaretli else baslangic.kapat()
+        except OSError:
+            pass
+        self._baslangic_tazele()
+
+    def _baslangic_tazele(self) -> None:
+        """Kutuyu kaydın gerçek hâline getirir; `toggled` tetiklenmiyor."""
+        try:
+            durum = baslangic.acik()
+        except OSError:
+            durum = False
+        self._baslangic.blockSignals(True)
+        self._baslangic.setChecked(durum)
+        self._baslangic.blockSignals(False)
 
     def _tiklandi(self, sebep) -> None:
         # Tek tık çubuğu getiriyor, çift tık pencereyi. Tepsi simgesinin

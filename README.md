@@ -278,7 +278,10 @@ stopped — the system accent colour is user-chosen and can land close to
 the warning red, so state cannot rest on hue alone. `Ctrl+Alt+Space`
 brings the command bar to the front from anywhere; if another app already
 owns it the next candidate is taken, and if none is free the status line
-says so rather than leaving a shortcut that silently does nothing.
+says so rather than leaving a shortcut that silently does nothing. The
+menu also carries **Start with Windows**: one value under the per-user
+`Run` key, so ticking it never asks for elevation the way a machine-wide
+entry or a scheduled task would.
 
 ## Requirements
 
@@ -359,7 +362,7 @@ The most useful section in any README.
   remembering approvals per tool, and the failure mode there is a
   definition that changes after you approved it. If it wears you down,
   that is the trade being paid — say so and it can be revisited.
-- **The app does not start with Windows.** There is no installer either.
+- **There is no installer.** The directory runs from wherever it is copied.
 - **Workflow replay has no model fallback.** When a recorded control
   cannot be found, the workflow stops and tells you which step. The
   original plan was to hand that step to the model and write the
@@ -442,6 +445,7 @@ app/kod_penceresi.py  the Code window inside the desk
 app/mcp_view.py the MCP page: servers, their tools, their warnings
 app/gecmis.py   the history page; app/akislar.py the workflows page
 app/tepsi.py    tray icon; app/kisayol.py the global shortcut
+app/baslangic.py  the Start with Windows registry value
 scripts/        manual verification, asset and hero generation
 tests/          654 tests of the pure logic
 ```

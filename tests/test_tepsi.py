@@ -72,19 +72,50 @@ class TestSimge:
         )
 
 
+class SahteBaslangic:
+    """Kayıt defteri yerine tek bir bayrak. Gerçeğine dokunulmuyor —
+    bir test makinenin açılış ayarını değiştiremez."""
+
+    def __init__(self, acik_mi: bool = False) -> None:
+        self.durum = acik_mi
+        self.hata: type[Exception] | None = None
+
+    def acik(self) -> bool:
+        return self.durum
+
+    def ac(self) -> None:
+        if self.hata:
+            raise self.hata(5, "erişim reddedildi")
+        self.durum = True
+
+    def kapat(self) -> None:
+        if self.hata:
+            raise self.hata(5, "erişim reddedildi")
+        self.durum = False
+
+
+@pytest.fixture()
+def sahte_baslangic(monkeypatch):
+    from app import tepsi as tepsi_mod
+
+    sahte = SahteBaslangic()
+    monkeypatch.setattr(tepsi_mod, "baslangic", sahte)
+    return sahte
+
+
 class TestTepsi:
     def _tepsi(self, t):
         from app.tepsi import Tepsi
 
         return Tepsi(t)
 
-    def test_menu_dort_eylem(self, qt_app, t):
+    def test_menu_bes_eylem(self, qt_app, t, sahte_baslangic):
         tepsi = self._tepsi(t)
         eylemler = [a for a in tepsi._menu.actions() if not a.isSeparator()]
-        assert len(eylemler) == 4
+        assert len(eylemler) == 5
         assert all(a.text() for a in eylemler), "adsız menü girdisi"
 
-    def test_menu_sinyalleri(self, qt_app, t):
+    def test_menu_sinyalleri(self, qt_app, t, sahte_baslangic):
         tepsi = self._tepsi(t)
         gelen = []
         tepsi.pencere_istendi.connect(lambda: gelen.append("pencere"))
@@ -95,7 +126,7 @@ class TestTepsi:
                 eylem.trigger()
         assert gelen == ["pencere", "durdur", "cikis"]
 
-    def test_tek_tik_cubuk_cift_tik_pencere(self, qt_app, t):
+    def test_tek_tik_cubuk_cift_tik_pencere(self, qt_app, t, sahte_baslangic):
         from PySide6.QtWidgets import QSystemTrayIcon
 
         tepsi = self._tepsi(t)
@@ -106,19 +137,55 @@ class TestTepsi:
         tepsi._tiklandi(QSystemTrayIcon.ActivationReason.DoubleClick)
         assert gelen == ["cubuk", "pencere"]
 
-    def test_durum_simgeyi_degistiriyor(self, qt_app, t):
+    def test_durum_simgeyi_degistiriyor(self, qt_app, t, sahte_baslangic):
         tepsi = self._tepsi(t)
         assert tepsi._faz == "bos"
         tepsi.set_phase("kosuyor")
         assert tepsi._faz == "kosuyor"
         assert "working" in tepsi.icon.toolTip()
 
-    def test_bildirim_gizliyken_gonderilmiyor(self, qt_app, t):
+    def test_bildirim_gizliyken_gonderilmiyor(self, qt_app, t, sahte_baslangic):
         # Görünmeyen bir tepsi simgesinden balon çıkmıyor; çağrının
         # sessizce patlaması yerine hiç yapılmaması doğru.
         tepsi = self._tepsi(t)
         assert not tepsi.icon.isVisible()
         tepsi.bildir("x", "y")  # patlamamalı
+
+    def test_kutu_kaydin_halini_gosteriyor(self, qt_app, t, sahte_baslangic):
+        sahte_baslangic.durum = True
+        tepsi = self._tepsi(t)
+        assert tepsi._baslangic.isCheckable()
+        assert tepsi._baslangic.isChecked()
+
+    def test_isaretlemek_aciyor_kaldirmak_kapatiyor(self, qt_app, t,
+                                                   sahte_baslangic):
+        tepsi = self._tepsi(t)
+        assert not tepsi._baslangic.isChecked()
+        tepsi._baslangic.trigger()
+        assert sahte_baslangic.durum
+        assert tepsi._baslangic.isChecked()
+        tepsi._baslangic.trigger()
+        assert not sahte_baslangic.durum
+        assert not tepsi._baslangic.isChecked()
+
+    def test_yazma_dusunce_kutu_isaretli_kalmiyor(self, qt_app, t,
+                                                  sahte_baslangic):
+        # Yapılmamış bir şeyi yapılmış göstermek, açılışta hiçbir şeyin
+        # başlamadığını haftalarca gizler.
+        sahte_baslangic.hata = OSError
+        tepsi = self._tepsi(t)
+        tepsi._baslangic.trigger()
+        assert not sahte_baslangic.durum
+        assert not tepsi._baslangic.isChecked()
+
+    def test_menu_acilinca_kutu_tazeleniyor(self, qt_app, t, sahte_baslangic):
+        # Kaydı başka bir şey değiştirmiş olabilir; bayat bir işaret
+        # ayarın kendisinden daha kötü.
+        tepsi = self._tepsi(t)
+        assert not tepsi._baslangic.isChecked()
+        sahte_baslangic.durum = True
+        tepsi._menu.aboutToShow.emit()
+        assert tepsi._baslangic.isChecked()
 
 
 class TestKisayol:
