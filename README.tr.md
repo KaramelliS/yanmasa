@@ -247,6 +247,14 @@ Kısayol `Ctrl+Alt+Space`; doluysa sıradaki aday alınıyor (bu makinede
 Ctrl+Alt+Y'ye düştü) ve hiçbiri boş değilse sebep durum satırında
 yazıyor.
 
+Menüde bir de **Start with Windows** kutusu var: kullanıcıya özel `Run`
+anahtarı altında tek bir değer. `HKLM` de Zamanlanmış Görev de UAC
+penceresi açtırıyor ve bir kutucuğu işaretlemenin bedeli yükseltme istemi
+olamaz. Yazılan komut iki parçası da tırnaklı — kullanıcı adında boşluk
+varsa tırnaksız komut sessizce hiçbir şey başlatmıyor. Kutu kaydın gerçek
+hâlini gösteriyor: depo taşındıysa kayıt duruyor ama hiçbir şey
+başlatmıyor, orada işaretli görünmek yalan olurdu.
+
 ## Kurulum
 
 Proje kendi başına duruyor: dizini nereye kopyalarsan orada çalışıyor,
@@ -782,7 +790,7 @@ Bir README'de en işe yarayan bölüm bu.
 - **Her MCP çağrısında onay yorucu, bilerek.** Alternatifi araç başına
   onayı hatırlamaktı ve oradaki kusur, onayladıktan sonra değişen bir
   tanım. Yorarsa ödenen bedel bu — söyle, yeniden konuşulur.
-- **Uygulama açılışta başlamıyor.** Kurulum paketi de yok.
+- **Kurulum paketi yok.** Dizin nereye kopyalanırsa orada çalışıyor.
 - **Akış oynatmada model yedeği yok.** Kaydedilmiş bir denetim
   bulunamayınca akış duruyor ve hangi adımda durduğunu söylüyor. Plandaki
   hâli o adımı modele devredip düzeltilmiş koordinatı kayda geri
@@ -918,6 +926,7 @@ app/
   gecmis.py             koşu geçmişi sayfası
   akislar.py            kaydedilmiş akışlar sayfası
   tepsi.py              tepsi simgesi ve menüsü
+  baslangic.py          Windows açılışında başlama (HKCU\...\Run)
   kisayol.py            global kısayol (RegisterHotKey, kendi thread'inde)
   etiketler.py          araç adlarının insan diline karşılığı
   sheet_view.py         Excel benzeri tablo: formül çubuğu, sayfa sekmeleri
